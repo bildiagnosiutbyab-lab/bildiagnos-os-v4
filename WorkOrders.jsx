@@ -40,6 +40,7 @@ export default function WorkOrders() {
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [, setClockTick] = useState(0);
+  const [showPartForm, setShowPartForm] = useState(false);
 
   const [orders, setOrders] = useState(() => {
     const savedOrders = localStorage.getItem('bildiagnos-orders');
@@ -302,6 +303,51 @@ export default function WorkOrders() {
               <small className="timer-running">Cronómetro activo</small>
             )}
           </section>
+          <button
+            className="primary-button"
+            onClick={() => setShowPartForm(true)}
+          >
+           Agregar pieza a esta orden
+          </button>
+          {showPartForm && (
+            <section className="card order-form">
+              <label>
+                Pieza
+                <input
+                  type="text"
+                  placeholder="Nombre o número de artículo"
+                />
+              </label>
+
+              <label>
+                 Cantidad
+                 <input 
+                   type="number"
+                   min="1"
+                   defaultvalue="1"
+                />
+              </label>
+
+              <label>
+                 Proveedor
+                 <input 
+                   type="text"
+                  placeholder="AD Bildelar, Bilxtra, Partslink24"
+                 />
+               </label>
+
+               <label>
+                 Coste
+                 <input
+                   type="number"
+                   min="0"
+                   step="0.01"
+                   placeholder="Coste real"
+                 />
+               </label>
+
+              </section>
+              )}
 
           <p>
             <strong>Vehículo:</strong>{' '}
