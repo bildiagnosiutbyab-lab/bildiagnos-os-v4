@@ -1,6 +1,88 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 
+const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
+const CENTRAL_STATE_KEY = 'central_state';
+
+function parseStoredValue(value) {
+  let parsed = value;
+
+  for (let attempt = 0; attempt < 3 && typeof parsed === 'string'; attempt += 1) {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  return parsed;
+}
+
+function extractOrders(value) {
+  const parsed = parseStoredValue(value);
+
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(parsed, ORDERS_STORAGE_KEY)) {
+    return extractOrders(parsed[ORDERS_STORAGE_KEY]);
+  }
+
+  for (const containerKey of ['state', 'data', 'storage', 'localStorage']) {
+    if (Object.prototype.hasOwnProperty.call(parsed, containerKey)) {
+      const orders = extractOrders(parsed[containerKey]);
+
+      if (orders) {
+        return orders;
+      }
+    }
+  }
+
+  return null;
+}
+
+function loadOrders() {
+  const directOrders = extractOrders(
+    window.localStorage.getItem(ORDERS_STORAGE_KEY)
+  );
+  const centralOrders = extractOrders(
+    window.localStorage.getItem(CENTRAL_STATE_KEY)
+  );
+
+  if (centralOrders?.length) {
+    return centralOrders;
+  }
+
+  return directOrders || centralOrders || [];
+}
+
+function saveOrders(orders) {
+  window.localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
+  const currentCentralState = parseStoredValue(
+    window.localStorage.getItem(CENTRAL_STATE_KEY)
+  );
+  const centralState =
+    currentCentralState &&
+    typeof currentCentralState === 'object' &&
+    !Array.isArray(currentCentralState)
+      ? currentCentralState
+      : {};
+
+  window.localStorage.setItem(
+    CENTRAL_STATE_KEY,
+    JSON.stringify({
+      ...centralState,
+      [ORDERS_STORAGE_KEY]: orders,
+    })
+  );
+}
+
 const STATUS_OPTIONS = [
   'Abierta',
   'En diagnóstico',
@@ -42,21 +124,35 @@ export default function WorkOrders() {
   const [, setClockTick] = useState(0);
   const [showPartForm, setShowPartForm] = useState(false);
 
-  const [orders, setOrders] = useState(() => {
-    const savedOrders = localStorage.getItem('bildiagnos-orders');
-
-    try {
-      return savedOrders ? JSON.parse(savedOrders) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [orders, setOrders] = useState(loadOrders);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
 
   useEffect(() => {
-    localStorage.setItem('bildiagnos-orders', JSON.stringify(orders));
+    saveOrders(orders);
   }, [orders]);
+
+  useEffect(() => {
+    function refreshOrders(event) {
+      if (
+        event &&
+        event.key !== ORDERS_STORAGE_KEY &&
+        event.key !== CENTRAL_STATE_KEY
+      ) {
+        return;
+      }
+
+      setOrders(loadOrders());
+    }
+
+    window.addEventListener('storage', refreshOrders);
+    window.addEventListener('focus', refreshOrders);
+
+    return () => {
+      window.removeEventListener('storage', refreshOrders);
+      window.removeEventListener('focus', refreshOrders);
+    };
+  }, []);
 
   useEffect(() => {
     const hasRunningTimer = orders.some((order) => order.timerStartedAt);
