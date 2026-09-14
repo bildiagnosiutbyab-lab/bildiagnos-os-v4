@@ -210,3 +210,63 @@ button { font: inherit; }
   color: #15803d;
   font-weight: 700;
 }
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #eef3f8;
+}
+
+.auth-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 16px;
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.auth-message {
+  color: #9a3412;
+  background: #ffedd5;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.cloud-session-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  color: #d1fae5;
+  background: #064e3b;
+  font-size: 13px;
+}
+
+.cloud-session-bar button {
+  padding: 5px 9px;
+  border: 1px solid #6ee7b7;
+  border-radius: 6px;
+  color: #ffffff;
+  background: transparent;
+  cursor: pointer;
+}
