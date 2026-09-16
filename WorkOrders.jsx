@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
-import { supabase } from './supabaseClient.js';
+import {
+  loadRelationalOrders,
+  saveRelationalOrder,
+  subscribeToRelationalOrders,
+} from './ordersRepository.js';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
 const CENTRAL_STATE_KEY = 'central_state';
@@ -126,7 +130,7 @@ export default function WorkOrders() {
   const [showPartForm, setShowPartForm] = useState(false);
 
   const [orders, setOrders] = useState(loadOrders);
-  const [cloudReady, setCloudReady] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
 
@@ -158,127 +162,19 @@ export default function WorkOrders() {
 
   useEffect(() => {
     let active = true;
-    let channel;
-
-    async function connectCloudOrders() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return;
+    async function refresh() {
+      try {
+        const cloudOrders = await loadRelationalOrders();
+        if (active) setOrders(cloudOrders);
+      } catch (error) {
+        console.error('No se pudieron cargar las órdenes relacionales:', error);
+        if (active) setSyncMessage('Sin conexión: usando copia local');
       }
-
-      const { data, error } = await supabase
-        .from('app_state')
-        .select('value')
-        .eq('key', ORDERS_STORAGE_KEY)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (!active) {
-        return;
-      }
-
-      const localOrders = loadOrders();
-      const cloudOrders = Array.isArray(data?.value) ? data.value : null;
-
-      if (cloudOrders) {
-        setOrders((currentOrders) =>
-          JSON.stringify(currentOrders) === JSON.stringify(cloudOrders)
-            ? currentOrders
-            : cloudOrders
-        );
-      } else if (localOrders.length > 0) {
-        const { error: uploadError } = await supabase.from('app_state').upsert({
-          key: ORDERS_STORAGE_KEY,
-          value: localOrders,
-          updated_by: user.id,
-          updated_at: new Date().toISOString(),
-        });
-
-        if (uploadError) {
-          throw uploadError;
-        }
-      }
-
-      if (!active) {
-        return;
-      }
-
-      setCloudReady(true);
-
-      channel = supabase
-        .channel('bildiagnos-work-orders')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'app_state',
-            filter: `key=eq.${ORDERS_STORAGE_KEY}`,
-          },
-          (payload) => {
-            const nextOrders = payload.new?.value;
-
-            if (!active || !Array.isArray(nextOrders)) {
-              return;
-            }
-
-            setOrders((currentOrders) =>
-              JSON.stringify(currentOrders) === JSON.stringify(nextOrders)
-                ? currentOrders
-                : nextOrders
-            );
-          }
-        )
-        .subscribe();
     }
-
-    connectCloudOrders().catch((error) => {
-      console.error('No se pudieron cargar las órdenes de Supabase:', error);
-    });
-
-    return () => {
-      active = false;
-
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
+    refresh();
+    const unsubscribe = subscribeToRelationalOrders(refresh);
+    return () => { active = false; unsubscribe(); };
   }, []);
-
-  useEffect(() => {
-    if (!cloudReady) {
-      return undefined;
-    }
-
-    const timeout = window.setTimeout(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return;
-      }
-
-      const { error } = await supabase.from('app_state').upsert({
-        key: ORDERS_STORAGE_KEY,
-        value: orders,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) {
-        console.error('No se pudieron guardar las órdenes en Supabase:', error);
-      }
-    }, 300);
-
-    return () => window.clearTimeout(timeout);
-  }, [orders, cloudReady]);
 
   useEffect(() => {
     const hasRunningTimer = orders.some((order) => order.timerStartedAt);
@@ -308,18 +204,24 @@ export default function WorkOrders() {
     return accumulated + Math.max(0, currentSession);
   }
 
-  function updateOrder(orderId, changes) {
-    setOrders((currentOrders) =>
-      currentOrders.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              ...changes,
-              updatedAt: new Date().toLocaleString('sv-SE'),
-            }
-          : order
-      )
-    );
+  async function updateOrder(orderId, changes) {
+    const current = orders.find((order) => order.id === orderId);
+    if (!current) return;
+    const next = { ...current, ...changes, updatedAt: new Date().toLocaleString('sv-SE') };
+    setOrders((items) => items.map((order) => order.id === orderId ? next : order));
+    setSyncMessage('Guardando…');
+    try {
+      const saved = await saveRelationalOrder(next, current.version ?? null);
+      setOrders((items) => items.map((order) => order.id === orderId ? saved : order));
+      setSyncMessage('Guardado en Supabase');
+    } catch (error) {
+      console.error('No se pudo guardar la orden:', error);
+      setSyncMessage(error.message?.includes('ORDER_VERSION_CONFLICT')
+        ? 'Conflicto detectado: recargando la versión más reciente'
+        : 'Error de sincronización');
+      const latest = await loadRelationalOrders().catch(() => null);
+      if (latest) setOrders(latest);
+    }
   }
 
   function handleChange(event) {
@@ -356,14 +258,14 @@ export default function WorkOrders() {
     setShowForm(true);
   }
 
-  function saveOrder() {
+  async function saveOrder() {
     if (!form.customer.trim() || !form.plate.trim()) {
       alert('Escribe como mínimo el cliente y la matrícula.');
       return;
     }
 
     if (editingOrderId) {
-      updateOrder(editingOrderId, {
+      await updateOrder(editingOrderId, {
         ...form,
         plate: form.plate.toUpperCase(),
       });
@@ -377,7 +279,16 @@ export default function WorkOrders() {
         createdAt: new Date().toLocaleString('sv-SE'),
       };
 
-      setOrders((currentOrders) => [newOrder, ...currentOrders]);
+      setSyncMessage('Guardando…');
+      try {
+        const saved = await saveRelationalOrder(newOrder, null);
+        setOrders((currentOrders) => [saved, ...currentOrders]);
+        setSyncMessage('Guardado en Supabase');
+      } catch (error) {
+        console.error('No se pudo crear la orden:', error);
+        setSyncMessage('No se pudo guardar la orden');
+        return;
+      }
     }
 
     setForm(emptyForm);
@@ -437,19 +348,16 @@ export default function WorkOrders() {
     updateOrder(orderId, { status });
   }
 
-  function deleteOrder(orderId) {
+  async function deleteOrder(orderId) {
     const confirmed = window.confirm(
-      '¿Seguro que quieres eliminar esta orden?'
+      'La orden no se eliminará: se marcará como Cancelada. ¿Continuar?'
     );
 
     if (!confirmed) {
       return;
     }
 
-    setOrders((currentOrders) =>
-      currentOrders.filter((order) => order.id !== orderId)
-    );
-
+    await updateOrder(orderId, { status: 'Cancelada' });
     setSelectedOrderId(null);
   }
 
@@ -756,6 +664,8 @@ export default function WorkOrders() {
         action="Crear orden"
         onAction={startNewOrder}
       />
+
+      {syncMessage && <p className="auth-message">{syncMessage}</p>}
 
       {orders.length === 0 ? (
         <section className="card empty-state">

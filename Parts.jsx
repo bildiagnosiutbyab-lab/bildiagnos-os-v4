@@ -1,25 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
+import { createPart, listParts } from './workshopRepository.js';
 
 export default function Parts() {
-  const [source, setSource] = useState('inventory');
-
-  return (
-    <>
-      <PageHeader title="Piezas / Reservdelar" subtitle="Inventario, proveedores y recepción por foto" action="Añadir pieza" />
-      <section className="card">
-        <h2>Origen de la pieza</h2>
-        <div className="segmented">
-          <button className={source === 'inventory' ? 'selected' : ''} onClick={() => setSource('inventory')}>Inventario propio</button>
-          <button className={source === 'supplier' ? 'selected' : ''} onClick={() => setSource('supplier')}>Pedir al proveedor</button>
-          <button className={source === 'photo' ? 'selected' : ''} onClick={() => setSource('photo')}>Foto del albarán</button>
-        </div>
-        <div className="parts-info">
-          <p><strong>Proveedor:</strong> AD Bildelar, BilXtra o Partslink24</p>
-          <p><strong>Vinculación:</strong> orden, vehículo, cliente, proveedor e inventario</p>
-          <p><strong>Confirmación:</strong> artículo, cantidad, precio, descuento, IVA y número de pedido</p>
-        </div>
-      </section>
-    </>
-  );
+  const [items, setItems] = useState([]); const [description, setDescription] = useState(''); const [number, setNumber] = useState(''); const [message, setMessage] = useState('');
+  const refresh = () => listParts().then(setItems).catch((e) => setMessage(e.message)); useEffect(refresh, []);
+  async function add() { if (!description.trim()) return; await createPart(description.trim(), number.trim()); setDescription(''); setNumber(''); setMessage('Pieza guardada'); refresh(); }
+  return <><PageHeader title="Piezas / Reservdelar" subtitle="Inventario, proveedores y recepción" />
+    <section className="card order-form"><label>Número de artículo<input value={number} onChange={(e) => setNumber(e.target.value)} /></label><label>Descripción<input value={description} onChange={(e) => setDescription(e.target.value)} /></label><button className="primary-button" onClick={add}>Añadir pieza</button>{message && <p>{message}</p>}</section>
+    <section className="card">{items.length === 0 ? <p>No hay piezas registradas.</p> : items.map((item) => <div className="vehicle-row" key={item.id}><div><strong>{item.description}</strong><span>{item.internal_number || 'Sin número interno'}</span></div></div>)}</section></>;
 }
