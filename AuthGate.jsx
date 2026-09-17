@@ -7,8 +7,6 @@ export default function AuthGate({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [recoveryMode, setRecoveryMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -24,12 +22,8 @@ export default function AuthGate({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      if (event === 'PASSWORD_RECOVERY') {
-        setRecoveryMode(true);
-        setMessage('Escribe una contraseña nueva para el taller.');
-      }
       setLoading(false);
     });
 
@@ -84,54 +78,8 @@ export default function AuthGate({ children }) {
     }
   }
 
-  async function requestPasswordReset() {
-    setSubmitting(true);
-    setMessage('');
-
-    const { error } = await supabase.auth.resetPasswordForEmail(OWNER_EMAIL, {
-      redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
-    });
-
-    setSubmitting(false);
-    setMessage(
-      error
-        ? `No se pudo enviar el correo de recuperación: ${error.message}`
-        : 'Correo de recuperación enviado. Abre el enlace recibido para elegir una contraseña nueva.'
-    );
-  }
-
-  async function updatePassword(event) {
-    event.preventDefault();
-
-    if (newPassword.length < 6) {
-      setMessage('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-
-    setSubmitting(true);
-    setMessage('');
-
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-
-    setSubmitting(false);
-
-    if (error) {
-      setMessage(`No se pudo actualizar la contraseña: ${error.message}`);
-      return;
-    }
-
-    setNewPassword('');
-    setRecoveryMode(false);
-  }
-
   async function signOut() {
     await supabase.auth.signOut();
-  }
-
-  function beginPasswordChange() {
-    setNewPassword('');
-    setMessage('Escribe una contraseña nueva para el taller.');
-    setRecoveryMode(true);
   }
 
   if (loading) {
@@ -141,35 +89,6 @@ export default function AuthGate({ children }) {
           <h1>Bildiagnos OS</h1>
           <p>Conectando con el taller…</p>
         </section>
-      </main>
-    );
-  }
-
-  if (recoveryMode) {
-    return (
-      <main className="auth-screen">
-        <form className="card auth-card" onSubmit={updatePassword}>
-          <h1>Nueva contraseña</h1>
-          <p>Elige una contraseña nueva para Bildiagnos OS.</p>
-
-          <label>
-            Nueva contraseña
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              minLength="6"
-              autoComplete="new-password"
-              required
-            />
-          </label>
-
-          {message && <p className="auth-message">{message}</p>}
-
-          <button className="primary-button" type="submit" disabled={submitting}>
-            {submitting ? 'Guardando…' : 'Guardar contraseña'}
-          </button>
-        </form>
       </main>
     );
   }
@@ -207,15 +126,6 @@ export default function AuthGate({ children }) {
           <button
             className="secondary-button"
             type="button"
-            onClick={requestPasswordReset}
-            disabled={submitting}
-          >
-            Olvidé mi contraseña
-          </button>
-
-          <button
-            className="secondary-button"
-            type="button"
             onClick={createAccount}
             disabled={submitting}
           >
@@ -230,9 +140,6 @@ export default function AuthGate({ children }) {
     <>
       <div className="cloud-session-bar">
         <span>Sincronización activa</span>
-        <button type="button" onClick={beginPasswordChange}>
-          Cambiar contraseña
-        </button>
         <button type="button" onClick={signOut}>
           Cerrar sesión
         </button>
