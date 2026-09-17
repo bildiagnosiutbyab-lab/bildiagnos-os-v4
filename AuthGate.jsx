@@ -128,6 +128,12 @@ export default function AuthGate({ children }) {
     await supabase.auth.signOut();
   }
 
+  function beginPasswordChange() {
+    setNewPassword('');
+    setMessage('Escribe una contraseña nueva para el taller.');
+    setRecoveryMode(true);
+  }
+
   if (loading) {
     return (
       <main className="auth-screen">
@@ -224,6 +230,9 @@ export default function AuthGate({ children }) {
     <>
       <div className="cloud-session-bar">
         <span>Sincronización activa</span>
+        <button type="button" onClick={beginPasswordChange}>
+          Cambiar contraseña
+        </button>
         <button type="button" onClick={signOut}>
           Cerrar sesión
         </button>
