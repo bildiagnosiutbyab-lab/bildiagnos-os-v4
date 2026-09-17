@@ -88,7 +88,9 @@ export default function AuthGate({ children }) {
     setSubmitting(true);
     setMessage('');
 
-    const { error } = await supabase.auth.resetPasswordForEmail(OWNER_EMAIL);
+    const { error } = await supabase.auth.resetPasswordForEmail(OWNER_EMAIL, {
+      redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+    });
 
     setSubmitting(false);
     setMessage(
