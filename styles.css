@@ -46,13 +46,6 @@ button { font: inherit; }
 .segmented button { border: 1px solid #cbd5e1; background: white; border-radius: 9px; padding: 10px 13px; cursor: pointer; }
 .segmented button.selected { background: #0f6cbd; color: white; border-color: #0f6cbd; }
 .parts-info { background: #f8fafc; border-radius: 12px; padding: 14px 18px; color: #475569; }
-.catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.catalog-card { display: grid; gap: 12px; }
-.catalog-card h2, .catalog-card p { margin: 0; }
-.catalog-card p, .catalog-note { color: #64748b; }
-.catalog-link { width: fit-content; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; padding: 11px 14px; background: #0f6cbd; color: white; text-decoration: none; font-weight: 700; }
-.catalog-link:hover { background: #0b5a9f; }
-.catalog-note { margin-top: 18px; }
 
 @media (max-width: 850px) {
   .app-shell { grid-template-columns: 1fr; }
@@ -61,7 +54,6 @@ button { font: inherit; }
   .sidebar-footer { display: none; }
   .main-content { padding: 20px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .catalog-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .page-header { align-items: flex-start; flex-direction: column; }
