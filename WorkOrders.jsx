@@ -6,6 +6,7 @@ import {
   subscribeToRelationalOrders,
 } from './ordersRepository.js';
 import CommercialOrderFlow from './CommercialOrderFlow.jsx';
+import CatalogOrderImport from './CatalogOrderImport.jsx';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
 const CENTRAL_STATE_KEY = 'central_state';
@@ -524,6 +525,10 @@ export default function WorkOrders() {
               setOrders(latest);
             }}
           />
+          <CatalogOrderImport order={selectedOrder} onSaved={async () => {
+            const latest = await loadRelationalOrders();
+            setOrders(latest);
+          }} />
 
           <div className="form-actions">
             <button
