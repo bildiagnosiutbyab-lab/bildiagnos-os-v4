@@ -274,6 +274,7 @@ export async function createCommercialInvoice(context, form) {
 export async function confirmCommercialPayment(context, form) {
   const { workOrder } = context;
   const invoice = form.invoiceId ? context.invoices.find((item) => item.id === form.invoiceId) : null;
+  if (invoice?.status === 'paid') throw new Error('La factura ya está pagada.');
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
