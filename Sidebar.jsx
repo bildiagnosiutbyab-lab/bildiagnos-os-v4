@@ -1,11 +1,12 @@
-import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, ExternalLink } from 'lucide-react';
 
 const items = [
   ['dashboard', 'Inicio', LayoutDashboard],
   ['orders', 'Órdenes', ClipboardList],
   ['customers', 'Clientes', Users],
   ['vehicles', 'Vehículos', Car],
-  ['parts', 'Piezas', PackageSearch]
+  ['parts', 'Piezas', PackageSearch],
+  ['catalogs', 'Catálogos', ExternalLink]
 ];
 
 export default function Sidebar({ active, onChange }) {
