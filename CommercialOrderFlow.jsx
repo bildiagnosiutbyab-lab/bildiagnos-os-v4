@@ -17,7 +17,6 @@ const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '12
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
-function printDocument() { window.print(); }
 
 export default function CommercialOrderFlow({ order, onSaved }) {
   const [context, setContext] = useState(null);
@@ -30,6 +29,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [paymentForm, setPaymentForm] = useState({ method: 'Swish', amount: '', reference: '', invoiceId: '' });
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
+  const [printMode, setPrintMode] = useState(null);
 
   const orderId = order.relationalId;
   const refresh = async () => {
@@ -46,6 +46,15 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   };
 
   useEffect(() => { refresh().catch((error) => setMessage(error.message || 'No se pudo cargar el flujo comercial.')); }, [orderId]);
+  useEffect(() => {
+    const clearPrintMode = () => setPrintMode(null);
+    window.addEventListener('afterprint', clearPrintMode);
+    return () => window.removeEventListener('afterprint', clearPrintMode);
+  }, []);
+  const printDocument = (mode) => {
+    setPrintMode(mode);
+    window.setTimeout(() => window.print(), 0);
+  };
 
   const quote = context?.quotes[0];
   const quoteLines = useMemo(() => context?.quoteItems.filter((item) => item.quote_id === quote?.id) || [], [context, quote]);
@@ -66,7 +75,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Matrícula', work: 'Trabajos', parts: 'Piezas', quote: 'Cotización aceptada', warranty: 'Garantía', print: 'PDF / Imprimir orden' }
     : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
 
-  return <section className="commercial-flow">
+  return <section className="commercial-flow" data-print-mode={printMode || undefined}>
     <header className="commercial-heading">
       <div><p>Flujo comercial</p><h2>Cotización, cobro y documentos</h2></div>
       {quote && <span className={`commercial-status commercial-status-${quote.status}`}>{quote.status}</span>}
@@ -113,14 +122,14 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <button disabled={busy || !quote} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Cliente acepta</button>
         <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Cliente rechaza</button>
         <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Marcar piezas pedidas</button>
-        {accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={printDocument}>{labels.print}</button></>}
+        {accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
       </div>
     </section>
 
     <div className="commercial-grid">
       <section className="commercial-card">
         <h3>Cobro y Kvitto</h3>
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Pago confirmado y Kvitto preparado.').then((payment) => payment && setLastReceipt({ payment, order: workOrder })); }}>
+        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Pago confirmado y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Importe" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
           <input placeholder="Referencia" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
@@ -137,7 +146,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referencia" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy}>Crear factura</button>
         </form>
-        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small></li>)}</ul>
+        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Confirmar pago</button>}</li>)}</ul>
       </section>
     </div>
 
