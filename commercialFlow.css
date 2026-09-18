@@ -37,8 +37,11 @@
 @media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } }
 @media print {
   body * { visibility:hidden; }
-  .commercial-print, .commercial-print * { visibility:visible; }
-  .commercial-print { display:block; position:absolute; inset:0; padding:16mm; color:#111; background:#fff; font-family:Arial,sans-serif; }
+  .commercial-print { display:none !important; }
+  .commercial-flow[data-print-mode='work-order'] .work-order-print,
+  .commercial-flow[data-print-mode='invoice'] .invoice-print,
+  .commercial-flow[data-print-mode='receipt'] .receipt-print { display:block !important; position:absolute; inset:0; padding:16mm; color:#111; background:#fff; font-family:Arial,sans-serif; }
+  .commercial-flow[data-print-mode] .commercial-print, .commercial-flow[data-print-mode] .commercial-print * { visibility:visible; }
   .commercial-print header { border-bottom:2px solid #111; display:flex; justify-content:space-between; align-items:center; }
   .commercial-print h1 { font-size:24px; margin:0 0 12px; }
   .commercial-print table { width:100%; border-collapse:collapse; }
