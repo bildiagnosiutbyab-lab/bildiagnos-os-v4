@@ -1,0 +1,49 @@
+.commercial-flow { margin-top: 1.25rem; }
+.commercial-heading, .commercial-actions, .commercial-totals, .print-info { display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; }
+.commercial-heading { justify-content:space-between; margin-bottom:.8rem; }
+.commercial-heading p { margin:0; color:#64748b; font-size:.85rem; }
+.commercial-heading h2 { margin:.1rem 0; }
+.commercial-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; margin:1rem 0; }
+.commercial-card { border:1px solid #dbe3ee; background:#fff; border-radius:12px; padding:1rem; }
+.commercial-card h3 { margin-top:0; }
+.commercial-inline-form { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:.45rem; }
+.commercial-parts-form { grid-template-columns:2fr 1fr .65fr .8fr .8fr auto; }
+.invoice-form { grid-template-columns:2fr 1fr 1fr auto; }
+.commercial-inline-form input, .commercial-inline-form select, .commercial-settings input, .commercial-settings textarea, .commercial-actions select { min-width:0; padding:.55rem; border:1px solid #cbd5e1; border-radius:7px; font:inherit; }
+.commercial-inline-form button, .commercial-actions button { border:0; border-radius:7px; padding:.55rem .75rem; background:#0f766e; color:#fff; font:inherit; cursor:pointer; }
+.commercial-inline-form button:disabled, .commercial-actions button:disabled { opacity:.55; cursor:wait; }
+.commercial-lines { list-style:none; padding:0; margin:.85rem 0 0; }
+.commercial-lines li { padding:.55rem 0; border-top:1px solid #eef2f7; display:flex; justify-content:space-between; gap:.6rem; }
+.commercial-lines small { color:#64748b; text-align:right; }
+.commercial-settings { display:flex; gap:.8rem; flex-wrap:wrap; align-items:end; }
+.commercial-settings label { display:grid; gap:.35rem; color:#334155; font-size:.9rem; }
+.commercial-settings label:first-child { flex:1 1 260px; }
+.commercial-settings textarea { min-height:68px; resize:vertical; }
+.commercial-check { display:flex !important; grid-template-columns:auto 1fr; align-items:center; }
+.commercial-totals { margin:1rem 0; justify-content:flex-end; }
+.commercial-totals span { display:grid; gap:.15rem; background:#f8fafc; border-radius:8px; padding:.5rem .75rem; color:#475569; font-size:.85rem; }
+.commercial-totals strong { color:#0f172a; font-size:1rem; }
+.commercial-actions { margin-top:.7rem; }
+.commercial-actions .approve-button { background:#15803d; }
+.commercial-actions .reject-button { background:#b91c1c; }
+.commercial-status { padding:.3rem .65rem; border-radius:999px; background:#e2e8f0; text-transform:capitalize; font-size:.85rem; }
+.commercial-status-approved { background:#dcfce7; color:#166534; }
+.commercial-status-rejected { background:#fee2e2; color:#991b1b; }
+.commercial-status-prepared { background:#fef3c7; color:#92400e; }
+.commercial-message { color:#0f766e; margin:.5rem 0; }
+.commercial-error { color:#b91c1c; margin:.5rem 0; }
+.commercial-print { display:none; }
+
+@media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } }
+@media print {
+  body * { visibility:hidden; }
+  .commercial-print, .commercial-print * { visibility:visible; }
+  .commercial-print { display:block; position:absolute; inset:0; padding:16mm; color:#111; background:#fff; font-family:Arial,sans-serif; }
+  .commercial-print header { border-bottom:2px solid #111; display:flex; justify-content:space-between; align-items:center; }
+  .commercial-print h1 { font-size:24px; margin:0 0 12px; }
+  .commercial-print table { width:100%; border-collapse:collapse; }
+  .commercial-print td { border-bottom:1px solid #ccc; padding:6px 0; }
+  .commercial-print td:last-child { text-align:right; }
+  .commercial-print .print-total { text-align:right; font-size:18px; font-weight:700; }
+  .receipt-print, .invoice-print { max-width:190mm; }
+}
