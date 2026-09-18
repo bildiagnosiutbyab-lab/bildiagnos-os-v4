@@ -1,0 +1,59 @@
+name: Deploy commercial preview
+
+on:
+  push:
+    branches: [integrate/v1-base-central-20260918]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout public main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: public-site
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+        with:
+          path: preview-site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            public-site/package-lock.json
+            preview-site/package-lock.json
+      - run: npm ci --prefix public-site
+      - run: npm run build --prefix public-site
+      - run: npm ci --prefix preview-site
+      - run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build --prefix preview-site
+      - name: Assemble public site and preview
+        run: |
+          mkdir -p site/commercial-preview
+          cp -R public-site/dist/. site/
+          cp -R preview-site/dist/. site/commercial-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
