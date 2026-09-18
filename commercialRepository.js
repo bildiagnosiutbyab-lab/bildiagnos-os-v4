@@ -94,6 +94,15 @@ export async function addCommercialPart(context, input) {
   throwIfError(error);
 }
 
+export async function importCatalogOrderItems({ workOrderId, source, plate, parts, laborItems }) {
+  const { data, error } = await supabase.rpc('import_catalog_order_items', {
+    p_work_order_id: workOrderId, p_source: source, p_plate: plate || null,
+    p_parts: parts, p_labor_items: laborItems,
+  });
+  throwIfError(error);
+  return data;
+}
+
 function commercialLines(context) {
   const services = context.services
     .filter((item) => item.status !== 'rejected')
