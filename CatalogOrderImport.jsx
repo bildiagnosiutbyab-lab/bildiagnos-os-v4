@@ -9,7 +9,7 @@ const catalogUrl = (catalog, registration) => {
     return `https://pro.bilxtra.se/INTERSHOP/web/WFS/Mekonomen-BilxtraB2BSE-Site/sv_SE/-/SEK/ViewCarOverview-Start?country=SE&registrationNumber=${encodeURIComponent(registrationNumber)}`;
   }
   if (catalog === 'AD Bildelar' && registrationNumber) {
-    return `https://katalog.adsverige.com/store/se7l1/parts#bildiagnos-reg=${encodeURIComponent(registrationNumber)}`;
+    return `https://katalog.adsverige.com/store/se7l1/parts?bildiagnosReg=${encodeURIComponent(registrationNumber)}`;
   }
   return CATALOGS[catalog];
 };
