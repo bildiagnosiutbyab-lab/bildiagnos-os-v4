@@ -36,26 +36,26 @@
 
 @media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } }
 @media print {
-  @page { size: A4; margin: 14mm; }
-  html, body { margin:0 !important; padding:0 !important; height:auto !important; }
+  @page { size:A4; margin:14mm; }
+  html, body { margin:0 !important; padding:0 !important; }
   body * { visibility:hidden !important; }
-  .commercial-flow[data-print-mode] { visibility:visible !important; margin:0 !important; padding:0 !important; }
-  .commercial-flow[data-print-mode] .commercial-print { display:none !important; visibility:hidden !important; }
+  .commercial-flow[data-print-mode] { visibility:visible !important; position:static !important; margin:0 !important; padding:0 !important; }
+  .commercial-flow[data-print-mode] .commercial-print { display:none !important; }
   .commercial-flow[data-print-mode='quote'] .quote-print,
   .commercial-flow[data-print-mode='work-order'] .work-order-print,
   .commercial-flow[data-print-mode='invoice'] .invoice-print,
-  .commercial-flow[data-print-mode='receipt'] .receipt-print { display:block !important; position:static !important; width:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; color:#111; background:#fff; font-family:Arial,sans-serif; page-break-after:avoid; break-after:avoid-page; }
-  .commercial-flow[data-print-mode] .commercial-print, .commercial-flow[data-print-mode] .commercial-print * { visibility:visible !important; }
-  .commercial-print header { border-bottom:2px solid #111; display:flex; justify-content:space-between; align-items:center; }
-  .commercial-print h1 { font-size:24px; margin:0 0 14px; }
-  .quote-print header { margin-bottom:16px; padding-bottom:8px; }
-  .quote-print .print-info { margin:0 0 18px; padding:10px 0; border-bottom:1px solid #bbb; gap:14px; }
-  .quote-print table { margin-top:12px; }
-  .quote-print td { padding:9px 4px; }
-  .quote-print .print-total { margin-top:16px; padding-top:10px; border-top:2px solid #111; }
-  .commercial-print table { width:100%; border-collapse:collapse; }
-  .commercial-print td { border-bottom:1px solid #ccc; padding:6px 0; }
-  .commercial-print td:last-child { text-align:right; }
-  .commercial-print .print-total { text-align:right; font-size:18px; font-weight:700; }
+  .commercial-flow[data-print-mode='receipt'] .receipt-print {
+    display:block !important; visibility:visible !important; position:absolute !important;
+    top:0 !important; left:0 !important; width:100% !important; box-sizing:border-box !important;
+    margin:0 !important; padding:0 !important; color:#111; background:#fff; font-family:Arial,sans-serif;
+  }
+  .commercial-flow[data-print-mode] .commercial-print * { visibility:visible !important; }
+  .commercial-print header { border-bottom:2px solid #111; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; }
+  .commercial-print h1 { font-size:24px; margin:0; }
+  .print-info { display:flex; gap:14px; flex-wrap:wrap; margin:0 0 16px; padding:8px 0; border-bottom:1px solid #bbb; }
+  .commercial-print table { width:100%; border-collapse:collapse; margin-top:8px; }
+  .commercial-print td { border-bottom:1px solid #ccc; padding:8px 4px; vertical-align:top; }
+  .commercial-print td:last-child { text-align:right; white-space:nowrap; }
+  .commercial-print .print-total { text-align:right; font-size:18px; font-weight:700; margin-top:14px; padding-top:8px; border-top:2px solid #111; }
   .receipt-print, .invoice-print { max-width:190mm; }
 }
