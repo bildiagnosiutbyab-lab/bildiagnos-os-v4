@@ -309,10 +309,14 @@ export async function confirmCommercialPayment(context, form) {
 }
 
 export async function removeCommercialService(id) {
+  const { error: quoteError } = await supabase.from('quote_items').delete().eq('service_id', id);
+  throwIfError(quoteError);
   const { error } = await supabase.from('work_order_services').delete().eq('id', id);
   throwIfError(error);
 }
 export async function removeCommercialPart(id) {
+  const { error: quoteError } = await supabase.from('quote_items').delete().eq('part_line_id', id);
+  throwIfError(quoteError);
   const { error } = await supabase.from('work_order_parts').delete().eq('id', id);
   throwIfError(error);
 }
