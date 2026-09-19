@@ -38,6 +38,7 @@
 @media print {
   body * { visibility:hidden; }
   .commercial-print { display:none !important; }
+  .commercial-flow[data-print-mode='quote'] .quote-print,
   .commercial-flow[data-print-mode='work-order'] .work-order-print,
   .commercial-flow[data-print-mode='invoice'] .invoice-print,
   .commercial-flow[data-print-mode='receipt'] .receipt-print { display:block !important; position:absolute; inset:0; padding:16mm; color:#111; background:#fff; font-family:Arial,sans-serif; }
