@@ -518,6 +518,10 @@ export default function WorkOrders() {
             </p>
           )}
 
+          <CatalogOrderImport order={selectedOrder} onSaved={async () => {
+            const latest = await loadRelationalOrders();
+            setOrders(latest);
+          }} />
           <CommercialOrderFlow
             order={selectedOrder}
             onSaved={async () => {
@@ -525,10 +529,6 @@ export default function WorkOrders() {
               setOrders(latest);
             }}
           />
-          <CatalogOrderImport order={selectedOrder} onSaved={async () => {
-            const latest = await loadRelationalOrders();
-            setOrders(latest);
-          }} />
 
           <div className="form-actions">
             <button
