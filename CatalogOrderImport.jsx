@@ -8,6 +8,9 @@ const catalogUrl = (catalog, registration) => {
   if (catalog === 'BilXtra' && registrationNumber) {
     return `https://pro.bilxtra.se/INTERSHOP/web/WFS/Mekonomen-BilxtraB2BSE-Site/sv_SE/-/SEK/ViewCarOverview-Start?country=SE&registrationNumber=${encodeURIComponent(registrationNumber)}`;
   }
+  if (catalog === 'AD Bildelar' && registrationNumber) {
+    return `https://katalog.adsverige.com/store/se7l1/parts#bildiagnos-reg=${encodeURIComponent(registrationNumber)}`;
+  }
   return CATALOGS[catalog];
 };
 const numeric = (value) => { if (value === null || value === undefined || value === '') return null; const number = Number(String(value).replace(/\s/g, '').replace(',', '.')); return Number.isFinite(number) ? number : null; };
@@ -43,7 +46,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
         ? `Partslink24 abierto. Matrícula ${normalizedPlate} lista en el portapapeles para identificar el vehículo.`
         : catalog === 'ZEPRO'
           ? `ZEPRO abierto. Matrícula ${normalizedPlate} lista en el portapapeles para seleccionar el vehículo.`
-          : `AD Bildelar abierto en Reservdelar conservando el vehículo activo de la sesión. Matrícula ${normalizedPlate} lista en el portapapeles.`);
+          : `AD Bildelar abierto con la matrícula ${normalizedPlate}. La extensión de Opera la seleccionará automáticamente.`);
   };
   const readCatalogClipboard = async () => {
     try {
