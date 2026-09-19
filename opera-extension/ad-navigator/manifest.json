@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Bildiagnos - AD Bildelar Navigator",
+  "version": "0.3.0",
+  "description": "Selecciona la matrícula enviada desde Bildiagnos y permite navegación asistida por categorías, búsquedas y servicios en AD Bildelar.",
+  "content_scripts": [
+    {
+      "matches": ["https://katalog.adsverige.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
