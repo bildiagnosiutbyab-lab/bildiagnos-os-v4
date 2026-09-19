@@ -1,11 +1,29 @@
 {
   "manifest_version": 3,
   "name": "Bildiagnos - AD Bildelar Navigator",
-  "version": "0.6.0",
-  "description": "Selecciona la matricula enviada desde Bildiagnos y navega por categorias, busquedas y servicios en AD Bildelar con verificacion visual de cada paso.",
-  "content_scripts": [{
-    "matches": ["https://katalog.adsverige.com/*"],
-    "js": ["content.js"],
-    "run_at": "document_idle"
-  }]
+  "version": "0.9.0",
+  "description": "Navegacion por API interna de AD Bildelar con descubrimiento robusto de nodos y articulos.",
+  "host_permissions": [
+    "https://katalog.adsverige.com/*",
+    "https://katalogapi.adsverige.com/*",
+    "https://adiapi.adsverige.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://katalog.adsverige.com/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://katalog.adsverige.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page-hook.js"],
+      "matches": ["https://katalog.adsverige.com/*"]
+    }
+  ]
 }
