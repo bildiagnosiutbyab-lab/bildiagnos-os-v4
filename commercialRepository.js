@@ -307,3 +307,12 @@ export async function confirmCommercialPayment(context, form) {
   }
   return payment;
 }
+
+export async function removeCommercialService(id) {
+  const { error } = await supabase.from('work_order_services').delete().eq('id', id);
+  throwIfError(error);
+}
+export async function removeCommercialPart(id) {
+  const { error } = await supabase.from('work_order_parts').delete().eq('id', id);
+  throwIfError(error);
+}
