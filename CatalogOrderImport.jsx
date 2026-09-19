@@ -6,7 +6,7 @@ const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/', BilXtra: 'ht
 const catalogUrl = (catalog, registration) => {
   const registrationNumber = plate(registration);
   if (catalog === 'BilXtra' && registrationNumber) {
-    return `https://pro-api.bilxtra.se/INTERSHOP/web/WFS/Mekonomen-BilxtraB2BSE-Site/sv_SE/-/SEK/ViewCarOverview-Start?country=SE&registrationNumber=${encodeURIComponent(registrationNumber)}`;
+    return `https://pro.bilxtra.se/INTERSHOP/web/WFS/Mekonomen-BilxtraB2BSE-Site/sv_SE/-/SEK/ViewCarOverview-Start?country=SE&registrationNumber=${encodeURIComponent(registrationNumber)}`;
   }
   return CATALOGS[catalog];
 };
