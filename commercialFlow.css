@@ -36,15 +36,27 @@
 
 @media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } }
 @media print {
-  body * { visibility:hidden; }
-  .commercial-print { display:none !important; }
+  @page { size: A4; margin: 14mm; }
+  html, body { margin:0 !important; padding:0 !important; height:auto !important; }
+  body * { display:none !important; }
+  .commercial-flow[data-print-mode] { display:block !important; margin:0 !important; padding:0 !important; }
+  .commercial-flow[data-print-mode] .commercial-print { display:none !important; }
   .commercial-flow[data-print-mode='quote'] .quote-print,
   .commercial-flow[data-print-mode='work-order'] .work-order-print,
   .commercial-flow[data-print-mode='invoice'] .invoice-print,
-  .commercial-flow[data-print-mode='receipt'] .receipt-print { display:block !important; position:absolute; inset:0; padding:16mm; color:#111; background:#fff; font-family:Arial,sans-serif; }
-  .commercial-flow[data-print-mode] .commercial-print, .commercial-flow[data-print-mode] .commercial-print * { visibility:visible; }
+  .commercial-flow[data-print-mode='receipt'] .receipt-print { display:block !important; position:static !important; width:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; color:#111; background:#fff; font-family:Arial,sans-serif; page-break-after:avoid; break-after:avoid-page; }
+  .commercial-flow[data-print-mode] .commercial-print, .commercial-flow[data-print-mode] .commercial-print * { display:revert !important; visibility:visible !important; }
+  .commercial-flow[data-print-mode] .commercial-print table { display:table !important; }
+  .commercial-flow[data-print-mode] .commercial-print tbody { display:table-row-group !important; }
+  .commercial-flow[data-print-mode] .commercial-print tr { display:table-row !important; }
+  .commercial-flow[data-print-mode] .commercial-print td { display:table-cell !important; }
   .commercial-print header { border-bottom:2px solid #111; display:flex; justify-content:space-between; align-items:center; }
-  .commercial-print h1 { font-size:24px; margin:0 0 12px; }
+  .commercial-print h1 { font-size:24px; margin:0 0 14px; }
+  .quote-print header { margin-bottom:16px; padding-bottom:8px; }
+  .quote-print .print-info { margin:0 0 18px; padding:10px 0; border-bottom:1px solid #bbb; gap:14px; }
+  .quote-print table { margin-top:12px; }
+  .quote-print td { padding:9px 4px; }
+  .quote-print .print-total { margin-top:16px; padding-top:10px; border-top:2px solid #111; }
   .commercial-print table { width:100%; border-collapse:collapse; }
   .commercial-print td { border-bottom:1px solid #ccc; padding:6px 0; }
   .commercial-print td:last-child { text-align:right; }
