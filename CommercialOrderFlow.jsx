@@ -8,6 +8,8 @@ import {
   loadCommercialOrder,
   markApprovedPartsOrdered,
   prepareCommercialQuote,
+  removeCommercialPart,
+  removeCommercialService,
 } from './commercialRepository.js';
 import './commercialFlow.css';
 
@@ -91,7 +93,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input required type="number" min="0" placeholder="Precio/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.services.map((item) => <li key={item.id}><span>{item.description}</span><small>{item.status} · {Number(item.estimated_minutes || 0) / 60} h · {money(Number(item.unit_price || 0) * Number(item.quantity || 1))}</small></li>)}</ul>
+        <ul className="commercial-lines">{context.services.map((item) => <li key={item.id}><span>{item.description}</span><small>{item.status} · {Number(item.estimated_minutes || 0) / 60} h · {money(Number(item.unit_price || 0) * Number(item.quantity || 1))}</small><button type="button" className="reject-button" disabled={busy || item.status === 'approved'} onClick={() => window.confirm('¿Eliminar este trabajo de la orden?') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')}>Eliminar</button></li>)}</ul>
       </section>
 
       <section className="commercial-card">
@@ -104,7 +106,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input required type="number" min="0" placeholder="Precio" value={part.salePrice} onChange={(e) => setPart({ ...part, salePrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.parts.map((item) => <li key={item.id}><span>{[item.part_number_snapshot, item.description_snapshot].filter(Boolean).join(' · ')}</span><small>{item.status} · {item.quantity} st · {money(Number(item.sale_price || 0) * Number(item.quantity || 1))}</small></li>)}</ul>
+        <ul className="commercial-lines">{context.parts.map((item) => <li key={item.id}><span>{[item.part_number_snapshot, item.description_snapshot].filter(Boolean).join(' · ')}</span><small>{item.status} · {item.quantity} st · {money(Number(item.sale_price || 0) * Number(item.quantity || 1))}</small><button type="button" className="reject-button" disabled={busy || item.status === 'approved'} onClick={() => window.confirm('¿Eliminar esta pieza de la orden?') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')}>Eliminar</button></li>)}</ul>
       </section>
     </div>
 
@@ -119,10 +121,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="commercial-totals"><span>Exkl. moms <strong>{money(quote?.subtotal)}</strong></span><span>Moms <strong>{money(quote?.vat_total)}</strong></span><span>Total <strong>{money(quote?.total)}</strong></span></div>
       <div className="commercial-actions">
         <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>Preparar cotización</button>
+        <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
         <button disabled={busy || !quote} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Cliente acepta</button>
         <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Cliente rechaza</button>
         <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Marcar piezas pedidas</button>
-        {accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
+        {quote && <button onClick={() => printDocument('work-order')}>PDF / Imprimir arbetsorder</button>}{accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
       </div>
     </section>
 
@@ -150,6 +153,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
+    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>OFFERT / COTIZACIÓN</h1></header><div className="print-info"><span>Kund / Cliente: <b>{workOrder.customer_name_snapshot}</b></span><span>Reg.nr / Matrícula: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning / Km: <b>{workOrder.mileage || '—'} km</b></span></div><table><tbody>{quoteLines.map((x) => <tr key={x.id}><td>{x.description}</td><td>{x.quantity}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table><p className="print-total">Total: {money(quote.total)}</p></section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
       <p>{labels.quote} · #{quote?.quote_number || '—'}</p><div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning: <b>{workOrder.mileage || '—'} km</b></span></div>
