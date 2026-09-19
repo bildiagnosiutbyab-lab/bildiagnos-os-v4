@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { importCatalogOrderItems } from './commercialRepository.js';
 import './catalogOrderImport.css';
 
-const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/', BilXtra: 'https://pro.bilxtra.se/', ZEPRO: 'https://zepro.pro/sv/catalog', Partslink24: 'https://www.partslink24.com/' };
+const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/store/se7l1/parts', BilXtra: 'https://pro.bilxtra.se/', ZEPRO: 'https://zepro.pro/sv/catalog', Partslink24: 'https://www.partslink24.com/' };
 const catalogUrl = (catalog, registration) => {
   const registrationNumber = plate(registration);
   if (catalog === 'BilXtra' && registrationNumber) {
@@ -43,7 +43,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
         ? `Partslink24 abierto. Matrícula ${normalizedPlate} lista en el portapapeles para identificar el vehículo.`
         : catalog === 'ZEPRO'
           ? `ZEPRO abierto. Matrícula ${normalizedPlate} lista en el portapapeles para seleccionar el vehículo.`
-          : `AD Bildelar abierto. Matrícula ${normalizedPlate} lista en el portapapeles.`);
+          : `AD Bildelar abierto en Reservdelar conservando el vehículo activo de la sesión. Matrícula ${normalizedPlate} lista en el portapapeles.`);
   };
   const readCatalogClipboard = async () => {
     try {
