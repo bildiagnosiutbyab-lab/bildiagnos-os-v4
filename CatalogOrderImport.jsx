@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { importCatalogOrderItems } from './commercialRepository.js';
 import './catalogOrderImport.css';
 
-const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/', BilXtra: 'https://pro.bilxtra.se/' };
+const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/', BilXtra: 'https://pro.bilxtra.se/', Partslink24: 'https://www.partslink24.com/' };
 const catalogUrl = (catalog, registration) => {
   const registrationNumber = plate(registration);
   if (catalog === 'BilXtra' && registrationNumber) {
@@ -35,11 +35,13 @@ export default function CatalogOrderImport({ order, onSaved }) {
     const normalizedPlate = plate(orderPlate);
     if (!normalizedPlate) { setMessage('Esta orden no tiene matrícula.'); return; }
     try { await navigator.clipboard?.writeText(normalizedPlate); } catch { /* convenience only */ }
-    window.open(catalogUrl(catalog, normalizedPlate), `BILDIAGNOS_${catalog === 'BilXtra' ? 'BILXTRA' : 'AD'}_${normalizedPlate}`);
+    window.open(catalogUrl(catalog, normalizedPlate), `BILDIAGNOS_${catalog === 'BilXtra' ? 'BILXTRA' : catalog === 'Partslink24' ? 'PARTSLINK24' : 'AD'}_${normalizedPlate}`);
     setSource(catalog);
     setMessage(catalog === 'BilXtra'
       ? `BilXtra abierto directamente con la matrícula ${normalizedPlate}.`
-      : `AD Bildelar abierto. Matrícula ${normalizedPlate} lista en el portapapeles.`);
+      : catalog === 'Partslink24'
+        ? `Partslink24 abierto. Matrícula ${normalizedPlate} lista en el portapapeles para identificar el vehículo.`
+        : `AD Bildelar abierto. Matrícula ${normalizedPlate} lista en el portapapeles.`);
   };
   const readCatalogClipboard = async () => {
     try {
