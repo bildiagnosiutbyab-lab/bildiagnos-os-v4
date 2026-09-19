@@ -54,8 +54,22 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     return () => window.removeEventListener('afterprint', clearPrintMode);
   }, []);
   const printDocument = (mode) => {
-    setPrintMode(mode);
-    window.setTimeout(() => window.print(), 0);
+    const className = mode === 'work-order' ? 'work-order-print' : mode === 'quote' ? 'quote-print' : mode === 'invoice' ? 'invoice-print' : 'receipt-print';
+    const source = document.querySelector(`.commercial-flow .${className}`);
+    if (!source) return;
+    const popup = window.open('', '_blank', 'width=900,height=1100');
+    if (!popup) return;
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bildiagnos OS</title><style>
+      @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111}
+      header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
+      h1{font-size:24px;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}
+      table{width:100%;border-collapse:collapse;margin-top:8px}tr{break-inside:avoid}td{border-bottom:1px solid #ccc;padding:8px 4px;vertical-align:top}
+      td:last-child{text-align:right;white-space:nowrap}.print-total{text-align:right;font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
+      .commercial-print{display:block}
+    </style></head><body>${source.outerHTML}</body></html>`);
+    popup.document.close();
+    popup.focus();
+    window.setTimeout(() => popup.print(), 250);
   };
 
   const quote = context?.quotes[0];
