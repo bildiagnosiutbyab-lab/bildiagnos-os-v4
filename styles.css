@@ -270,3 +270,53 @@ button { font: inherit; }
   background: transparent;
   cursor: pointer;
 }
+
+.fortnox-test-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.fortnox-test-card h2,
+.fortnox-test-card p {
+  margin: 0;
+}
+
+.fortnox-test-card p {
+  margin-top: 8px;
+  color: #64748b;
+}
+
+.fortnox-test-message {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.fortnox-test-message.loading {
+  color: #1e3a8a;
+  background: #dbeafe;
+}
+
+.fortnox-test-message.success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.fortnox-test-message.error {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+@media (max-width: 650px) {
+  .fortnox-test-card {
+    grid-template-columns: 1fr;
+  }
+
+  .fortnox-test-card .secondary-button {
+    justify-self: start;
+  }
+}
