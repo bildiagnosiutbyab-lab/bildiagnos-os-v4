@@ -5,6 +5,7 @@ import WorkOrders from './WorkOrders.jsx';
 import Customers from './Customers.jsx';
 import Vehicles from './Vehicles.jsx';
 import Parts from './Parts.jsx';
+import Calendar from './Calendar.jsx';
 import AuthGate from './AuthGate.jsx';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           {page === 'customers' && <Customers />}
           {page === 'vehicles' && <Vehicles />}
           {page === 'parts' && <Parts />}
+          {page === 'calendar' && <Calendar />}
         </main>
       </div>
     </AuthGate>
