@@ -288,3 +288,10 @@ button { font: inherit; }
   .calendar-form-grid { grid-template-columns:1fr; }
   .appointment-row { grid-template-columns:1fr; }
 }
+
+.google-connected { display:inline-flex; align-items:center; gap:7px; }
+.appointment-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.appointment-actions button { display:inline-flex; align-items:center; gap:7px; }
+.sync-ok { color:#15803d !important; font-weight:700; }
+.sync-error { color:#b91c1c !important; font-weight:700; }
+@media (max-width:700px) { .appointment-actions { justify-content:flex-start; } }
