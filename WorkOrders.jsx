@@ -370,7 +370,7 @@ export default function WorkOrders() {
     return (
       <>
         <PageHeader
-          title={`Orden ${selectedOrder.plate}`}
+          title={`Orden #${selectedOrder.orderNumber ?? "—"} · ${selectedOrder.plate}`}
           subtitle={selectedOrder.customer}
         />
 
@@ -703,7 +703,7 @@ export default function WorkOrders() {
                 </span>
               </div>
 
-              <h2>{order.customer}</h2>
+              <h2>{order.customer}</h2>\n\n              <p><strong>Orden:</strong> #{order.orderNumber ?? "—"}</p>
 
               <p>
                 <strong>Vehículo:</strong> {order.vehicle || 'Sin especificar'}
