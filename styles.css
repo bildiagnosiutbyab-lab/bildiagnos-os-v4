@@ -270,3 +270,21 @@ button { font: inherit; }
   background: transparent;
   cursor: pointer;
 }
+
+
+.calendar-toolbar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.calendar-link { display:inline-flex; align-items:center; justify-content:center; gap:7px; color:inherit; text-decoration:none; }
+.calendar-message { margin:0 0 16px; padding:12px 14px; border-radius:10px; background:#e0f2fe; color:#075985; }
+.calendar-form { margin-bottom:18px; }
+.calendar-form h2 { margin:0; }
+.calendar-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.calendar-list { display:grid; gap:16px; }
+.calendar-day h2 { margin-top:0; text-transform:capitalize; }
+.appointment-row { display:grid; grid-template-columns:110px 1fr auto; align-items:center; gap:14px; padding:14px 0; border-top:1px solid #e5e7eb; }
+.appointment-time { font-weight:800; font-variant-numeric:tabular-nums; }
+.appointment-main { display:grid; gap:3px; }
+.appointment-main span,.appointment-main small { color:#64748b; }
+@media (max-width:700px) {
+  .calendar-form-grid { grid-template-columns:1fr; }
+  .appointment-row { grid-template-columns:1fr; }
+}
