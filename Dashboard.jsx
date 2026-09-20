@@ -32,6 +32,38 @@ export default function Dashboard({ onNewOrder }) {
     vehiclesToday: 0,
     hours: '0.0',
   });
+  const [fortnoxStatus, setFortnoxStatus] = useState({
+    state: 'idle',
+    message: '',
+  });
+
+  async function verifyFortnoxTest() {
+    setFortnoxStatus({
+      state: 'loading',
+      message: 'Verificando conexión segura…',
+    });
+
+    const { data, error } = await supabase.functions.invoke('fortnox-test', {
+      body: { action: 'status' },
+    });
+
+    if (error || !data?.ok || !data?.authenticated) {
+      setFortnoxStatus({
+        state: 'error',
+        message:
+          data?.error ||
+          error?.message ||
+          'No se pudo verificar Fortnox Test.',
+      });
+      return;
+    }
+
+    const company = data.companyName ? `: ${data.companyName}` : '';
+    setFortnoxStatus({
+      state: 'success',
+      message: `Conexión de solo lectura confirmada${company}.`,
+    });
+  }
 
   useEffect(() => {
     let active = true;
@@ -104,6 +136,37 @@ export default function Dashboard({ onNewOrder }) {
       <section className="card">
         <h2>Trabajos de hoy</h2>
         <p>Abre Órdenes para ver los vehículos y actualizar cada trabajo.</p>
+      </section>
+
+      <section className="card fortnox-test-card">
+        <div>
+          <h2>Fortnox Test</h2>
+          <p>
+            Comprueba la autenticación mediante una lectura de la información
+            de la empresa. Esta acción no crea clientes, artículos, facturas ni
+            pagos.
+          </p>
+        </div>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={verifyFortnoxTest}
+          disabled={fortnoxStatus.state === 'loading'}
+        >
+          {fortnoxStatus.state === 'loading'
+            ? 'Verificando…'
+            : 'Verificar Fortnox Test'}
+        </button>
+
+        {fortnoxStatus.message && (
+          <p
+            className={`fortnox-test-message ${fortnoxStatus.state}`}
+            role="status"
+          >
+            {fortnoxStatus.message}
+          </p>
+        )}
       </section>
     </>
   );
