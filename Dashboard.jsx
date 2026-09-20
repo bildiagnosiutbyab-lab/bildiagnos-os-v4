@@ -43,8 +43,24 @@ export default function Dashboard({ onNewOrder }) {
       message: 'Verificando conexión segura…',
     });
 
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      setFortnoxStatus({
+        state: 'error',
+        message: 'La sesión ha caducado. Cierra sesión y vuelve a entrar.',
+      });
+      return;
+    }
+
     const { data, error } = await supabase.functions.invoke('fortnox-test', {
       body: { action: 'status' },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
 
     if (error || !data?.ok || !data?.authenticated) {
