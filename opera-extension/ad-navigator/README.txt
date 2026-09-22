@@ -1,4 +1,4 @@
-Bildiagnos - AD Bildelar Navigator v0.3.0
+Bildiagnos - AD Bildelar Navigator v1.0.0
 
 Instalacion en Opera:
 1. Descomprime el ZIP.
@@ -16,3 +16,10 @@ Comandos:
 ?bildiagnosReg=FGU510&bdClick=More%3EMacsData
 
 No almacena credenciales ni realiza pedidos.
+
+Importar piezas:
+1. Abre AD desde una orden de Bildiagnos.
+2. Abre una categoria y marca las piezas en el panel Bildiagnos AD Helper.
+3. Ajusta cantidades y pulsa Enviar seleccion a Bildiagnos.
+4. Vuelve a la misma orden, pulsa Recibir seleccion del catalogo y revisa la previsualizacion.
+5. Solo Confirmar e importar guarda las lineas en Supabase.
