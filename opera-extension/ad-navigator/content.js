@@ -1,5 +1,5 @@
 (() => {
-  const VERSION='0.9.0';
+  const VERSION='1.0.0';
   const params=new URLSearchParams(location.search);
   const plate=(params.get('bildiagnosReg')||'').replace(/\s+/g,'').toUpperCase();
   const path=(params.get('bdClick')||'').split('>').map(s=>s.trim()).filter(Boolean);
@@ -156,23 +156,70 @@
     return String(firstVal(o,['repairHours','laborHours'])||'');
   }
 
+  function numericValue(value){
+    let text=String(value??'').trim().replace(/\s/g,'').replace(/[^0-9,.-]/g,'');
+    if(!text)return null;
+    if(text.includes(',')&&text.includes('.')){
+      text=text.lastIndexOf(',')>text.lastIndexOf('.')?text.replace(/\./g,'').replace(',','.'):text.replace(/,/g,'');
+    }else text=text.replace(',','.');
+    const number=Number(text);
+    return Number.isFinite(number)?number:null;
+  }
+
+  function laborHours(value){
+    const text=String(value??'').trim();
+    const clock=text.match(/^(\d{1,2}):(\d{2})$/);
+    if(clock)return Number(clock[1])+Number(clock[2])/60;
+    return numericValue(text);
+  }
+
+  function exportSelection(panel,items,category,vehicle){
+    const selected=[...panel.querySelectorAll('[data-bd-index]:checked')];
+    if(!selected.length){status('selecciona al menos una pieza antes de enviarla.',false);return;}
+    const parts=[]; const laborItems=[];
+    selected.forEach(input=>{
+      const index=Number(input.dataset.bdIndex); const article=items[index];
+      const brand=firstVal(article,['brandName','brand','manufacturer']);
+      const articleNumber=firstVal(article,['artNum','articleNumber','cleanartnum','partNumber']);
+      const name=firstVal(article,['itemName','name','gaNoName','description'])||category;
+      const quantityInput=panel.querySelector(`[data-bd-quantity="${index}"]`);
+      const quantity=Math.max(1,Number(quantityInput?.value||1));
+      const price=numericValue(priceText(article));
+      const discount=numericValue(firstVal(article,['discount','discountPercent','discountPercentage']));
+      parts.push({articleNumber:String(articleNumber||''),description:[brand,name].filter(Boolean).join(' · '),quantity,supplier:'AD Bildelar',cost:null,price,discount});
+      const hours=laborHours(repairText(article));
+      if(hours!==null&&hours>0)laborItems.push({code:String(articleNumber||''),description:`Arbetstid · ${name}`,hours,hourlyRate:null});
+    });
+    const payload={source:'AD Bildelar',plate:vehicle.regNr||plate,parts,laborItems};
+    chrome.storage.local.set({bildiagnosCatalogTransfer:{payload,createdAt:new Date().toISOString(),version:1}},()=>{
+      if(chrome.runtime.lastError){status('no pude preparar la transferencia a Bildiagnos.',false);return;}
+      status(parts.length+' pieza(s) preparada(s). Vuelve a Bildiagnos y pulsa Recibir selección.');
+    });
+  }
+
   function renderResults(category,nodeNo,data,vehicle){
     const items=articleObjects(data);
     let panel=document.getElementById('bildiagnos-ad-results');
     if(!panel){panel=document.createElement('div');panel.id='bildiagnos-ad-results';
       Object.assign(panel.style,{position:'fixed',right:'12px',top:'12px',zIndex:'2147483646',width:'min(600px,48vw)',maxHeight:'72vh',overflow:'auto',background:'#fff',color:'#111',border:'1px solid #bbb',borderRadius:'8px',padding:'10px',font:'12px/1.4 Arial,sans-serif',boxShadow:'0 3px 18px rgba(0,0,0,.25)'});
       document.documentElement.appendChild(panel);}
-    panel.innerHTML='<b>'+category+' · '+(vehicle.regNr||plate)+'</b><br><small>Nodo '+nodeNo+' · '+items.length+' artículo(s)</small>';
+    panel.innerHTML='<b>'+category+' · '+(vehicle.regNr||plate)+'</b><br><small>Nodo '+nodeNo+' · '+items.length+' artículo(s). Selecciona sin realizar pedidos.</small>';
     items.slice(0,30).forEach((a,i)=>{
       const brand=firstVal(a,['brandName','brand','manufacturer']);
       const art=firstVal(a,['artNum','articleNumber','cleanartnum','partNumber']);
       const name=firstVal(a,['itemName','name','gaNoName','description']);
       const price=priceText(a), stock=stockText(a), repair=repairText(a);
-      const row=document.createElement('div');row.style.cssText='padding:8px 0;border-top:1px solid #eee';
-      row.innerHTML='<b>'+(i+1)+'. '+[brand,art].filter(Boolean).join(' ')+'</b><br>'+String(name||category)+
-        (price?'<br>Precio: '+price:'')+(stock?'<br>Stock: '+stock:'')+(repair?'<br>Tiempo: '+repair:'');
+      const row=document.createElement('label');row.style.cssText='display:block;padding:8px 0;border-top:1px solid #eee;cursor:pointer';
+      row.innerHTML='<input type="checkbox" data-bd-index="'+i+'"> <b>'+(i+1)+'. '+[brand,art].filter(Boolean).join(' ')+'</b><br>'+String(name||category)+
+        (price?'<br>Precio: '+price:'')+(stock?'<br>Stock: '+stock:'')+(repair?'<br>Tiempo: '+repair:'')+
+        '<br>Cantidad: <input type="number" min="1" step="1" value="1" data-bd-quantity="'+i+'" style="width:56px">';
       panel.appendChild(row);
     });
+    const send=document.createElement('button');
+    send.type='button';send.textContent='Enviar selección a Bildiagnos';
+    send.style.cssText='position:sticky;bottom:0;width:100%;margin-top:8px;padding:9px;border:0;border-radius:6px;background:#0f766e;color:#fff;font-weight:bold;cursor:pointer';
+    send.addEventListener('click',()=>exportSelection(panel,items.slice(0,30),category,vehicle));
+    panel.appendChild(send);
     window.__BILDIAGNOS_AD_RESULTS__={plate:vehicle.regNr||plate,category,nodeNo,articles:items,raw:data};
     status(category+' cargado por API: '+items.length+' artículo(s).');
     return items;
