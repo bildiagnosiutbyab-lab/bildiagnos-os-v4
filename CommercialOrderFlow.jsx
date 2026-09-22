@@ -10,6 +10,8 @@ import {
   prepareCommercialQuote,
   removeCommercialPart,
   removeCommercialService,
+  updateCommercialPart,
+  updateCommercialService,
 } from './commercialRepository.js';
 import './commercialFlow.css';
 
@@ -19,6 +21,55 @@ const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '12
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
+
+function ServiceLineEditor({ item, busy, onSave, onDelete }) {
+  const [draft, setDraft] = useState({
+    description: item.description || '',
+    hours: String(Number(item.estimated_minutes || 0) / 60),
+    unitPrice: String(item.unit_price ?? ''),
+  });
+  useEffect(() => setDraft({
+    description: item.description || '',
+    hours: String(Number(item.estimated_minutes || 0) / 60),
+    unitPrice: String(item.unit_price ?? ''),
+  }), [item.description, item.estimated_minutes, item.unit_price]);
+  return <li className="commercial-edit-line">
+    <label>Trabajo<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Horas<input type="number" min="0" step="0.25" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
+    <label>Precio/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
+    <small>{item.status} · {money(Number(draft.unitPrice || 0) * Number(item.quantity || 1))}</small>
+    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
+  </li>;
+}
+
+function PartLineEditor({ item, busy, onSave, onDelete }) {
+  const [draft, setDraft] = useState({
+    description: item.description_snapshot || '',
+    partNumber: item.part_number_snapshot || '',
+    quantity: String(item.quantity ?? 1),
+    cost: item.actual_cost ?? '',
+    salePrice: item.sale_price ?? '',
+    discount: item.discount_percent ?? '',
+  });
+  useEffect(() => setDraft({
+    description: item.description_snapshot || '',
+    partNumber: item.part_number_snapshot || '',
+    quantity: String(item.quantity ?? 1),
+    cost: item.actual_cost ?? '',
+    salePrice: item.sale_price ?? '',
+    discount: item.discount_percent ?? '',
+  }), [item.description_snapshot, item.part_number_snapshot, item.quantity, item.actual_cost, item.sale_price, item.discount_percent]);
+  return <li className="commercial-edit-line commercial-part-line">
+    <label>Pieza<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Nº artículo<input value={draft.partNumber} onChange={(e) => setDraft({ ...draft, partNumber: e.target.value })} /></label>
+    <label>Cant.<input type="number" min="0.001" step="0.001" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /></label>
+    <label>Coste<input type="number" min="0" step="0.01" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} /></label>
+    <label>Precio<input type="number" min="0" step="0.01" value={draft.salePrice} onChange={(e) => setDraft({ ...draft, salePrice: e.target.value })} /></label>
+    <label>Desc. %<input type="number" min="0" max="100" step="0.01" value={draft.discount} onChange={(e) => setDraft({ ...draft, discount: e.target.value })} /></label>
+    <small>{item.status} · Total {money(Number(draft.salePrice || 0) * Number(draft.quantity || 0))}</small>
+    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
+  </li>;
+}
 
 export default function CommercialOrderFlow({ order, onSaved }) {
   const [context, setContext] = useState(null);
@@ -107,7 +158,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input required type="number" min="0" placeholder="Precio/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.services.map((item) => <li key={item.id}><span>{item.description}</span><small>{item.status} · {Number(item.estimated_minutes || 0) / 60} h · {money(Number(item.unit_price || 0) * Number(item.quantity || 1))}</small><button type="button" className="reject-button" disabled={busy || item.status === 'approved'} onClick={() => window.confirm('¿Eliminar este trabajo de la orden?') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')}>Eliminar</button></li>)}</ul>
+        <ul className="commercial-lines">{context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <ServiceLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialService(item.id, draft), 'Trabajo actualizado.')} onDelete={() => window.confirm('¿Eliminar este trabajo/tiempo de la orden? Esta acción también lo quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')} />)}</ul>
       </section>
 
       <section className="commercial-card">
@@ -120,7 +171,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input required type="number" min="0" placeholder="Precio" value={part.salePrice} onChange={(e) => setPart({ ...part, salePrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.parts.map((item) => <li key={item.id}><span>{[item.part_number_snapshot, item.description_snapshot].filter(Boolean).join(' · ')}</span><small>{item.status} · {item.quantity} st · {money(Number(item.sale_price || 0) * Number(item.quantity || 1))}</small><button type="button" className="reject-button" disabled={busy || item.status === 'approved'} onClick={() => window.confirm('¿Eliminar esta pieza de la orden?') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')}>Eliminar</button></li>)}</ul>
+        <ul className="commercial-lines">{context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <PartLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialPart(item.id, draft), 'Pieza actualizada.')} onDelete={() => window.confirm('¿Eliminar esta pieza de la orden? Esta acción también la quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')} />)}</ul>
       </section>
     </div>
 

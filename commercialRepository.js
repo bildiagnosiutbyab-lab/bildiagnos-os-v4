@@ -15,6 +15,46 @@ function quoteTotals(items) {
   return { total, subtotal, vatTotal: total - subtotal };
 }
 
+async function refreshQuoteTotals(quoteIds) {
+  const uniqueIds = [...new Set((quoteIds || []).filter(Boolean))];
+  await Promise.all(uniqueIds.map(async (quoteId) => {
+    const { data: items, error: itemsError } = await supabase
+      .from('quote_items')
+      .select('quantity,unit_price,vat_rate')
+      .eq('quote_id', quoteId);
+    throwIfError(itemsError);
+    const totals = (items || []).reduce((result, item) => {
+      const gross = Number(item.quantity || 0) * Number(item.unit_price || 0);
+      const vatRate = Number(item.vat_rate ?? VAT_RATE);
+      const net = vatRate > 0 ? gross / (1 + vatRate) : gross;
+      result.total += gross;
+      result.subtotal += net;
+      result.vatTotal += gross - net;
+      return result;
+    }, { total: 0, subtotal: 0, vatTotal: 0 });
+    const { error: quoteError } = await supabase.from('quotes').update({
+      total: totals.total,
+      subtotal: totals.subtotal,
+      vat_total: totals.vatTotal,
+    }).eq('id', quoteId);
+    throwIfError(quoteError);
+  }));
+}
+
+async function linkedQuotes(column, id) {
+  const { data, error } = await supabase.from('quote_items').select('quote_id').eq(column, id);
+  throwIfError(error);
+  const quoteIds = [...new Set((data || []).map((item) => item.quote_id))];
+  if (!quoteIds.length) return { editableIds: [], lockedIds: [] };
+  const { data: quotes, error: quotesError } = await supabase.from('quotes').select('id,status').in('id', quoteIds);
+  throwIfError(quotesError);
+  const editableStatuses = new Set(['draft', 'prepared', 'pending_approval']);
+  return {
+    editableIds: (quotes || []).filter((quote) => editableStatuses.has(quote.status)).map((quote) => quote.id),
+    lockedIds: (quotes || []).filter((quote) => !editableStatuses.has(quote.status)).map((quote) => quote.id),
+  };
+}
+
 export async function loadCommercialOrder(orderId) {
   const { data: workOrder, error: orderError } = await supabase
     .from('work_orders')
@@ -94,6 +134,66 @@ export async function addCommercialPart(context, input) {
   throwIfError(error);
 }
 
+export async function updateCommercialService(id, input) {
+  const description = String(input.description || '').trim();
+  const hours = Number(input.hours);
+  const unitPrice = Number(input.unitPrice);
+  if (!description) throw new Error('El trabajo necesita una descripción.');
+  if (!Number.isFinite(hours) || hours < 0) throw new Error('Las horas deben ser cero o mayores.');
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('El precio debe ser cero o mayor.');
+
+  const quoteLinks = await linkedQuotes('service_id', id);
+  const { error } = await supabase.from('work_order_services').update({
+    description,
+    estimated_minutes: Math.round(hours * 60),
+    unit_price: unitPrice,
+  }).eq('id', id);
+  throwIfError(error);
+  if (quoteLinks.editableIds.length) {
+    const { error: lineError } = await supabase.from('quote_items').update({
+      description,
+      unit_price: unitPrice,
+    }).eq('service_id', id).in('quote_id', quoteLinks.editableIds);
+    throwIfError(lineError);
+  }
+  await refreshQuoteTotals(quoteLinks.editableIds);
+}
+
+export async function updateCommercialPart(id, input) {
+  const description = String(input.description || '').trim();
+  const quantity = Number(input.quantity);
+  const salePrice = Number(input.salePrice);
+  const cost = input.cost === '' || input.cost === null ? null : Number(input.cost);
+  const discount = input.discount === '' || input.discount === null ? null : Number(input.discount);
+  if (!description) throw new Error('La pieza necesita una descripción.');
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('La cantidad debe ser mayor que cero.');
+  if (!Number.isFinite(salePrice) || salePrice < 0) throw new Error('El precio debe ser cero o mayor.');
+  if (cost !== null && (!Number.isFinite(cost) || cost < 0)) throw new Error('El coste debe ser cero o mayor.');
+  if (discount !== null && (!Number.isFinite(discount) || discount < 0 || discount > 100)) throw new Error('El descuento debe estar entre 0 y 100%.');
+
+  const partNumber = String(input.partNumber || '').trim() || null;
+  const quoteDescription = [partNumber, description].filter(Boolean).join(' · ');
+  const quoteLinks = await linkedQuotes('part_line_id', id);
+  const { error } = await supabase.from('work_order_parts').update({
+    part_number_snapshot: partNumber,
+    description_snapshot: description,
+    quantity,
+    actual_cost: cost,
+    sale_price: salePrice,
+    discount_percent: discount,
+  }).eq('id', id);
+  throwIfError(error);
+  if (quoteLinks.editableIds.length) {
+    const { error: lineError } = await supabase.from('quote_items').update({
+      description: quoteDescription,
+      quantity,
+      unit_price: salePrice,
+    }).eq('part_line_id', id).in('quote_id', quoteLinks.editableIds);
+    throwIfError(lineError);
+  }
+  await refreshQuoteTotals(quoteLinks.editableIds);
+}
+
 export async function importCatalogOrderItems({ workOrderId, source, plate, parts, laborItems }) {
   const { data, error } = await supabase.rpc('import_catalog_order_items', {
     p_work_order_id: workOrderId, p_source: source, p_plate: plate || null,
@@ -105,7 +205,7 @@ export async function importCatalogOrderItems({ workOrderId, source, plate, part
 
 function commercialLines(context) {
   const services = context.services
-    .filter((item) => item.status !== 'rejected')
+    .filter((item) => !['rejected', 'removed'].includes(item.status))
     .map((item) => ({
       item_type: 'service',
       description: item.description,
@@ -116,7 +216,7 @@ function commercialLines(context) {
       part_line_id: null,
     }));
   const parts = context.parts
-    .filter((item) => item.status !== 'rejected')
+    .filter((item) => !['rejected', 'removed'].includes(item.status))
     .map((item) => ({
       item_type: 'part',
       description: [item.part_number_snapshot, item.description_snapshot].filter(Boolean).join(' · '),
@@ -132,6 +232,8 @@ function commercialLines(context) {
 export async function prepareCommercialQuote(context, settings) {
   const { workOrder } = context;
   const lines = commercialLines(context);
+  const activeServiceIds = context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => item.id);
+  const activePartIds = context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => item.id);
   if (!lines.length) throw new Error('Añade al menos una operación o una pieza antes de preparar la cotización.');
   const totals = quoteTotals(lines);
   const lastQuote = context.quotes[0];
@@ -183,11 +285,11 @@ export async function prepareCommercialQuote(context, settings) {
   throwIfError(itemsError);
 
   await Promise.all([
-    context.services.length
-      ? supabase.from('work_order_services').update({ status: 'pending_approval' }).in('id', context.services.map((item) => item.id))
+    activeServiceIds.length
+      ? supabase.from('work_order_services').update({ status: 'pending_approval' }).in('id', activeServiceIds)
       : Promise.resolve({ error: null }),
-    context.parts.length
-      ? supabase.from('work_order_parts').update({ status: 'pending_approval' }).in('id', context.parts.map((item) => item.id))
+    activePartIds.length
+      ? supabase.from('work_order_parts').update({ status: 'pending_approval' }).in('id', activePartIds)
       : Promise.resolve({ error: null }),
   ].map(async (result) => throwIfError((await result).error)));
 
@@ -309,14 +411,32 @@ export async function confirmCommercialPayment(context, form) {
 }
 
 export async function removeCommercialService(id) {
-  const { error: quoteError } = await supabase.from('quote_items').delete().eq('service_id', id);
-  throwIfError(quoteError);
-  const { error } = await supabase.from('work_order_services').delete().eq('id', id);
-  throwIfError(error);
+  const quoteLinks = await linkedQuotes('service_id', id);
+  if (quoteLinks.editableIds.length) {
+    const { error: quoteError } = await supabase.from('quote_items').delete().eq('service_id', id).in('quote_id', quoteLinks.editableIds);
+    throwIfError(quoteError);
+  }
+  const { count, error: invoiceError } = await supabase.from('invoice_items').select('id', { count: 'exact', head: true }).eq('service_id', id);
+  throwIfError(invoiceError);
+  const referencedHistorically = quoteLinks.lockedIds.length > 0 || Number(count || 0) > 0;
+  const result = referencedHistorically
+    ? await supabase.from('work_order_services').update({ status: 'removed' }).eq('id', id)
+    : await supabase.from('work_order_services').delete().eq('id', id);
+  throwIfError(result.error);
+  await refreshQuoteTotals(quoteLinks.editableIds);
 }
 export async function removeCommercialPart(id) {
-  const { error: quoteError } = await supabase.from('quote_items').delete().eq('part_line_id', id);
-  throwIfError(quoteError);
-  const { error } = await supabase.from('work_order_parts').delete().eq('id', id);
-  throwIfError(error);
+  const quoteLinks = await linkedQuotes('part_line_id', id);
+  if (quoteLinks.editableIds.length) {
+    const { error: quoteError } = await supabase.from('quote_items').delete().eq('part_line_id', id).in('quote_id', quoteLinks.editableIds);
+    throwIfError(quoteError);
+  }
+  const { count, error: invoiceError } = await supabase.from('invoice_items').select('id', { count: 'exact', head: true }).eq('part_line_id', id);
+  throwIfError(invoiceError);
+  const referencedHistorically = quoteLinks.lockedIds.length > 0 || Number(count || 0) > 0;
+  const result = referencedHistorically
+    ? await supabase.from('work_order_parts').update({ status: 'removed' }).eq('id', id)
+    : await supabase.from('work_order_parts').delete().eq('id', id);
+  throwIfError(result.error);
+  await refreshQuoteTotals(quoteLinks.editableIds);
 }

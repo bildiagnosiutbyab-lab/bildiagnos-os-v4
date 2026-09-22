@@ -15,6 +15,14 @@
 .commercial-lines { list-style:none; padding:0; margin:.85rem 0 0; }
 .commercial-lines li { padding:.55rem 0; border-top:1px solid #eef2f7; display:flex; justify-content:space-between; gap:.6rem; }
 .commercial-lines small { color:#64748b; text-align:right; }
+.commercial-lines .commercial-edit-line { display:grid; grid-template-columns:minmax(180px,2fr) repeat(2,minmax(90px,.7fr)); align-items:end; }
+.commercial-lines .commercial-part-line { grid-template-columns:minmax(170px,2fr) minmax(110px,1fr) repeat(4,minmax(80px,.65fr)); }
+.commercial-edit-line label { display:grid; gap:.2rem; color:#475569; font-size:.75rem; }
+.commercial-edit-line input { min-width:0; width:100%; box-sizing:border-box; padding:.45rem; border:1px solid #cbd5e1; border-radius:7px; font:inherit; color:#0f172a; }
+.commercial-edit-line small { text-align:left; align-self:center; }
+.commercial-line-actions { display:flex; gap:.4rem; justify-content:flex-end; }
+.commercial-line-actions button { border:0; border-radius:7px; padding:.5rem .7rem; background:#0f766e; color:#fff; font:inherit; cursor:pointer; }
+.commercial-line-actions button:disabled { opacity:.55; cursor:wait; }
 .commercial-settings { display:flex; gap:.8rem; flex-wrap:wrap; align-items:end; }
 .commercial-settings label { display:grid; gap:.35rem; color:#334155; font-size:.9rem; }
 .commercial-settings label:first-child { flex:1 1 260px; }
@@ -34,7 +42,7 @@
 .commercial-error { color:#b91c1c; margin:.5rem 0; }
 .commercial-print { display:none; }
 
-@media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } }
+@media (max-width:850px) { .commercial-grid { grid-template-columns:1fr; } .commercial-inline-form, .commercial-parts-form, .invoice-form { grid-template-columns:1fr 1fr; } .commercial-lines .commercial-edit-line,.commercial-lines .commercial-part-line { grid-template-columns:1fr 1fr; } .commercial-edit-line>label:first-child,.commercial-edit-line>small,.commercial-line-actions { grid-column:1/-1; } }
 @media print {
   @page { size:A4; margin:14mm; }
   html, body { margin:0 !important; padding:0 !important; height:auto !important; min-height:0 !important; overflow:visible !important; }
