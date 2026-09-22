@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { importCatalogOrderItems } from './commercialRepository.js';
+import { parseCatalogLaborHours } from './catalogTime.mjs';
 import './catalogOrderImport.css';
 
 const CATALOGS = { 'AD Bildelar': 'https://katalog.adsverige.com/store/se7l1/parts', BilXtra: 'https://pro.bilxtra.se/', ZEPRO: 'https://zepro.pro/sv/catalog', Partslink24: 'https://www.partslink24.com/' };
@@ -24,10 +25,9 @@ function parsePayload(raw, expectedSource) {
   if (foundSource && foundSource !== expectedSource) throw new Error(`La exportación corresponde a ${foundSource}; selecciona el mismo catálogo.`);
   const parts = (Array.isArray(payload.parts) ? payload.parts : []).map((item) => ({ articleNumber: String(item.articleNumber ?? item.partNumber ?? item.number ?? item.code ?? '').trim(), description: String(item.description ?? item.name ?? item.title ?? '').trim(), quantity: numeric(item.qty ?? item.quantity ?? item.amount), cost: numeric(item.cost ?? item.purchasePrice), price: numeric(item.price ?? item.salePrice ?? item.unitPrice), discount: numeric(item.discount ?? item.discountPercent), supplier: String(item.supplier ?? expectedSource).trim() || expectedSource })).filter((item) => item.description || item.articleNumber);
   const rawLabor = Array.isArray(payload.laborItems) ? payload.laborItems : (Array.isArray(payload.labor) ? payload.labor : []);
-  const laborItems = rawLabor.map((item) => ({ code: String(item.code ?? item.articleNumber ?? '').trim(), description: String(item.description ?? item.name ?? item.title ?? '').trim(), hours: numeric(item.hours ?? item.laborHours ?? item.quantity), hourlyRate: numeric(item.hourlyRate ?? item.unitPrice ?? item.rate) })).filter((item) => item.description);
+  const laborItems = rawLabor.map((item) => ({ code: String(item.code ?? item.articleNumber ?? '').trim(), description: String(item.description ?? item.name ?? item.title ?? '').trim(), hours: parseCatalogLaborHours(item), hourlyRate: numeric(item.hourlyRate ?? item.unitPrice ?? item.rate) })).filter((item) => item.description);
   if (!parts.length && !laborItems.length) throw new Error('La exportación no contiene piezas ni trabajos reconocibles.');
   if (parts.some((item) => !item.description || !item.quantity || item.quantity <= 0)) throw new Error('Cada pieza necesita descripción y cantidad mayor que cero.');
-  if (laborItems.some((item) => item.hours === null || item.hours < 0)) throw new Error('Cada trabajo necesita horas estimadas válidas.');
   return { plate: String(payload.plate ?? payload.registrationNumber ?? '').trim(), parts, laborItems };
 }
 
@@ -36,7 +36,7 @@ function validatePreview(preview) {
   if (preview.parts.some((item) => !String(item.description || '').trim() || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) throw new Error('Cada pieza necesita descripción y cantidad mayor que cero.');
   if (preview.parts.some((item) => item.price !== null && item.price !== '' && (!Number.isFinite(Number(item.price)) || Number(item.price) < 0))) throw new Error('El precio de cada pieza debe ser cero o mayor.');
   if (preview.parts.some((item) => item.discount !== null && item.discount !== '' && (!Number.isFinite(Number(item.discount)) || Number(item.discount) < 0 || Number(item.discount) > 100))) throw new Error('El descuento debe estar entre 0 y 100%.');
-  if (preview.laborItems.some((item) => !String(item.description || '').trim() || !Number.isFinite(Number(item.hours)) || Number(item.hours) < 0)) throw new Error('Cada trabajo necesita descripción y horas estimadas válidas.');
+  if (preview.laborItems.some((item) => !String(item.description || '').trim() || item.hours === null || item.hours === '' || !Number.isFinite(Number(item.hours)) || Number(item.hours) < 0)) throw new Error('Cada trabajo necesita descripción y horas estimadas válidas.');
   if (preview.laborItems.some((item) => item.hourlyRate !== null && item.hourlyRate !== '' && (!Number.isFinite(Number(item.hourlyRate)) || Number(item.hourlyRate) < 0))) throw new Error('El precio/hora debe ser cero o mayor.');
 }
 
