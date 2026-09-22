@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { importCatalogOrderItems } from './commercialRepository.js';
 import './catalogOrderImport.css';
 
@@ -34,6 +34,26 @@ function parsePayload(raw, expectedSource) {
 export default function CatalogOrderImport({ order, onSaved }) {
   const [source, setSource] = useState('AD Bildelar'); const [raw, setRaw] = useState(''); const [preview, setPreview] = useState(null); const [message, setMessage] = useState(''); const [confirmedBlankPlate, setConfirmedBlankPlate] = useState(false); const [busy, setBusy] = useState(false);
   const orderPlate = order.plate || ''; const matchingPlate = preview?.plate && plate(preview.plate) === plate(orderPlate); const mismatch = preview?.plate && !matchingPlate; const canConfirm = preview && !mismatch && (matchingPlate || confirmedBlankPlate); const count = useMemo(() => ({ parts: preview?.parts.length || 0, labor: preview?.laborItems.length || 0 }), [preview]);
+  useEffect(() => {
+    const receiveTransfer = (event) => {
+      try {
+        const payload = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+        const receivedSource = normalizedSource(payload?.source);
+        if (receivedSource !== 'AD Bildelar') throw new Error('La transferencia recibida no corresponde a AD Bildelar.');
+        const parsed = parsePayload(JSON.stringify(payload), receivedSource);
+        setSource(receivedSource);
+        setRaw(JSON.stringify(payload));
+        setPreview(parsed);
+        setConfirmedBlankPlate(false);
+        setMessage('Selección de AD recibida. Revisa la previsualización antes de guardar.');
+      } catch (error) {
+        setPreview(null);
+        setMessage(error.message || 'No se pudo leer la selección enviada por AD.');
+      }
+    };
+    window.addEventListener('BILDIAGNOS_CATALOG_TRANSFER', receiveTransfer);
+    return () => window.removeEventListener('BILDIAGNOS_CATALOG_TRANSFER', receiveTransfer);
+  }, []);
   const openCatalog = async (catalog) => {
     const normalizedPlate = plate(orderPlate);
     if (!normalizedPlate) { setMessage('Esta orden no tiene matrícula.'); return; }
@@ -48,7 +68,13 @@ export default function CatalogOrderImport({ order, onSaved }) {
           ? `ZEPRO abierto. Matrícula ${normalizedPlate} lista en el portapapeles para seleccionar el vehículo.`
           : `AD Bildelar abierto con la matrícula ${normalizedPlate}. La extensión de Opera la seleccionará automáticamente.`);
   };
-  const readCatalogClipboard = async () => {
+  const receiveCatalogSelection = async () => {
+    if (source === 'AD Bildelar') {
+      setMessage('Buscando la última selección enviada desde AD…');
+      window.dispatchEvent(new Event('BILDIAGNOS_REQUEST_CATALOG_TRANSFER'));
+      window.setTimeout(() => setMessage((current) => current === 'Buscando la última selección enviada desde AD…' ? 'No se encontró una selección de AD. Comprueba que la extensión v1.0 esté activa y vuelve a pulsar Enviar selección a Bildiagnos.' : current), 1200);
+      return;
+    }
     try {
       const clipboard = await navigator.clipboard.readText();
       if (!clipboard.trim()) throw new Error('El portapapeles está vacío.');
@@ -62,8 +88,8 @@ export default function CatalogOrderImport({ order, onSaved }) {
     }
   };
   const previewImport = () => { try { setPreview(parsePayload(raw, source)); setConfirmedBlankPlate(false); setMessage('Revisa la previsualización antes de guardar.'); } catch (error) { setPreview(null); setMessage(error.message || 'No se pudo leer la exportación.'); } };
-  const confirmImport = async () => { if (!canConfirm || !order.relationalId) return; setBusy(true); try { const result = await importCatalogOrderItems({ workOrderId: order.relationalId, source, plate: preview.plate || orderPlate, parts: preview.parts, laborItems: preview.laborItems }); setMessage(`Importación confirmada: ${result.parts_imported || 0} piezas y ${result.services_imported || 0} trabajos.`); setRaw(''); setPreview(null); setConfirmedBlankPlate(false); await onSaved?.(); } catch (error) { setMessage(error.message || 'No se pudo guardar la importación.'); } finally { setBusy(false); } };
+  const confirmImport = async () => { if (!canConfirm || !order.relationalId) return; setBusy(true); try { const result = await importCatalogOrderItems({ workOrderId: order.relationalId, source, plate: preview.plate || orderPlate, parts: preview.parts, laborItems: preview.laborItems }); if (source === 'AD Bildelar') window.dispatchEvent(new Event('BILDIAGNOS_CATALOG_TRANSFER_CONSUMED')); setMessage(`Importación confirmada: ${result.parts_imported || 0} piezas y ${result.services_imported || 0} trabajos.`); setRaw(''); setPreview(null); setConfirmedBlankPlate(false); await onSaved?.(); } catch (error) { setMessage(error.message || 'No se pudo guardar la importación.'); } finally { setBusy(false); } };
   if (!order.relationalId) return null;
-  return <section className="catalog-import"><header><div><p>Catálogos externos</p><h2>Importar piezas y trabajo</h2></div><span>Orden · {orderPlate || 'sin matrícula'}</span></header><p className="catalog-import-note">Los catálogos se abren fuera de Bildiagnos. No se hacen pedidos ni se guardan credenciales.</p><div className="catalog-import-actions">{Object.keys(CATALOGS).map((catalog) => <button type="button" key={catalog} className="catalog-open" onClick={() => openCatalog(catalog)}>Abrir {catalog}</button>)}<label>Importar desde<select value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); }}><option>AD Bildelar</option><option>BilXtra</option><option>ZEPRO</option></select></label></div><div className="catalog-return"><p>Cuando termines de seleccionar en el catálogo, usa su opción de copiar a Bildiagnos y vuelve aquí.</p><button type="button" className="catalog-preview-button" onClick={readCatalogClipboard}>Recibir selección del catálogo</button></div>{message && <p className={message.startsWith('No se pudo') || message.includes('necesita') || message.includes('corresponde') ? 'catalog-import-error' : 'catalog-import-message'}>{message}</p>}{preview && <div className="catalog-preview"><h3>Previsualización obligatoria</h3><p>Matrícula de la orden: <b>{orderPlate || '—'}</b> · Matrícula exportada: <b>{preview.plate || 'no incluida'}</b></p>{mismatch && <p className="catalog-import-error">La matrícula no coincide. No se puede guardar esta importación.</p>}{!preview.plate && <label className="catalog-confirm-plate"><input type="checkbox" checked={confirmedBlankPlate} onChange={(event) => setConfirmedBlankPlate(event.target.checked)} /> Confirmo que la exportación corresponde a la matrícula {orderPlate || 'de esta orden'}.</label>}{!!count.parts && <><h4>Piezas</h4><Table headers={['Artículo','Descripción','Cant.','Proveedor','Coste','Precio','Desc.']} rows={preview.parts.map((item) => [item.articleNumber || '—', item.description, item.quantity, item.supplier, amount(item.cost), amount(item.price), `${amount(item.discount)}%`])}/></>}{!!count.labor && <><h4>Trabajo</h4><Table headers={['Código','Descripción','Horas estimadas','Precio/h']} rows={preview.laborItems.map((item) => [item.code || '—', item.description, item.hours, amount(item.hourlyRate)])}/></>}<button type="button" className="catalog-confirm-button" disabled={!canConfirm || busy} onClick={confirmImport}>{busy ? 'Guardando…' : 'Confirmar e importar en esta orden'}</button></div>}</section>;
+  return <section className="catalog-import"><header><div><p>Catálogos externos</p><h2>Importar piezas y trabajo</h2></div><span>Orden · {orderPlate || 'sin matrícula'}</span></header><p className="catalog-import-note">Los catálogos se abren fuera de Bildiagnos. No se hacen pedidos ni se guardan credenciales.</p><div className="catalog-import-actions">{Object.keys(CATALOGS).map((catalog) => <button type="button" key={catalog} className="catalog-open" onClick={() => openCatalog(catalog)}>Abrir {catalog}</button>)}<label>Importar desde<select value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); }}><option>AD Bildelar</option><option>BilXtra</option><option>ZEPRO</option></select></label></div><div className="catalog-return"><p>{source === 'AD Bildelar' ? 'En AD marca las piezas y pulsa Enviar selección a Bildiagnos. Después vuelve a esta orden.' : 'Cuando termines de seleccionar en el catálogo, usa su opción de copiar a Bildiagnos y vuelve aquí.'}</p><button type="button" className="catalog-preview-button" onClick={receiveCatalogSelection}>Recibir selección del catálogo</button></div>{message && <p className={message.startsWith('No se') || message.includes('necesita') || message.includes('corresponde') ? 'catalog-import-error' : 'catalog-import-message'}>{message}</p>}{preview && <div className="catalog-preview"><h3>Previsualización obligatoria</h3><p>Matrícula de la orden: <b>{orderPlate || '—'}</b> · Matrícula exportada: <b>{preview.plate || 'no incluida'}</b></p>{mismatch && <p className="catalog-import-error">La matrícula no coincide. No se puede guardar esta importación.</p>}{!preview.plate && <label className="catalog-confirm-plate"><input type="checkbox" checked={confirmedBlankPlate} onChange={(event) => setConfirmedBlankPlate(event.target.checked)} /> Confirmo que la exportación corresponde a la matrícula {orderPlate || 'de esta orden'}.</label>}{!!count.parts && <><h4>Piezas</h4><Table headers={['Artículo','Descripción','Cant.','Proveedor','Coste','Precio','Desc.']} rows={preview.parts.map((item) => [item.articleNumber || '—', item.description, item.quantity, item.supplier, amount(item.cost), amount(item.price), `${amount(item.discount)}%`])}/></>}{!!count.labor && <><h4>Trabajo</h4><Table headers={['Código','Descripción','Horas estimadas','Precio/h']} rows={preview.laborItems.map((item) => [item.code || '—', item.description, item.hours, amount(item.hourlyRate)])}/></>}<button type="button" className="catalog-confirm-button" disabled={!canConfirm || busy} onClick={confirmImport}>{busy ? 'Guardando…' : 'Confirmar e importar en esta orden'}</button></div>}</section>;
 }
 function Table({ headers, rows }) { return <div className="catalog-table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table></div>; }
