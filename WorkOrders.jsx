@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import {
+  controlOrderTimer,
   loadRelationalOrders,
   saveRelationalOrder,
   subscribeToRelationalOrders,
@@ -133,6 +134,7 @@ export default function WorkOrders() {
 
   const [orders, setOrders] = useState(loadOrders);
   const [syncMessage, setSyncMessage] = useState('');
+  const [timerBusy, setTimerBusy] = useState(false);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
 
@@ -140,27 +142,6 @@ export default function WorkOrders() {
     saveOrders(orders);
   }, [orders]);
 
-  useEffect(() => {
-    function refreshOrders(event) {
-      if (
-        event &&
-        event.key !== ORDERS_STORAGE_KEY &&
-        event.key !== CENTRAL_STATE_KEY
-      ) {
-        return;
-      }
-
-      setOrders(loadOrders());
-    }
-
-    window.addEventListener('storage', refreshOrders);
-    window.addEventListener('focus', refreshOrders);
-
-    return () => {
-      window.removeEventListener('storage', refreshOrders);
-      window.removeEventListener('focus', refreshOrders);
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -175,7 +156,8 @@ export default function WorkOrders() {
     }
     refresh();
     const unsubscribe = subscribeToRelationalOrders(refresh);
-    return () => { active = false; unsubscribe(); };
+    window.addEventListener('focus', refresh);
+    return () => { active = false; unsubscribe(); window.removeEventListener('focus', refresh); };
   }, []);
 
   useEffect(() => {
@@ -304,46 +286,36 @@ export default function WorkOrders() {
     setShowForm(false);
   }
 
-  function startTimer(order) {
-    if (order.timerStartedAt) {
-      return;
+  async function runTimerAction(order, action) {
+    if (timerBusy) return;
+    setTimerBusy(true);
+    setSyncMessage('Guardando cronómetro…');
+    try {
+      const saved = await controlOrderTimer(order, action);
+      setOrders((items) => items.map((item) => item.id === order.id ? saved : item));
+      setSyncMessage('Cronómetro guardado en Supabase');
+    } catch (error) {
+      console.error('No se pudo guardar el cronómetro:', error);
+      setSyncMessage('No se pudo guardar el cronómetro. Comprueba la conexión.');
+      const latest = await loadRelationalOrders().catch(() => null);
+      if (latest) setOrders(latest);
+    } finally {
+      setTimerBusy(false);
     }
+  }
 
-    updateOrder(order.id, {
-      timerStartedAt: Date.now(),
-      status: order.status === 'Abierta' ? 'En reparación' : order.status,
-    });
+  function startTimer(order) {
+    if (!order.timerStartedAt) runTimerAction(order, 'start');
   }
 
   function pauseTimer(order) {
-    if (!order.timerStartedAt) {
-      return;
-    }
-
-    const sessionSeconds = Math.floor(
-      (Date.now() - Number(order.timerStartedAt)) / 1000
-    );
-
-    updateOrder(order.id, {
-      accumulatedSeconds:
-        Number(order.accumulatedSeconds || 0) + Math.max(0, sessionSeconds),
-      timerStartedAt: null,
-    });
+    if (order.timerStartedAt) runTimerAction(order, 'pause');
   }
 
   function resetTimer(order) {
-    const confirmed = window.confirm(
-      '¿Seguro que quieres poner el cronómetro en cero?'
-    );
-
-    if (!confirmed) {
-      return;
+    if (window.confirm('¿Seguro que quieres poner el cronómetro en cero?')) {
+      runTimerAction(order, 'reset');
     }
-
-    updateOrder(order.id, {
-      accumulatedSeconds: 0,
-      timerStartedAt: null,
-    });
   }
 
   function changeStatus(orderId, status) {
@@ -410,6 +382,7 @@ export default function WorkOrders() {
               {!timerRunning ? (
                 <button
                   className="timer-start-button"
+                  disabled={timerBusy}
                   onClick={() => startTimer(selectedOrder)}
                 >
                   Iniciar
@@ -417,6 +390,7 @@ export default function WorkOrders() {
               ) : (
                 <button
                   className="timer-pause-button"
+                  disabled={timerBusy}
                   onClick={() => pauseTimer(selectedOrder)}
                 >
                   Pausar
@@ -425,6 +399,7 @@ export default function WorkOrders() {
 
               <button
                 className="secondary-button"
+                disabled={timerBusy}
                 onClick={() => resetTimer(selectedOrder)}
               >
                 Reiniciar
