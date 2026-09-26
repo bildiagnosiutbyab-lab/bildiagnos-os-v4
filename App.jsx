@@ -7,6 +7,7 @@ import Vehicles from './Vehicles.jsx';
 import Parts from './Parts.jsx';
 import Calendar from './Calendar.jsx';
 import AuthGate from './AuthGate.jsx';
+import Lager from './Lager.jsx';
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
@@ -25,6 +26,7 @@ export default function App() {
           {page === 'customers' && <Customers />}
           {page === 'vehicles' && <Vehicles />}
           {page === 'parts' && <Parts />}
+          {page === 'lager' && <Lager />}
           {page === 'calendar' && <Calendar />}
         </main>
       </div>

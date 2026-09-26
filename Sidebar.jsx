@@ -1,4 +1,4 @@
-import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, CalendarDays, Boxes } from 'lucide-react';
 
 const items = [
   ['dashboard', 'Inicio', LayoutDashboard],
@@ -6,6 +6,7 @@ const items = [
   ['customers', 'Clientes', Users],
   ['vehicles', 'Vehículos', Car],
   ['parts', 'Piezas', PackageSearch],
+  ['lager', 'Lager / Inventario', Boxes],
   ['calendar', 'Calendario', CalendarDays]
 ];
 

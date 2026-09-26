@@ -1,0 +1,30 @@
+.lager-toolbar { display:flex; align-items:end; flex-wrap:wrap; gap:16px; margin-bottom:16px; }
+.lager-toolbar label { flex:1; min-width:240px; display:grid; gap:6px; font-weight:700; }
+.lager-toolbar input,.lager-form input,.lager-count input,.order-inventory input,.order-inventory select { padding:10px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; width:100%; }
+.lager-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:16px; }
+.lager-form h2 { grid-column:1/-1; margin:0; }
+.lager-form label { display:grid; gap:5px; font-size:14px; }
+.lager-form button { align-self:end; }
+.lager-list,.lager-draft { margin-bottom:16px; }
+.lager-list h2,.lager-draft h2 { margin-top:0; }
+.lager-row { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:start; gap:12px; border-top:1px solid #e2e8f0; padding:16px 0; }
+.lager-row>div:first-child { display:grid; gap:4px; }
+.lager-row small { color:#475569; }
+.lager-controls { display:grid; gap:8px; justify-items:end; }
+.lager-controls>div { display:flex; gap:6px; flex-wrap:wrap; }
+.lager-controls button,.lager-count button,.lager-history button,.lager-draft button { padding:7px 11px; border:1px solid #cbd5e1; border-radius:8px; background:white; cursor:pointer; }
+.lager-low { color:#9a3412; background:#ffedd5; padding:4px 8px; border-radius:6px; }
+.lager-count,.lager-history { flex-basis:100%; background:#f8fafc; border-radius:8px; padding:12px; }
+.lager-count { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.lager-count input { max-width:120px; }
+.lager-history p { margin:8px 0; font-size:14px; }
+.lager-draft-heading { display:flex; justify-content:space-between; gap:14px; align-items:start; }
+.lager-draft-heading p { color:#475569; }
+.lager-table-wrap { overflow-x:auto; }
+.lager-draft table { border-collapse:collapse; width:100%; min-width:650px; text-align:left; }
+.lager-draft th,.lager-draft td { padding:9px; border-bottom:1px solid #e2e8f0; }
+.lager-message { padding:12px; border-radius:8px; background:#eff6ff; }
+.order-inventory { margin:16px 0; }
+.order-inventory>div { display:flex; flex-wrap:wrap; gap:8px; }
+.order-inventory select { flex:1; min-width:200px; }.order-inventory input { width:110px; }
+@media(max-width:600px){ .lager-controls { justify-items:start; } .lager-draft-heading { flex-direction:column; } }

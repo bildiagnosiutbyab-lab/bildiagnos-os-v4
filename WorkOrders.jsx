@@ -8,6 +8,7 @@ import {
 } from './ordersRepository.js';
 import CommercialOrderFlow from './CommercialOrderFlow.jsx';
 import CatalogOrderImport from './CatalogOrderImport.jsx';
+import OrderInventory from './OrderInventory.jsx';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
 const CENTRAL_STATE_KEY = 'central_state';
@@ -131,6 +132,7 @@ export default function WorkOrders() {
   const [form, setForm] = useState(emptyForm);
   const [, setClockTick] = useState(0);
   const [showPartForm, setShowPartForm] = useState(false);
+  const [inventoryRevision, setInventoryRevision] = useState(0);
 
   const [orders, setOrders] = useState(loadOrders);
   const [syncMessage, setSyncMessage] = useState('');
@@ -497,7 +499,9 @@ export default function WorkOrders() {
             const latest = await loadRelationalOrders();
             setOrders(latest);
           }} />
+          <OrderInventory order={selectedOrder} onSaved={() => setInventoryRevision((n) => n + 1)} />
           <CommercialOrderFlow
+            key={`${selectedOrder.relationalId}-${inventoryRevision}`}
             order={selectedOrder}
             onSaved={async () => {
               const latest = await loadRelationalOrders();
