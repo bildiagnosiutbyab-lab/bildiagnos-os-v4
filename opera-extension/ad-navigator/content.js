@@ -1,5 +1,5 @@
 (() => {
-  const VERSION='1.0.1';
+  const VERSION='1.0.2';
   const params=new URLSearchParams(location.search);
   const plate=(params.get('bildiagnosReg')||'').replace(/\s+/g,'').toUpperCase();
   const path=(params.get('bdClick')||'').split('>').map(s=>s.trim()).filter(Boolean);
@@ -101,10 +101,20 @@
     return false;
   }
   function selectedVehicle() {
-    const page = norm(document.body.innerText);
-    return !!plate && page.includes(norm(plate)) &&
-      !page.includes('inget fordon valt') &&
-      /ktypnr|chassinr|motorkod/i.test(document.body.innerText);
+    if(!plate)return false;
+    const input=[...document.querySelectorAll('input')].find(el=>
+      /sök regnr|chassinr|artiklar/i.test(el.placeholder||''));
+    if(!input)return false;
+    const box=input.getBoundingClientRect();
+    // AD keeps the active registration as a chip to the right of the search box.
+    // Search suggestions below it must never count as a selected vehicle.
+    const activeChip=[...document.querySelectorAll('body *')].some(el=>{
+      if(el.children.length || norm(el.textContent)!==norm(plate))return false;
+      const rect=el.getBoundingClientRect();
+      return rect.width>0 && rect.height>0 &&
+        rect.left>=box.right-8 && rect.top>=box.top-25 && rect.bottom<=box.bottom+35;
+    });
+    return activeChip && !/inget fordon valt/i.test(document.body.innerText);
   }
 
   async function ensurePlate(){
