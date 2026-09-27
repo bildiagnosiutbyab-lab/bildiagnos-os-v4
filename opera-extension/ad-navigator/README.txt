@@ -1,4 +1,4 @@
-Bildiagnos - AD Bildelar Navigator v1.0.1
+Bildiagnos - AD Bildelar Navigator v1.0.2
 
 Instalacion en Opera:
 1. Descomprime el ZIP.
