@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bildiagnos - AD Bildelar Navigator",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Navegacion AD Bildelar y transferencia confirmada de piezas a Bildiagnos.",
   "permissions": ["storage"],
   "host_permissions": [
