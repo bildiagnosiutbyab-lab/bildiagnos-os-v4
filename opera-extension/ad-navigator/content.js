@@ -1,5 +1,5 @@
 (() => {
-  const VERSION='1.0.0';
+  const VERSION='1.0.1';
   const params=new URLSearchParams(location.search);
   const plate=(params.get('bildiagnosReg')||'').replace(/\s+/g,'').toUpperCase();
   const path=(params.get('bdClick')||'').split('>').map(s=>s.trim()).filter(Boolean);
@@ -100,20 +100,54 @@
     for(let i=0;i<40;i++){if(auth)return true;await sleep(250);}
     return false;
   }
+  function selectedVehicle() {
+    const page = norm(document.body.innerText);
+    return !!plate && page.includes(norm(plate)) &&
+      !page.includes('inget fordon valt') &&
+      /ktypnr|chassinr|motorkod/i.test(document.body.innerText);
+  }
+
   async function ensurePlate(){
     if(!plate)return true;
-    if(norm(document.body.innerText).includes(norm(plate)))return true;
-    const inputs=[...document.querySelectorAll('input')];
-    const input=inputs.find(i=>/sök regnr|chassinr|artiklar/i.test((i.placeholder||'').toLowerCase()));
-    if(!input)return false;
-    const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d?.set?.call(input,plate);
-    input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
-    for(const type of ['keydown','keyup'])input.dispatchEvent(new KeyboardEvent(type,{key:'Enter',code:'Enter',bubbles:true}));
-    await sleep(1200);
-    const exact=[...document.querySelectorAll('*')].find(e=>norm(e.textContent)===norm(plate));
-    try{(exact?.closest('button,a,[role="button"],li,[onclick]')||exact)?.click?.()}catch{}
-    await sleep(1200);
-    return norm(document.body.innerText).includes(norm(plate));
+    for(let i=0;i<40;i++){
+      if(selectedVehicle())return true;
+      const input=[...document.querySelectorAll('input')].find(el=>
+        /sök regnr|chassinr|artiklar/i.test(el.placeholder||''));
+      if(input) {
+        input.focus();
+        const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;
+        setter?.call(input,plate);
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+        status('buscando '+plate+' en AD...');
+        // AD loads a vehicle row asynchronously below its search field.
+        for(let attempt=0;attempt<40;attempt++){
+          if(selectedVehicle())return true;
+          const box=input.getBoundingClientRect();
+          const candidates=[...document.querySelectorAll('body *')]
+            .filter(el=>{
+              if(el===input || el.children.length>3 || !norm(el.textContent).includes(norm(plate)))return false;
+              const rect=el.getBoundingClientRect();
+              return rect.width>0 && rect.height>0 && rect.top>=box.bottom-5 &&
+                rect.top<box.bottom+500 && rect.left<box.right+120;
+            })
+            .sort((a,b)=>norm(a.textContent).length-norm(b.textContent).length);
+          const exact=candidates.find(el=>norm(el.textContent)===norm(plate));
+          const match=exact||candidates.find(el=>norm(el.textContent).startsWith(norm(plate)) && norm(el.textContent).length<180);
+          if(match){
+            (match.closest('button,a,[role="option"],[role="button"],li')||match).click();
+            for(let verify=0;verify<12;verify++){
+              if(selectedVehicle())return true;
+              await sleep(250);
+            }
+          }
+          await sleep(200);
+        }
+        return selectedVehicle();
+      }
+      await sleep(250);
+    }
+    return false;
   }
 
   function articleObjects(data){
