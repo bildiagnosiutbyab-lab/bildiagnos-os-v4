@@ -1,5 +1,5 @@
 (() => {
-  const VERSION='1.0.2';
+  const VERSION='1.0.3';
   const params=new URLSearchParams(location.search);
   const plate=(params.get('bildiagnosReg')||'').replace(/\s+/g,'').toUpperCase();
   const path=(params.get('bdClick')||'').split('>').map(s=>s.trim()).filter(Boolean);
@@ -131,8 +131,18 @@
         input.dispatchEvent(new Event('change',{bubbles:true}));
         status('buscando '+plate+' en AD...');
         // AD loads a vehicle row asynchronously below its search field.
-        for(let attempt=0;attempt<40;attempt++){
+        for(let attempt=0;attempt<50;attempt++){
           if(selectedVehicle())return true;
+          if(attempt===5){
+            // A registration missing from AD's recent vehicles requires submitting the search.
+            input.dispatchEvent(new KeyboardEvent('keydown',{
+              key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true
+            }));
+            input.dispatchEvent(new KeyboardEvent('keyup',{
+              key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true
+            }));
+            status('buscando vehículo '+plate+'...');
+          }
           const box=input.getBoundingClientRect();
           const candidates=[...document.querySelectorAll('body *')]
             .filter(el=>{
