@@ -136,8 +136,12 @@ export default function WorkOrders() {
   const [orders, setOrders] = useState(loadOrders);
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
+  const cancelledOrders = orders.filter((order) => order.status === 'Cancelada');
+  const activeOrders = orders.filter((order) => order.status !== 'Cancelada');
+  const visibleOrders = showCancelled ? cancelledOrders : activeOrders;
 
   useEffect(() => {
     saveOrders(orders);
@@ -325,7 +329,7 @@ export default function WorkOrders() {
 
   async function deleteOrder(orderId) {
     const confirmed = window.confirm(
-      'La orden no se eliminará: se marcará como Cancelada. ¿Continuar?'
+      'La orden se marcará como Cancelada y dejará de aparecer entre las activas. Podrás verla en Canceladas y recuperarla. ¿Continuar?'
     );
 
     if (!confirmed) {
@@ -371,6 +375,7 @@ export default function WorkOrders() {
               ))}
             </select>
           </label>
+          {selectedOrder.status === 'Cancelada' && <p className="auth-message">Esta orden está cancelada. Puedes recuperarla cambiando el estado a Abierta.</p>}
 
           <section className="timer-panel">
             <span>Tiempo de trabajo</span>
@@ -477,12 +482,12 @@ export default function WorkOrders() {
               Editar orden
             </button>
 
-            <button
+            {selectedOrder.status !== 'Cancelada' && <button
               className="danger-button"
               onClick={() => deleteOrder(selectedOrder.id)}
             >
-              Eliminar orden
-            </button>
+              Cancelar y ocultar orden
+            </button>}
           </div>
         </section>
       </>
@@ -613,14 +618,19 @@ export default function WorkOrders() {
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
 
-      {orders.length === 0 ? (
+      <div className="segmented">
+        <button type="button" className={!showCancelled ? 'selected' : ''} onClick={() => setShowCancelled(false)}>Activas ({activeOrders.length})</button>
+        <button type="button" className={showCancelled ? 'selected' : ''} onClick={() => setShowCancelled(true)}>Canceladas ({cancelledOrders.length})</button>
+      </div>
+
+      {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>No hay órdenes guardadas</h2>
-          <p>Pulsa Crear orden para registrar el primer trabajo.</p>
+          <h2>{showCancelled ? 'No hay órdenes canceladas' : 'No hay órdenes activas'}</h2>
+          <p>{showCancelled ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : (
         <section className="orders-list">
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <article className="card order-card" key={order.id}>
               <div className="order-card-header">
                 <button

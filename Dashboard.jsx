@@ -5,16 +5,17 @@ import { supabase } from './supabaseClient.js';
 function summarizeOrders(orders) {
   const today = new Date().toLocaleDateString('sv-SE');
   const closedStatuses = ['Terminada', 'Pagada', 'Cancelada'];
+  const retainedOrders = orders.filter((order) => order.status !== 'Cancelada');
   const openOrders = orders.filter(
     (order) => !closedStatuses.includes(order.status)
   ).length;
   const vehiclesToday = new Set(
-    orders
+    retainedOrders
       .filter((order) => String(order.createdAt || '').startsWith(today))
       .map((order) => order.plate)
       .filter(Boolean)
   ).size;
-  const totalSeconds = orders.reduce(
+  const totalSeconds = retainedOrders.reduce(
     (sum, order) => sum + Number(order.accumulatedSeconds || 0),
     0
   );
