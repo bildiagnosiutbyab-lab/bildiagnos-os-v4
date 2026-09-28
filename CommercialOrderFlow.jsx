@@ -17,7 +17,14 @@ import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const emptyPart = { description: '', partNumber: '', quantity: '1', cost: '', salePrice: '', discount: '' };
-const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '1250' };
+const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '' };
+
+const statusLabels = {
+  pending_approval: 'Pendiente de aprobación', approved: 'Aprobado', ordered: 'Pedido',
+  prepared: 'Cotización preparada', draft: 'Borrador', rejected: 'Rechazado',
+  completed: 'Terminado', quote: 'En cotización',
+};
+function statusLabel(value) { return statusLabels[value] || value || ''; }
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
@@ -52,10 +59,10 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
     unitPrice: String(item.unit_price ?? ''),
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
-    <label>Trabajo<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Trabajo<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
     <label>Horas<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
     <label>Precio/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{item.status} · {money(Number(draft.unitPrice || 0) * Number(draft.hours || 0))}</small>
+    <small>{statusLabel(item.status)} · {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Precio pendiente'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
   </li>;
 }
@@ -78,13 +85,13 @@ function PartLineEditor({ item, busy, onSave, onDelete }) {
     discount: item.discount_percent ?? '',
   }), [item.description_snapshot, item.part_number_snapshot, item.quantity, item.actual_cost, item.sale_price, item.discount_percent]);
   return <li className="commercial-edit-line commercial-part-line">
-    <label>Pieza<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Pieza<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
     <label>Nº artículo<input value={draft.partNumber} onChange={(e) => setDraft({ ...draft, partNumber: e.target.value })} /></label>
     <label>Cant.<input type="number" min="0.001" step="0.001" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /></label>
     <label>Coste<input type="number" min="0" step="0.01" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} /></label>
     <label>Precio<input type="number" min="0" step="0.01" value={draft.salePrice} onChange={(e) => setDraft({ ...draft, salePrice: e.target.value })} /></label>
     <label>Desc. %<input type="number" min="0" max="100" step="0.01" value={draft.discount} onChange={(e) => setDraft({ ...draft, discount: e.target.value })} /></label>
-    <small>{item.status} · Total {money(Number(draft.salePrice || 0) * Number(draft.quantity || 0))}</small>
+    <small>{statusLabel(item.status)} · {Number(draft.salePrice) > 0 ? `Total ${money(Number(draft.salePrice) * Number(draft.quantity || 0))}` : 'Precio pendiente'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
   </li>;
 }
@@ -170,13 +177,13 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   return <section className="commercial-flow" data-print-mode={printMode || undefined}>
     <header className="commercial-heading">
       <div><p>Flujo comercial</p><h2>Cotización, cobro y documentos</h2></div>
-      {quote && <span className={`commercial-status commercial-status-${quote.status}`}>{quote.status}</span>}
+      {quote && <span className={`commercial-status commercial-status-${quote.status}`}>{statusLabel(quote.status)}</span>}
     </header>
     {message && <p className={message.includes('No se pudo') ? 'commercial-error' : 'commercial-message'}>{message}</p>}
 
     <div className="commercial-grid">
       <section className="commercial-card">
-        <h3>Operaciones</h3>
+        <h3>Trabajos de la orden</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Operación añadida.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Descripción del trabajo" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
           <input required type="number" min="1" step="0.25" placeholder="Horas" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
@@ -187,7 +194,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
 
       <section className="commercial-card">
-        <h3>Piezas</h3>
+        <h3>Piezas de la orden</h3>
         <form className="commercial-inline-form commercial-parts-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialPart(context, part), 'Pieza añadida.').then((ok) => ok && setPart(emptyPart)); }}>
           <input required placeholder="Pieza / descripción" value={part.description} onChange={(e) => setPart({ ...part, description: e.target.value })} />
           <input placeholder="Nº artículo" value={part.partNumber} onChange={(e) => setPart({ ...part, partNumber: e.target.value })} />
