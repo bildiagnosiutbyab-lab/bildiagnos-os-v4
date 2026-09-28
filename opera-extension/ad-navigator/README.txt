@@ -1,25 +1,22 @@
-Bildiagnos - AD Bildelar Navigator v1.0.3
+Bildiagnos - AD Bildelar Navigator v1.0.6
 
-Instalacion en Opera:
+Instalación en Opera:
 1. Descomprime el ZIP.
-2. Abre opera://extensions
-3. Activa Utvecklarlage / Developer mode.
-4. Elimina la version anterior de Bildiagnos AD Helper.
-5. Pulsa Load unpacked / Las in okomprimerat tillagg.
-6. Selecciona esta carpeta, la que contiene manifest.json.
+2. Abre opera://extensions y activa Modo de desarrollador.
+3. Elimina la versión anterior de Bildiagnos AD Helper.
+4. Pulsa Cargar extensión sin empaquetar y selecciona esta carpeta, donde está manifest.json.
+5. Vuelve a cargar la pestaña de Bildiagnos y abre AD desde la orden.
 
-Comandos:
-?bildiagnosReg=FGU510
-?bildiagnosReg=FGU510&bdClick=Filter
-?bildiagnosReg=FGU510&bdClick=Filter%3ELuftfilter
-?bildiagnosReg=FGU510&bdSearch=luftfilter
-?bildiagnosReg=FGU510&bdClick=More%3EMacsData
+Importar desde la cesta de AD:
+1. Añade la pieza o el trabajo a la cesta de AD sin pulsar Beställ.
+2. Con la cesta abierta, pulsa Enviar cesta a Bildiagnos (botón verde).
+3. Vuelve a la MISMA orden y pulsa Recibir selección del catálogo.
+4. Revisa matrícula, pieza, cantidad, precio y horas en la previsualización.
+5. Solo Confirmar e importar guarda las líneas en Supabase.
 
-No almacena credenciales ni realiza pedidos.
+55 perioder en AD se convierte en 0,55 horas (33 minutos).
+El botón no realiza pedidos ni almacena credenciales.
 
-Importar piezas:
-1. Abre AD desde una orden de Bildiagnos.
-2. Abre una categoria y marca las piezas en el panel Bildiagnos AD Helper.
-3. Ajusta cantidades y pulsa Enviar seleccion a Bildiagnos.
-4. Vuelve a la misma orden, pulsa Recibir seleccion del catalogo y revisa la previsualizacion.
-5. Solo Confirmar e importar guarda las lineas en Supabase.
+Corrección v1.0.6: elimina filas repetidas que AD muestre en la cesta. No borra líneas ya guardadas en una orden.
+
+Corrección v1.0.6: importes suecos con millares, por ejemplo 1 048,00; precio/hora derivado solo si AD muestra un único trabajo y su Netto. Revisa la previsualización antes de guardar.

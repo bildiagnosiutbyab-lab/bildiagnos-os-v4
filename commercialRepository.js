@@ -8,7 +8,7 @@ function throwIfError(error) {
 
 function quoteTotals(items) {
   const total = items.reduce(
-    (sum, item) => sum + Number(item.quantity || 1) * Number(item.unit_price || 0),
+    (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0),
     0
   );
   const subtotal = total / (1 + VAT_RATE);
@@ -152,6 +152,7 @@ export async function updateCommercialService(id, input) {
   if (quoteLinks.editableIds.length) {
     const { error: lineError } = await supabase.from('quote_items').update({
       description,
+      quantity: Math.round(hours * 60) / 60,
       unit_price: unitPrice,
     }).eq('service_id', id).in('quote_id', quoteLinks.editableIds);
     throwIfError(lineError);
@@ -209,7 +210,7 @@ function commercialLines(context) {
     .map((item) => ({
       item_type: 'service',
       description: item.description,
-      quantity: Number(item.quantity || 1),
+      quantity: Number(item.estimated_minutes || 0) / 60,
       unit_price: Number(item.unit_price || 0),
       vat_rate: Number(item.vat_rate ?? VAT_RATE),
       service_id: item.id,

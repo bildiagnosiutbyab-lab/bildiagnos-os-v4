@@ -20,6 +20,7 @@ const emptyPart = { description: '', partNumber: '', quantity: '1', cost: '', sa
 const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '1250' };
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
+function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
 function ServiceLineEditor({ item, busy, onSave, onDelete }) {
@@ -35,9 +36,9 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
     <label>Trabajo<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Horas<input type="number" min="0" step="0.25" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
+    <label>Horas<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
     <label>Precio/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{item.status} · {money(Number(draft.unitPrice || 0) * Number(item.quantity || 1))}</small>
+    <small>{item.status} · {money(Number(draft.unitPrice || 0) * Number(draft.hours || 0))}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
   </li>;
 }
@@ -218,12 +219,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
-    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>OFFERT / COTIZACIÓN</h1></header><div className="print-info"><span>Kund / Cliente: <b>{workOrder.customer_name_snapshot}</b></span><span>Reg.nr / Matrícula: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning / Km: <b>{workOrder.mileage || '—'} km</b></span></div><table><tbody>{quoteLines.map((x) => <tr key={x.id}><td>{x.description}</td><td>{x.quantity}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table><p className="print-total">Total: {money(quote.total)}</p></section>}
+    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>OFFERT / COTIZACIÓN</h1></header><div className="print-info"><span>Kund / Cliente: <b>{workOrder.customer_name_snapshot}</b></span><span>Reg.nr / Matrícula: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning / Km: <b>{workOrder.mileage || '—'} km</b></span></div><table><tbody>{quoteLines.map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table><p className="print-total">Total: {money(quote.total)}</p></section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
       <p>{labels.quote} · #{quote?.quote_number || '—'}</p><div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning: <b>{workOrder.mileage || '—'} km</b></span></div>
-      <h3>{labels.work}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'service').map((x) => <tr key={x.id}><td>{x.description}</td><td>{x.quantity}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
-      <h3>{labels.parts}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'part').map((x) => <tr key={x.id}><td>{x.description}</td><td>{x.quantity}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
+      <h3>{labels.work}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'service').map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
+      <h3>{labels.parts}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'part').map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
       <p className="print-total">Total: {money(quote?.total)}</p>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}

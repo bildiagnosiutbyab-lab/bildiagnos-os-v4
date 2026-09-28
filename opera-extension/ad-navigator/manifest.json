@@ -1,9 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Bildiagnos - AD Bildelar Navigator",
-  "version": "1.0.3",
+  "version": "1.0.6",
   "description": "Navegacion AD Bildelar y transferencia confirmada de piezas a Bildiagnos.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://katalog.adsverige.com/*",
     "https://katalogapi.adsverige.com/*",
@@ -11,13 +13,21 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://katalog.adsverige.com/*"],
-      "js": ["bridge.js"],
+      "matches": [
+        "https://katalog.adsverige.com/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["https://katalog.adsverige.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://katalog.adsverige.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -25,14 +35,29 @@
         "https://bildiagnosiutbyab-lab.github.io/bildiagnos-os-v4/*",
         "http://localhost/*"
       ],
-      "js": ["receiver.js"],
+      "js": [
+        "receiver.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://katalog.adsverige.com/*"
+      ],
+      "js": [
+        "cart-import.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["page-hook.js"],
-      "matches": ["https://katalog.adsverige.com/*"]
+      "resources": [
+        "page-hook.js"
+      ],
+      "matches": [
+        "https://katalog.adsverige.com/*"
+      ]
     }
   ]
 }
