@@ -23,6 +23,23 @@ function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
+function DocumentLinesTable({ lines, language, kind, showPrice, pricePending }) {
+  if (!lines.length) return <p className="print-empty">{language === 'es' ? 'Sin líneas registradas.' : 'Inga rader registrerade.'}</p>;
+  const isSpanish = language === 'es';
+  return <table className="print-lines">
+    <thead><tr>
+      <th>{isSpanish ? 'Descripción' : 'Beskrivning'}</th>
+      <th>{kind === 'service' ? (isSpanish ? 'Horas' : 'Timmar') : (isSpanish ? 'Cant.' : 'Antal')}</th>
+      {showPrice && <><th>{isSpanish ? 'Precio unit.' : 'Pris/st eller h'}</th><th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
+    </tr></thead>
+    <tbody>{lines.map((line) => <tr key={line.id}>
+      <td>{line.description}</td>
+      <td>{quoteQuantity(line)}</td>
+      {showPrice && <><td>{pricePending ? '—' : money(line.unit_price)}</td><td>{pricePending ? '—' : money(Number(line.quantity) * Number(line.unit_price))}</td></>}
+    </tr>)}</tbody>
+  </table>;
+}
+
 function ServiceLineEditor({ item, busy, onSave, onDelete }) {
   const [draft, setDraft] = useState({
     description: item.description || '',
@@ -116,7 +133,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
       h1{font-size:24px;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}
       table{width:100%;border-collapse:collapse;margin-top:8px}tr{break-inside:avoid}td{border-bottom:1px solid #ccc;padding:8px 4px;vertical-align:top}
-      td:last-child{text-align:right;white-space:nowrap}.print-total{text-align:right;font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
+      th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
+      th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
+      .print-lines th:first-child,.print-lines td:first-child{width:55%}
+      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}
+      .print-total{text-align:right;font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
     </style></head><body>${source.outerHTML}</body></html>`);
     popup.document.close();
@@ -126,6 +147,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
   const quote = context?.quotes[0];
   const quoteLines = useMemo(() => context?.quoteItems.filter((item) => item.quote_id === quote?.id) || [], [context, quote]);
+  const serviceLines = quoteLines.filter((item) => item.item_type === 'service');
+  const partLines = quoteLines.filter((item) => item.item_type === 'part');
+  const pricePending = quoteLines.length > 0 && quoteLines.every((item) => Number(item.unit_price) === 0);
   const invoice = context?.invoices[0];
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
@@ -185,6 +209,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         {quoteSettings.warrantyEnabled && <><label>Meses<input type="number" min="0" value={quoteSettings.warrantyMonths} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyMonths: e.target.value })} /></label><label>Kilómetros<input type="number" min="0" step="100" value={quoteSettings.warrantyKm} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyKm: e.target.value })} /></label></>}
       </div>
       <div className="commercial-totals"><span>Exkl. moms <strong>{money(quote?.subtotal)}</strong></span><span>Moms <strong>{money(quote?.vat_total)}</strong></span><span>Total <strong>{money(quote?.total)}</strong></span></div>
+      {pricePending && <p className="commercial-error">Faltan los precios de trabajo y piezas. El total 0 kr todavía no es una cotización final.</p>}
       <div className="commercial-actions">
         <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>Preparar cotización</button>
         <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
@@ -219,13 +244,18 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
-    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>OFFERT / COTIZACIÓN</h1></header><div className="print-info"><span>Kund / Cliente: <b>{workOrder.customer_name_snapshot}</b></span><span>Reg.nr / Matrícula: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning / Km: <b>{workOrder.mileage || '—'} km</b></span></div><table><tbody>{quoteLines.map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table><p className="print-total">Total: {money(quote.total)}</p></section>}
+    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>{quoteSettings.documentLanguage === 'es' ? 'COTIZACIÓN' : 'OFFERT'}</h1></header>
+      <div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Km: <b>{workOrder.mileage || '—'}</b></span><span>#{quote.quote_number || '—'}</span></div>
+      <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice pricePending={pricePending} /></div>
+      <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice pricePending={pricePending} /></div>
+      <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? 'Precios pendientes de definir' : 'Priser återstår att fastställa') : `Total: ${money(quote.total)}`}</p>
+    </section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
       <p>{labels.quote} · #{quote?.quote_number || '—'}</p><div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning: <b>{workOrder.mileage || '—'} km</b></span></div>
-      <h3>{labels.work}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'service').map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
-      <h3>{labels.parts}</h3><table><tbody>{quoteLines.filter((x) => x.item_type === 'part').map((x) => <tr key={x.id}><td>{x.description}</td><td>{quoteQuantity(x)}</td><td>{money(x.quantity * x.unit_price)}</td></tr>)}</tbody></table>
-      <p className="print-total">Total: {money(quote?.total)}</p>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
+      <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice pricePending={pricePending} /></div>
+      <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice pricePending={pricePending} /></div>
+      <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? 'Precios pendientes de definir' : 'Priser återstår att fastställa') : `Total: ${money(quote?.total)}`}</p>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
     {(lastInvoice || invoice) && <section className="commercial-print invoice-print"><h1>FAKTURA</h1><p>Nr. {(lastInvoice || invoice).invoice_number}</p><p>{workOrder.customer_name_snapshot} · {workOrder.plate_snapshot}</p><p>Förfallodatum: {date((lastInvoice || invoice).due_at)}</p><h2>{money((lastInvoice || invoice).total)}</h2></section>}
