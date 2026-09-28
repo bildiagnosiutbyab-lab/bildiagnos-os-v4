@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import {
   controlOrderTimer,
+  deleteRelationalOrder,
   loadRelationalOrders,
   saveRelationalOrder,
   subscribeToRelationalOrders,
@@ -328,16 +329,28 @@ export default function WorkOrders() {
   }
 
   async function deleteOrder(orderId) {
+    const order = orders.find((item) => item.id === orderId);
+    if (!order) return;
     const confirmed = window.confirm(
-      'La orden se marcará como Cancelada y dejará de aparecer entre las activas. Podrás verla en Canceladas y recuperarla. ¿Continuar?'
+      `¿Eliminar de Bildiagnos la orden ${order.plate} y sus trabajos, piezas y cotizaciones? Esta acción no cancela pedidos hechos en catálogos externos.`
     );
-
-    if (!confirmed) {
-      return;
+    if (!confirmed) return;
+    setSyncMessage('Eliminando orden…');
+    try {
+      await deleteRelationalOrder(order);
+      setOrders((items) => items.filter((item) => item.id !== orderId));
+      setSelectedOrderId(null);
+      setSyncMessage('Orden eliminada de Bildiagnos');
+    } catch (error) {
+      console.error('No se pudo eliminar la orden:', error);
+      setSyncMessage(error.message?.includes('ORDER_HAS_LINKED_RECORDS')
+        ? 'No se puede eliminar: tiene factura, pago, inventario u otro registro vinculado.'
+        : error.message?.includes('ORDER_VERSION_CONFLICT')
+          ? 'La orden cambió en otro dispositivo. Recarga y vuelve a intentarlo.'
+          : 'No se pudo eliminar la orden. Comprueba la conexión.');
+      const latest = await loadRelationalOrders().catch(() => null);
+      if (latest) setOrders(latest);
     }
-
-    await updateOrder(orderId, { status: 'Cancelada' });
-    setSelectedOrderId(null);
   }
 
   if (selectedOrder) {
@@ -375,7 +388,7 @@ export default function WorkOrders() {
               ))}
             </select>
           </label>
-          {selectedOrder.status === 'Cancelada' && <p className="auth-message">Esta orden está cancelada. Puedes recuperarla cambiando el estado a Abierta.</p>}
+          {selectedOrder.status === 'Cancelada' && <p className="auth-message">Esta orden está cancelada. Puedes recuperarla cambiando el estado a Abierta o eliminarla de Bildiagnos.</p>}
 
           <section className="timer-panel">
             <span>Tiempo de trabajo</span>
@@ -482,12 +495,12 @@ export default function WorkOrders() {
               Editar orden
             </button>
 
-            {selectedOrder.status !== 'Cancelada' && <button
+            <button
               className="danger-button"
               onClick={() => deleteOrder(selectedOrder.id)}
             >
-              Cancelar y ocultar orden
-            </button>}
+              Eliminar orden
+            </button>
           </div>
         </section>
       </>

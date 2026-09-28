@@ -15,6 +15,16 @@ export async function saveRelationalOrder(order, expectedVersion = null) {
   return data;
 }
 
+export async function deleteRelationalOrder(order) {
+  if (!order.relationalId) throw new Error('La orden aún no está guardada en Supabase');
+  const { data, error } = await supabase.rpc('delete_work_order_legacy', {
+    p_order_id: order.relationalId,
+    p_expected_version: order.version,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function controlOrderTimer(order, action) {
   if (!order.relationalId) throw new Error('La orden aún no está guardada en Supabase');
   const { data, error } = await supabase.rpc('control_order_timer', {
