@@ -46,3 +46,7 @@
 }
 
 /* mobile catalog preview deployment trigger */
+
+.catalog-bookmarklet { display:block; margin:.7rem 0; padding:.8rem 1rem; border-radius:8px; background:#0f766e; color:#fff; text-align:center; text-decoration:none; font-weight:700; }
+.catalog-mobile-panel details { margin-top:.8rem; }
+.catalog-mobile-panel summary { cursor:pointer; font-weight:600; }
