@@ -429,10 +429,6 @@ export default function WorkOrders() {
               <small className="timer-running">Cronómetro activo</small>
             )}
           </section>
-          <CatalogOrderImport order={selectedOrder} onSaved={async () => {
-            const latest = await loadRelationalOrders();
-            setOrders(latest);
-          }} />
           <p>
             <strong>Vehículo:</strong>{' '}
             {selectedOrder.vehicle || 'Sin especificar'}
@@ -470,6 +466,10 @@ export default function WorkOrders() {
             </p>
           )}
 
+          <CatalogOrderImport order={selectedOrder} onSaved={async () => {
+            const latest = await loadRelationalOrders();
+            setOrders(latest);
+          }} />
           <OrderInventory order={selectedOrder} onSaved={() => setInventoryRevision((n) => n + 1)} />
           <CommercialOrderFlow
             key={`${selectedOrder.relationalId}-${inventoryRevision}`}
