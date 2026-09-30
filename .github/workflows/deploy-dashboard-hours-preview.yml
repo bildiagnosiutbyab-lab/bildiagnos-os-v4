@@ -1,0 +1,57 @@
+name: Deploy dashboard hours preview
+
+on:
+  push:
+    branches: [fix/dashboard-hours-safe-20260930]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout public main
+        uses: actions/checkout@v4
+        with: { ref: main, path: public-site }
+      - name: Checkout stable commercial preview
+        uses: actions/checkout@v4
+        with: { ref: fix/ad-cart-import-20260927, path: commercial-site }
+      - name: Checkout mobile preview
+        uses: actions/checkout@v4
+        with: { ref: fix/dashboard-hours-safe-20260930, path: mobile-site }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            public-site/package-lock.json
+            commercial-site/package-lock.json
+            mobile-site/package-lock.json
+      - run: npm ci --prefix public-site
+      - run: npm run build --prefix public-site
+      - run: npm ci --prefix commercial-site
+      - run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build --prefix commercial-site
+      - run: npm ci --prefix mobile-site
+      - run: VITE_BASE=/bildiagnos-os-v4/mobile-catalog-preview/ npm run build --prefix mobile-site
+      - name: Assemble public site and previews
+        run: |
+          mkdir -p site/commercial-preview site/mobile-catalog-preview
+          cp -R public-site/dist/. site/
+          cp -R commercial-site/dist/. site/commercial-preview/
+          cp -R mobile-site/dist/. site/mobile-catalog-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/deploy-pages@v4
