@@ -26,3 +26,27 @@
 .catalog-remove-line { border:0; border-radius:6px; padding:.45rem .6rem; background:#b91c1c; color:#fff; font:inherit; cursor:pointer; }
 .catalog-confirm-button { margin-top:1rem; background:#166534; }
 @media (max-width:700px) { .catalog-import header { align-items:flex-start; } .catalog-preview table { font-size:.82rem; } }
+
+.catalog-mobile-bridge { margin-top:.85rem; border-top:1px solid #dbe3ee; padding-top:.85rem; }
+.catalog-mobile-toggle { width:100%; border:1px solid #0f766e; border-radius:8px; padding:.7rem .85rem; background:#fff; color:#0f766e; font:600 1rem inherit; cursor:pointer; }
+.catalog-mobile-panel { margin-top:.75rem; padding:.8rem; border-radius:8px; background:#f8fafc; }
+.catalog-mobile-panel p { margin-top:0; line-height:1.45; }
+.catalog-mobile-actions { display:flex; gap:.6rem; flex-wrap:wrap; }
+.catalog-mobile-panel small { display:block; margin-top:.65rem; color:#475569; }
+@media (max-width:700px) {
+  .catalog-import { padding:.8rem; }
+  .catalog-import-actions { display:grid; grid-template-columns:1fr; }
+  .catalog-import-actions button { width:100%; min-height:46px; }
+  .catalog-import-actions label { justify-content:space-between; }
+  .catalog-import-actions select { flex:1; }
+  .catalog-mobile-toggle { min-height:48px; }
+  .catalog-paste textarea { min-height:150px; font-size:16px; }
+  .catalog-mobile-actions { display:grid; grid-template-columns:1fr; }
+  .catalog-mobile-actions button { width:100%; min-height:46px; margin-top:0; }
+}
+
+/* mobile catalog preview deployment trigger */
+
+.catalog-bookmarklet { display:block; margin:.7rem 0; padding:.8rem 1rem; border-radius:8px; background:#0f766e; color:#fff; text-align:center; text-decoration:none; font-weight:700; }
+.catalog-mobile-panel details { margin-top:.8rem; }
+.catalog-mobile-panel summary { cursor:pointer; font-weight:600; }
