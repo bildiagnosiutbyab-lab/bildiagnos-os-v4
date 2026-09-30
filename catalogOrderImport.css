@@ -26,18 +26,3 @@
 .catalog-remove-line { border:0; border-radius:6px; padding:.45rem .6rem; background:#b91c1c; color:#fff; font:inherit; cursor:pointer; }
 .catalog-confirm-button { margin-top:1rem; background:#166534; }
 @media (max-width:700px) { .catalog-import header { align-items:flex-start; } .catalog-preview table { font-size:.82rem; } }
-
-.catalog-launch-button { width:100%; border:0; border-radius:10px; padding:.85rem 1rem; background:#0f766e; color:#fff; font:inherit; font-weight:700; cursor:pointer; }
-.catalog-launch-hint { margin:.45rem 0 0; text-align:center; color:#64748b; font-size:.84rem; }
-.catalog-mobile-paste { margin-top:.85rem; border:1px dashed #cbd5e1; border-radius:9px; padding:.7rem; background:#f8fafc; }
-.catalog-mobile-paste summary { cursor:pointer; font-weight:700; color:#334155; }
-.catalog-mobile-paste[open] summary { margin-bottom:.7rem; }
-@media (max-width:700px) {
-  .catalog-import { padding:.8rem; }
-  .catalog-import-actions { display:grid; grid-template-columns:1fr 1fr; }
-  .catalog-import-actions button { width:100%; }
-  .catalog-import-actions label { grid-column:1 / -1; justify-content:space-between; }
-  .catalog-import-actions select { flex:1; }
-  .catalog-preview-button { width:100%; }
-  .catalog-launch-button { position:sticky; top:.5rem; z-index:3; }
-}
