@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import { supabase } from './supabaseClient.js';
+import { loadRelationalOrders } from './ordersRepository.js';
 
 function summarizeOrders(orders) {
   const today = new Date().toLocaleDateString('sv-SE');
@@ -85,43 +86,23 @@ export default function Dashboard({ onNewOrder }) {
   useEffect(() => {
     let active = true;
 
-    function applyOrders(value) {
-      if (active && Array.isArray(value)) {
-        setSummary(summarizeOrders(value));
+    async function refreshSummary() {
+      try {
+        const orders = await loadRelationalOrders();
+        if (active && Array.isArray(orders)) {
+          setSummary(summarizeOrders(orders));
+        }
+      } catch (error) {
+        console.error('No se pudo cargar el resumen:', error);
       }
     }
 
-    supabase
-      .from('app_state')
-      .select('value')
-      .eq('key', 'bildiagnos-orders')
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('No se pudo cargar el resumen:', error);
-          return;
-        }
-
-        applyOrders(data?.value || []);
-      });
-
-    const channel = supabase
-      .channel('bildiagnos-dashboard-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'app_state',
-          filter: 'key=eq.bildiagnos-orders',
-        },
-        (payload) => applyOrders(payload.new?.value || [])
-      )
-      .subscribe();
+    refreshSummary();
+    const timer = window.setInterval(refreshSummary, 15000);
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      window.clearInterval(timer);
     };
   }, []);
 
