@@ -44,3 +44,5 @@
   .catalog-mobile-actions { display:grid; grid-template-columns:1fr; }
   .catalog-mobile-actions button { width:100%; min-height:46px; margin-top:0; }
 }
+
+/* mobile catalog preview deployment trigger */
