@@ -58,12 +58,25 @@
         const cells = [...row.querySelectorAll('td,[role="cell"]')].map(rowText).filter(Boolean);
         const priceMatch = text.match(/((?:\d{1,3}(?:[ \u00a0.]\d{3})+|\d+)[,.]\d{2})(?:\s*kr)?(?:\s*[×x])?\s*$/i);
         const beforePrice = priceMatch ? text.slice(0, priceMatch.index).trim() : text;
-        const quantityMatch = beforePrice.match(/(?:^|\s)(\d+)\s*$/);
-        const quantity = number(quantityMatch?.[1]) ||
-          number(cells.find((value, index) => /^\d+$/.test(value) && /\d+[,.]\d{2}/.test(cells[index + 1] || ''))) || 1;
-        const price = number(priceMatch?.[1]) ??
-          number(cells.findLast((value) => /\d+[,.]\d{2}/.test(value)));
-        const descriptionText = quantityMatch ? beforePrice.slice(0, quantityMatch.index) : beforePrice;
+        // AD cart columns are: article / description / marking / quantity / price.
+        // Read quantity only from the explicit quantity cell immediately before
+        // the price cell. Never infer it from other integers such as Typnr.
+        let quantity = 1;
+        let price = null;
+        const pricedCellIndexes = cells
+          .map((value, index) => (/\d+[,.]\d{2}/.test(value) ? index : -1))
+          .filter((index) => index >= 0);
+        const priceCellIndex = pricedCellIndexes.length ? pricedCellIndexes[pricedCellIndexes.length - 1] : -1;
+        if (priceCellIndex >= 0) {
+          price = number(cells[priceCellIndex]);
+          const quantityCell = cells[priceCellIndex - 1];
+          if (quantityCell && /^\d+(?:[,.]\d+)?$/.test(quantityCell)) {
+            const parsedQuantity = number(quantityCell);
+            if (parsedQuantity !== null && parsedQuantity > 0 && parsedQuantity <= 100) quantity = parsedQuantity;
+          }
+        }
+        if (price === null) price = number(priceMatch?.[1]);
+        const descriptionText = beforePrice;
         const description = norm(descriptionText.slice(descriptionText.indexOf(articleNumber) + articleNumber.length)
           .replace(/\bReg\s*nr\s*:\s*[A-Z0-9]+/ig, '')
           .replace(/\bTyp\s*nr\s*:\s*\d+/ig, ''));
