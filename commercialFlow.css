@@ -155,3 +155,16 @@
   background:#b91c1c;
   color:#fff;
 }
+
+/* Neutral cards: color is reserved for actions only */
+.commercial-work-card,
+.commercial-parts-card {
+  border-color:#cbd5e1;
+  background:#fff;
+}
+.commercial-work-card > h3,
+.commercial-parts-card > h3 {
+  background:#f1f5f9;
+  color:#0f172a;
+  border-bottom-color:#cbd5e1;
+}
