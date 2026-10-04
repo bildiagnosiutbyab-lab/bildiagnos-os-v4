@@ -298,3 +298,10 @@
   gap:5px;
 }
 .fortnox-test-result span { display:block; }
+
+.fortnox-test-customer {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-top:8px;
+}
