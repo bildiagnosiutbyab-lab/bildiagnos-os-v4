@@ -37,7 +37,7 @@ function DocumentLinesTable({ lines, language, kind, showPrice }) {
     <thead><tr>
       <th>{isSpanish ? 'Descripción' : 'Beskrivning'}</th>
       <th>{kind === 'service' ? (isSpanish ? 'Horas' : 'Timmar') : (isSpanish ? 'Cant.' : 'Antal')}</th>
-      {showPrice && <><th>{isSpanish ? 'Precio unit.' : 'Pris/st eller h'}</th><th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
+      {showPrice && <><th>{kind === 'service' ? (isSpanish ? 'Precio/h' : 'Pris/h') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th><th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
     </tr></thead>
     <tbody>{lines.map((line) => <tr key={line.id}>
       <td>{line.description}</td>
@@ -62,7 +62,7 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
     <label>Trabajo<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
     <label>Horas<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
     <label>Precio/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Precio pendiente'}</small>
+    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} h × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Precio pendiente'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
   </li>;
 }
@@ -284,7 +284,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <p>{accepted ? labels.quote : (quoteSettings.documentLanguage === 'es' ? 'Cotización pendiente de aceptación' : 'Offert inväntar godkännande')} · #{quote?.quote_number || '—'}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
-      <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Subtotal conocido: ${money(quote?.total)} · faltan precios, no es total final` : `Känt delbelopp: ${money(quote?.total)} · priser saknas, ej slutbelopp`) : `Total: ${money(quote?.total)}`}</p>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
+      <div className="print-totals">
+        <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
+        <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
+        <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Total conocido incl. IVA: ${money(displayedTotal)} · faltan precios` : `Känt belopp inkl. moms: ${money(displayedTotal)} · priser saknas`) : `Total inkl. moms: ${money(displayedTotal)}`}</p>
+      </div>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
     {(lastInvoice || invoice) && <section className="commercial-print invoice-print"><h1>FAKTURA</h1><p>Nr. {(lastInvoice || invoice).invoice_number}</p><p>{workOrder.customer_name_snapshot} · {workOrder.plate_snapshot}</p><p>Förfallodatum: {date((lastInvoice || invoice).due_at)}</p><h2>{money((lastInvoice || invoice).total)}</h2></section>}
