@@ -198,3 +198,22 @@
   line-height:1;
   font-weight:900;
 }
+
+/* Final print hierarchy: BILDIAGNOS AB larger than document title; totals right */
+.commercial-print header > strong {
+  font-size:34px;
+  line-height:1;
+  font-weight:900;
+}
+.commercial-print header h1 {
+  font-size:24px;
+  line-height:1.1;
+}
+.quote-print .print-totals,
+.work-order-print .print-totals,
+.quote-print .print-totals p,
+.work-order-print .print-totals p,
+.quote-print .print-totals .print-total,
+.work-order-print .print-totals .print-total {
+  text-align:right;
+}
