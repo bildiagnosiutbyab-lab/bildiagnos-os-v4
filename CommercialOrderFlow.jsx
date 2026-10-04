@@ -143,7 +143,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
-      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}
+      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:16px;margin:0 0 10px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
       .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
     </style></head><body>${source.outerHTML}</body></html>`);
@@ -289,7 +289,21 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
         <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
         <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Total conocido incl. IVA: ${money(displayedTotal)} · faltan precios` : `Känt belopp inkl. moms: ${money(displayedTotal)} · priser saknas`) : `Total inkl. moms: ${money(displayedTotal)}`}</p>
-      </div>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
+      </div>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}
+      <div className="work-order-approval">
+        <h2>Godkännande</h2>
+        <div className="approval-grid">
+          <p><strong>Garanti på utfört arbete:</strong> 3 månader</p>
+          <p><strong>Fast pris:</strong> ☐ Ja &nbsp; ☐ Nej</p>
+          <p><strong>Maxpris:</strong> __________________ kr</p>
+          <p><strong>Tilläggsarbete max:</strong> __________________ kr</p>
+        </div>
+        <p><strong>Jag godkänner ovanstående arbeten:</strong></p>
+        <div className="approval-signatures">
+          <span>Ort / datum: __________________________</span>
+          <span>Kundens underskrift: __________________________</span>
+        </div>
+      </div>
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
     {(lastInvoice || invoice) && <section className="commercial-print invoice-print"><h1>FAKTURA</h1><p>Nr. {(lastInvoice || invoice).invoice_number}</p><p>{workOrder.customer_name_snapshot} · {workOrder.plate_snapshot}</p><p>Förfallodatum: {date((lastInvoice || invoice).due_at)}</p><h2>{money((lastInvoice || invoice).total)}</h2></section>}
