@@ -325,7 +325,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
           <strong>Fortnox Test</strong>
-          <p>Prueba aislada con Testkund Bildiagnos. No usa ni modifica esta orden real.</p>
+          <div className="fortnox-test-customer">
+            <span>Testkund:</span>
+            <b>Testkund Bildiagnos</b>
+          </div>
+          <p>Prueba aislada. No usa ni modifica esta orden real.</p>
           <button type="button" className="secondary-button" disabled={fortnoxInvoiceTest.state === 'loading'} onClick={createFortnoxTestInvoice}>
             {fortnoxInvoiceTest.state === 'loading' ? 'Creando prueba…' : 'Crear factura ficticia en Fortnox Test'}
           </button>
