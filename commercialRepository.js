@@ -63,16 +63,19 @@ export async function loadCommercialOrder(orderId) {
     .single();
   throwIfError(orderError);
 
-  const [servicesResult, partsResult, quotesResult, invoicesResult, paymentsResult] =
+  const [servicesResult, partsResult, quotesResult, invoicesResult, paymentsResult, vehicleResult] =
     await Promise.all([
       supabase.from('work_order_services').select('*').eq('work_order_id', orderId).order('sort_order'),
       supabase.from('work_order_parts').select('*').eq('work_order_id', orderId).order('created_at'),
       supabase.from('quotes').select('*').eq('work_order_id', orderId).order('created_at', { ascending: false }),
       supabase.from('invoices').select('*').eq('work_order_id', orderId).order('created_at', { ascending: false }),
       supabase.from('payments').select('*').eq('work_order_id', orderId).order('created_at', { ascending: false }),
+      workOrder.vehicle_id
+        ? supabase.from('vehicles').select('*').eq('id', workOrder.vehicle_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
-  [servicesResult, partsResult, quotesResult, invoicesResult, paymentsResult].forEach((result) =>
+  [servicesResult, partsResult, quotesResult, invoicesResult, paymentsResult, vehicleResult].forEach((result) =>
     throwIfError(result.error)
   );
 
@@ -98,6 +101,7 @@ export async function loadCommercialOrder(orderId) {
     invoices: invoicesResult.data || [],
     invoiceItems: invoiceItemsResult.data || [],
     payments: paymentsResult.data || [],
+    vehicle: vehicleResult.data || null,
   };
 }
 
