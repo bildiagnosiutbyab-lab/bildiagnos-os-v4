@@ -201,6 +201,22 @@ export async function importCatalogOrderItems({ workOrderId, source, plate, part
     p_parts: parts, p_labor_items: laborItems,
   });
   throwIfError(error);
+
+  // Keep an existing editable quote synchronized with the persisted import.
+  // Labor quantity must use estimated_minutes / 60, not service quantity (1).
+  const context = await loadCommercialOrder(workOrderId);
+  const quote = context.quotes[0];
+  if (quote && ['draft', 'prepared', 'pending_approval'].includes(quote.status)) {
+    await prepareCommercialQuote(context, {
+      notes: quote.notes || '',
+      variablePrice: Boolean(quote.variable_price),
+      warrantyEnabled: Boolean(quote.warranty_enabled),
+      warrantyMonths: String(quote.warranty_months ?? 3),
+      warrantyKm: String(quote.warranty_km ?? 1000),
+      documentLanguage: quote.document_language || 'sv',
+    });
+  }
+
   return data;
 }
 
