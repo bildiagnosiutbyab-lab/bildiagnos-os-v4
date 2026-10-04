@@ -164,6 +164,13 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const displayedVat = Number(quote?.vat_total || 0);
   const displayedTotal = Number(quote?.total || 0);
   const invoice = context?.invoices[0];
+  const invoicePreview = lastInvoice || invoice || {
+    invoice_number: 'FÖRHANDSVISNING',
+    created_at: new Date().toISOString(),
+    due_at: invoiceForm.dueDate || null,
+    total: displayedTotal,
+    reference: invoiceForm.reference || String(context?.workOrder?.order_number || ''),
+  };
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
     try { const value = await action(); await refresh(); await onSaved?.(); setMessage(success); return value; }
@@ -268,6 +275,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referencia" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Crear factura</button>
         </form>
+        <button type="button" disabled={busy || pricePending} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Confirmar pago</button>}</li>)}</ul>
       </section>
     </div>
@@ -313,12 +321,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
-    {(lastInvoice || invoice) && <section className="commercial-print invoice-print">
+    {<section className="commercial-print invoice-print">
       <header><strong>BILDIAGNOS AB</strong><h1>FAKTURA</h1></header>
       <div className="invoice-meta">
-        <p><strong>Fakturanr:</strong> {(lastInvoice || invoice).invoice_number || '—'}</p>
-        <p><strong>Fakturadatum:</strong> {date((lastInvoice || invoice).created_at)}</p>
-        <p><strong>Förfallodatum:</strong> {date((lastInvoice || invoice).due_at)}</p>
+        <p><strong>Fakturanr:</strong> {invoicePreview.invoice_number || '—'}</p>
+        <p><strong>Fakturadatum:</strong> {date(invoicePreview.created_at)}</p>
+        <p><strong>Förfallodatum:</strong> {date(invoicePreview.due_at)}</p>
         <p><strong>Arbetsorder:</strong> #{workOrder.order_number || '—'}</p>
       </div>
       {vehicleInfo}
@@ -327,10 +335,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="print-totals">
         <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
         <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
-        <p className="print-total">Att betala: {money(Number((lastInvoice || invoice).total || displayedTotal))}</p>
+        <p className="print-total">Att betala: {money(Number(invoicePreview.total || displayedTotal))}</p>
       </div>
-      {((lastInvoice || invoice).ocr || (lastInvoice || invoice).ocr_number) && <p><strong>OCR:</strong> {(lastInvoice || invoice).ocr || (lastInvoice || invoice).ocr_number}</p>}
-      {(lastInvoice || invoice).reference && <p><strong>Referens:</strong> {(lastInvoice || invoice).reference}</p>}
+      {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
+      {invoicePreview.reference && <p><strong>Referens:</strong> {invoicePreview.reference}</p>}
     </section>}
   </section>;
 }
