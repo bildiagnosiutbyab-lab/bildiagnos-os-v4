@@ -469,6 +469,7 @@ export default function WorkOrders() {
           <CatalogOrderImport order={selectedOrder} onSaved={async () => {
             const latest = await loadRelationalOrders();
             setOrders(latest);
+            setInventoryRevision((n) => n + 1);
           }} />
           <OrderInventory order={selectedOrder} onSaved={() => setInventoryRevision((n) => n + 1)} />
           <CommercialOrderFlow
