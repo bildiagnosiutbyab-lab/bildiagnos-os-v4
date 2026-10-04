@@ -269,7 +269,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
-    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>{quoteSettings.documentLanguage === 'es' ? 'COTIZACIÓN' : 'OFFERT'}</h1></header>
+    {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS AB</strong><h1>{quoteSettings.documentLanguage === 'es' ? 'COTIZACIÓN' : 'OFFERT'}</h1></header>
       {vehicleInfo}<p>Offert: <b>#{quote.quote_number || '—'}</b></p>
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
@@ -280,7 +280,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
     </section>}
     <section className="commercial-print work-order-print">
-      <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
+      <header><strong>BILDIAGNOS AB</strong><h1>{labels.title}</h1></header>
       <p>{accepted ? labels.quote : (quoteSettings.documentLanguage === 'es' ? 'Cotización pendiente de aceptación' : 'Offert inväntar godkännande')} · #{quote?.quote_number || '—'}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
