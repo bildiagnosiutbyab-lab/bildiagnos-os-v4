@@ -250,3 +250,12 @@
   margin-top:18px;
   padding-top:8px;
 }
+
+/* Work-order dates */
+.work-order-meta {
+  display:grid;
+  grid-template-columns:repeat(3,auto);
+  gap:8px 24px;
+  align-items:center;
+}
+.work-order-meta p { margin:4px 0; }
