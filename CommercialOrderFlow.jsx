@@ -50,12 +50,12 @@ function DocumentLinesTable({ lines, language, kind, showPrice }) {
 function ServiceLineEditor({ item, busy, onSave, onDelete }) {
   const [draft, setDraft] = useState({
     description: item.description || '',
-    hours: String(Number(item.estimated_minutes || 0) / 60),
+    hours: (Number(item.estimated_minutes || 0) / 60).toFixed(2),
     unitPrice: String(item.unit_price ?? ''),
   });
   useEffect(() => setDraft({
     description: item.description || '',
-    hours: String(Number(item.estimated_minutes || 0) / 60),
+    hours: (Number(item.estimated_minutes || 0) / 60).toFixed(2),
     unitPrice: String(item.unit_price ?? ''),
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
@@ -196,7 +196,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     {message && <p className={message.includes('No se pudo') ? 'commercial-error' : 'commercial-message'}>{message}</p>}
 
     <div className="commercial-grid">
-      <section className="commercial-card">
+      <section className="commercial-card commercial-work-card">
         <h3>Trabajos de la orden</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Operación añadida.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Descripción del trabajo" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
@@ -207,7 +207,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <ul className="commercial-lines">{context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <ServiceLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialService(item.id, draft), 'Trabajo actualizado.')} onDelete={() => window.confirm('¿Eliminar este trabajo/tiempo de la orden? Esta acción también lo quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')} />)}</ul>
       </section>
 
-      <section className="commercial-card">
+      <section className="commercial-card commercial-parts-card">
         <h3>Piezas de la orden</h3>
         <form className="commercial-inline-form commercial-parts-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialPart(context, part), 'Pieza añadida.').then((ok) => ok && setPart(emptyPart)); }}>
           <input required placeholder="Pieza / descripción" value={part.description} onChange={(e) => setPart({ ...part, description: e.target.value })} />
