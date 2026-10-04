@@ -138,13 +138,13 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bildiagnos OS</title><style>
       @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111}
       header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
-      h1{font-size:24px;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}
+      header>strong{font-size:34px!important;line-height:1!important;font-weight:900!important}h1{font-size:24px!important;line-height:1.1!important;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}
       table{width:100%;border-collapse:collapse;margin-top:8px}tr{break-inside:avoid}td{border-bottom:1px solid #ccc;padding:8px 4px;vertical-align:top}
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
       .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}
-      .print-total{text-align:right;font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
+      .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
     </style></head><body>${source.outerHTML}</body></html>`);
     popup.document.close();
