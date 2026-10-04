@@ -130,11 +130,14 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     return () => window.removeEventListener('afterprint', clearPrintMode);
   }, []);
   const printDocument = (mode) => {
+    const printedAt = new Date();
+    const printDateTime = printedAt.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     const className = mode === 'work-order' ? 'work-order-print' : mode === 'quote' ? 'quote-print' : mode === 'invoice' ? 'invoice-print' : 'receipt-print';
     const source = document.querySelector(`.commercial-flow .${className}`);
     if (!source) return;
     const popup = window.open('', '_blank', 'width=900,height=1100');
     if (!popup) return;
+    const printableHtml = source.outerHTML.replace('__PRINT_DATETIME__', printDateTime);
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bildiagnos OS</title><style>
       @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111}
       header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
@@ -143,10 +146,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
-      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:16px;margin:0 0 10px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
+      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}.work-order-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:16px;margin:0 0 10px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
       .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
-    </style></head><body>${source.outerHTML}</body></html>`);
+    </style></head><body>${printableHtml}</body></html>`);
     popup.document.close();
     popup.focus();
     window.setTimeout(() => popup.print(), 250);
@@ -281,7 +284,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     </section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS AB</strong><h1>{labels.title}</h1></header>
-      <p><strong>{quoteSettings.documentLanguage === 'es' ? 'Orden' : 'Arbetsorder'}: #{workOrder.order_number || '—'}</strong></p>
+      <div className="work-order-meta">
+        <p><strong>{quoteSettings.documentLanguage === 'es' ? 'Orden' : 'Arbetsorder'}: #{workOrder.order_number || '—'}</strong></p>
+        <p><strong>Orderdatum:</strong> {date(workOrder.created_at)}</p>
+        <p><strong>Utskriftsdatum:</strong> __PRINT_DATETIME__</p>
+      </div>
       <p>{quoteSettings.documentLanguage === 'es' ? 'Cotización' : 'Offert'}: #{quote?.quote_number || '—'} · {accepted ? (quoteSettings.documentLanguage === 'es' ? 'aceptada' : 'godkänd') : (quoteSettings.documentLanguage === 'es' ? 'pendiente de aceptación' : 'inväntar godkännande')}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
