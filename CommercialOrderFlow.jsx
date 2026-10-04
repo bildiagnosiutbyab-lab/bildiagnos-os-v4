@@ -26,6 +26,16 @@ const statusLabels = {
 };
 function statusLabel(value) { return statusLabels[value] || value || ''; }
 
+function dueDateFromDays(days) {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + Number(days || 0));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
@@ -103,7 +113,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [service, setService] = useState(emptyService);
   const [part, setPart] = useState(emptyPart);
   const [quoteSettings, setQuoteSettings] = useState({ notes: '', variablePrice: false, warrantyEnabled: false, warrantyMonths: '3', warrantyKm: '1000', documentLanguage: 'sv' });
-  const [invoiceForm, setInvoiceForm] = useState({ email: '', dueDate: '', reference: '', ocr: '', notes: '' });
+  const [invoiceForm, setInvoiceForm] = useState({ email: '', paymentTermsDays: '15', reference: '', ocr: '', notes: '' });
   const [paymentForm, setPaymentForm] = useState({ method: 'Swish', amount: '', reference: '', invoiceId: '' });
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
@@ -167,7 +177,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const invoicePreview = lastInvoice || invoice || {
     invoice_number: 'FÖRHANDSVISNING',
     created_at: new Date().toISOString(),
-    due_at: invoiceForm.dueDate || null,
+    due_at: dueDateFromDays(invoiceForm.paymentTermsDays),
     total: displayedTotal,
     reference: invoiceForm.reference || String(context?.workOrder?.order_number || ''),
   };
@@ -269,9 +279,17 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
-        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, invoiceForm), 'Factura creada.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
+        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Factura creada.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
           <input required type="email" placeholder="Correo cliente" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
-          <input required type="date" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} />
+          <label className="invoice-terms">Betalningsvillkor
+            <select value={invoiceForm.paymentTermsDays} onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentTermsDays: e.target.value })}>
+              <option value="10">10 dagar</option>
+              <option value="15">15 dagar</option>
+              <option value="20">20 dagar</option>
+              <option value="30">30 dagar</option>
+            </select>
+            <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
+          </label>
           <input placeholder="Referencia" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Crear factura</button>
         </form>
