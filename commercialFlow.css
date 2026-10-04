@@ -270,3 +270,15 @@
 .commercial-print .print-section h2,
 .commercial-print .work-order-approval h2 { font-size:14px; }
 .commercial-print .print-total { font-size:15px; }
+
+/* Printable invoice metadata */
+.invoice-meta {
+  display:grid;
+  grid-template-columns:repeat(3,auto);
+  gap:8px 24px;
+  align-items:center;
+  margin-bottom:8px;
+}
+.invoice-meta p { margin:4px 0; }
+.invoice-print .print-totals { text-align:right; }
+.invoice-print .print-totals p { text-align:right; margin:8px 0; }
