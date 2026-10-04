@@ -282,3 +282,19 @@
 .invoice-meta p { margin:4px 0; }
 .invoice-print .print-totals { text-align:right; }
 .invoice-print .print-totals p { text-align:right; margin:8px 0; }
+
+/* Isolated Fortnox sandbox invoice test */
+.fortnox-sandbox-test {
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+}
+.fortnox-sandbox-test p { margin:6px 0 10px; }
+.fortnox-test-result {
+  margin-top:10px;
+  display:grid;
+  gap:5px;
+}
+.fortnox-test-result span { display:block; }
