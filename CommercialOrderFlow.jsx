@@ -139,15 +139,15 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     if (!popup) return;
     const printableHtml = source.outerHTML.replace('__PRINT_DATETIME__', printDateTime);
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bildiagnos OS</title><style>
-      @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111}
+      @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111;font-size:12px;line-height:1.3}
       header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
-      header>strong{font-size:34px!important;line-height:1!important;font-weight:900!important}h1{font-size:24px!important;line-height:1.1!important;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}.print-info-list{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;align-items:start!important}.print-info-list span{display:block!important;text-align:left!important}
+      header>strong{font-size:28px!important;line-height:1!important;font-weight:900!important}h1{font-size:20px!important;line-height:1.1!important;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}.print-info-list{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;align-items:start!important}.print-info-list span{display:block!important;text-align:left!important}
       table{width:100%;border-collapse:collapse;margin-top:8px}tr{break-inside:avoid}td{border-bottom:1px solid #ccc;padding:8px 4px;vertical-align:top}
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
-      .print-section{margin:18px 0}.print-section h2{font-size:16px;margin:0 0 6px}.print-empty{color:#666}.work-order-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:16px;margin:0 0 10px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
-      .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:18px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
+      .print-section{margin:14px 0}.print-section h2{font-size:14px;margin:0 0 5px}.print-empty{color:#666}.work-order-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:14px;margin:0 0 8px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
+      .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:15px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
     </style></head><body>${printableHtml}</body></html>`);
     popup.document.close();
