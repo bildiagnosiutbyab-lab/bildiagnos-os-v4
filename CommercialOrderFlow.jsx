@@ -138,7 +138,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bildiagnos OS</title><style>
       @page{size:A4;margin:14mm}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#111}
       header{border-bottom:2px solid #111;display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:0 0 8px}
-      header>strong{font-size:34px!important;line-height:1!important;font-weight:900!important}h1{font-size:24px!important;line-height:1.1!important;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}
+      header>strong{font-size:34px!important;line-height:1!important;font-weight:900!important}h1{font-size:24px!important;line-height:1.1!important;margin:0}.print-info{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:8px 0;border-bottom:1px solid #bbb}.print-info-list{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;align-items:start!important}.print-info-list span{display:block!important;text-align:left!important}
       table{width:100%;border-collapse:collapse;margin-top:8px}tr{break-inside:avoid}td{border-bottom:1px solid #ccc;padding:8px 4px;vertical-align:top}
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
@@ -178,14 +178,14 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
   const vehicle = context.vehicle || {};
   const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
-  const vehicleInfo = <div className="print-info">
+  const vehicleInfo = <div className="print-info print-info-list">
     <span>{labels.customer}: <b>{workOrder.customer_name_snapshot || '—'}</b></span>
     <span>{labels.plate}: <b>{workOrder.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
     <span>Fordon: <b>{vehicleDescription}</b></span>
+    <span>Mätarställning: <b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
     {vehicle.vin && <span>VIN: <b>{vehicle.vin}</b></span>}
     {vehicle.engine && <span>Motor: <b>{vehicle.engine}</b></span>}
     {vehicle.fuel_type && <span>Bränsle: <b>{vehicle.fuel_type}</b></span>}
-    <span>Mätarställning: <b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
   </div>;
 
   return <section className="commercial-flow" data-print-mode={printMode || undefined}>
