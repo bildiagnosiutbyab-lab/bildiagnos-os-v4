@@ -140,3 +140,18 @@
   .commercial-work-card > h3,
   .commercial-parts-card > h3 { margin:-.75rem -.75rem .8rem; }
 }
+
+/* Action colors: add=green, save=blue, delete=red */
+.commercial-inline-form button {
+  background:#15803d;
+  color:#fff;
+}
+.commercial-line-actions button:first-child {
+  background:#1d4ed8;
+  color:#fff;
+}
+.commercial-line-actions .reject-button,
+.commercial-edit-line .reject-button {
+  background:#b91c1c;
+  color:#fff;
+}
