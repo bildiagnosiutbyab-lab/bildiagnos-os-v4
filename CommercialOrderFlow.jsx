@@ -172,6 +172,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   if (!context) return <section className="commercial-flow card"><p>Cargando flujo comercial…</p>{message && <p className="commercial-error">{message}</p>}</section>;
 
   const workOrder = context.workOrder;
+  const accepted = quote?.status === 'approved';
+  const labels = quoteSettings.documentLanguage === 'es'
+    ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Matrícula', work: 'Trabajos', parts: 'Piezas', quote: 'Cotización aceptada', warranty: 'Garantía', print: 'PDF / Imprimir orden' }
+    : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
   const vehicle = context.vehicle || {};
   const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
   const vehicleInfo = <div className="print-info">
@@ -183,10 +187,6 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     {vehicle.fuel_type && <span>Bränsle: <b>{vehicle.fuel_type}</b></span>}
     <span>Mätarställning: <b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
   </div>;
-  const accepted = quote?.status === 'approved';
-  const labels = quoteSettings.documentLanguage === 'es'
-    ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Matrícula', work: 'Trabajos', parts: 'Piezas', quote: 'Cotización aceptada', warranty: 'Garantía', print: 'PDF / Imprimir orden' }
-    : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
 
   return <section className="commercial-flow" data-print-mode={printMode || undefined}>
     <header className="commercial-heading">
