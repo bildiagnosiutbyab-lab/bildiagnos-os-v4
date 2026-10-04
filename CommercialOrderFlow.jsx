@@ -281,7 +281,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     </section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS AB</strong><h1>{labels.title}</h1></header>
-      <p>{accepted ? labels.quote : (quoteSettings.documentLanguage === 'es' ? 'Cotización pendiente de aceptación' : 'Offert inväntar godkännande')} · #{quote?.quote_number || '—'}</p>{vehicleInfo}
+      <p><strong>${quoteSettings.documentLanguage === 'es' ? 'Orden' : 'Arbetsorder'}: #${workOrder.order_number || '—'}</strong></p>
+      <p>${quoteSettings.documentLanguage === 'es' ? 'Cotización' : 'Offert'}: #${quote?.quote_number || '—'} · ${accepted ? (quoteSettings.documentLanguage === 'es' ? 'aceptada' : 'godkänd') : (quoteSettings.documentLanguage === 'es' ? 'pendiente de aceptación' : 'inväntar godkännande')}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <div className="print-totals">
