@@ -13,6 +13,7 @@ import {
   updateCommercialPart,
   updateCommercialService,
 } from './commercialRepository.js';
+import { supabase } from './supabaseClient.js';
 import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -117,6 +118,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [paymentForm, setPaymentForm] = useState({ method: 'Swish', amount: '', reference: '', invoiceId: '' });
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
+  const [fortnoxInvoiceTest, setFortnoxInvoiceTest] = useState({ state: 'idle', message: '', result: null });
   const [printMode, setPrintMode] = useState(null);
 
   const orderId = order.relationalId;
@@ -163,6 +165,33 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     popup.document.close();
     popup.focus();
     window.setTimeout(() => popup.print(), 250);
+  };
+
+
+  const createFortnoxTestInvoice = async () => {
+    setFortnoxInvoiceTest({ state: 'loading', message: 'Creando factura ficticia en Fortnox Test…', result: null });
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token) {
+      setFortnoxInvoiceTest({ state: 'error', message: 'La sesión ha caducado. Vuelve a iniciar sesión.', result: null });
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke('fortnox-test', {
+      body: { action: 'create_test_invoice' },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (error || !data?.ok) {
+      setFortnoxInvoiceTest({
+        state: 'error',
+        message: data?.error || error?.message || 'No se pudo crear la factura de prueba.',
+        result: null,
+      });
+      return;
+    }
+    setFortnoxInvoiceTest({
+      state: 'success',
+      message: 'Factura ficticia creada en Fortnox Test. No se ha enviado ni contabilizado.',
+      result: data,
+    });
   };
 
   const quote = context?.quotes[0];
@@ -294,6 +323,21 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <button disabled={busy || pricePending}>Crear factura</button>
         </form>
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
+        <div className="fortnox-sandbox-test">
+          <strong>Fortnox Test</strong>
+          <p>Prueba aislada con Testkund Bildiagnos. No usa ni modifica esta orden real.</p>
+          <button type="button" className="secondary-button" disabled={fortnoxInvoiceTest.state === 'loading'} onClick={createFortnoxTestInvoice}>
+            {fortnoxInvoiceTest.state === 'loading' ? 'Creando prueba…' : 'Crear factura ficticia en Fortnox Test'}
+          </button>
+          {fortnoxInvoiceTest.message && <p className={`fortnox-test-message ${fortnoxInvoiceTest.state}`}>{fortnoxInvoiceTest.message}</p>}
+          {fortnoxInvoiceTest.result && <div className="fortnox-test-result">
+            <span>Fakturanr: <b>{fortnoxInvoiceTest.result.invoiceNumber || '—'}</b></span>
+            <span>OCR: <b>{fortnoxInvoiceTest.result.ocr || '—'}</b></span>
+            <span>Bankgiro: <b>{fortnoxInvoiceTest.result.bankgiro || '—'}</b></span>
+            <span>Förfallodatum: <b>{fortnoxInvoiceTest.result.dueDate || '—'}</b></span>
+            <span>Total: <b>{money(fortnoxInvoiceTest.result.total)}</b></span>
+          </div>}
+        </div>
         <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Confirmar pago</button>}</li>)}</ul>
       </section>
     </div>
