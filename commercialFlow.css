@@ -184,3 +184,10 @@
 .work-order-print .print-totals .print-total {
   text-align:left;
 }
+
+/* Printed company name */
+.commercial-print header > strong {
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:.02em;
+}
