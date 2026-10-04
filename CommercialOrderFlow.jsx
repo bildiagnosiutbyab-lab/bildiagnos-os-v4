@@ -172,6 +172,17 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   if (!context) return <section className="commercial-flow card"><p>Cargando flujo comercial…</p>{message && <p className="commercial-error">{message}</p>}</section>;
 
   const workOrder = context.workOrder;
+  const vehicle = context.vehicle || {};
+  const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
+  const vehicleInfo = <div className="print-info">
+    <span>{labels.customer}: <b>{workOrder.customer_name_snapshot || '—'}</b></span>
+    <span>{labels.plate}: <b>{workOrder.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
+    <span>Fordon: <b>{vehicleDescription}</b></span>
+    {vehicle.vin && <span>VIN: <b>{vehicle.vin}</b></span>}
+    {vehicle.engine && <span>Motor: <b>{vehicle.engine}</b></span>}
+    {vehicle.fuel_type && <span>Bränsle: <b>{vehicle.fuel_type}</b></span>}
+    <span>Mätarställning: <b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
+  </div>;
   const accepted = quote?.status === 'approved';
   const labels = quoteSettings.documentLanguage === 'es'
     ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Matrícula', work: 'Trabajos', parts: 'Piezas', quote: 'Cotización aceptada', warranty: 'Garantía', print: 'PDF / Imprimir orden' }
@@ -259,7 +270,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     </div>
 
     {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS I UTBY AB</strong><h1>{quoteSettings.documentLanguage === 'es' ? 'COTIZACIÓN' : 'OFFERT'}</h1></header>
-      <div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Km: <b>{workOrder.mileage || '—'}</b></span><span>#{quote.quote_number || '—'}</span></div>
+      {vehicleInfo}<p>Offert: <b>#{quote.quote_number || '—'}</b></p>
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <div className="print-totals">
@@ -270,7 +281,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     </section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
-      <p>{accepted ? labels.quote : (quoteSettings.documentLanguage === 'es' ? 'Cotización pendiente de aceptación' : 'Offert inväntar godkännande')} · #{quote?.quote_number || '—'}</p><div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Mätarställning: <b>{workOrder.mileage || '—'} km</b></span></div>
+      <p>{accepted ? labels.quote : (quoteSettings.documentLanguage === 'es' ? 'Cotización pendiente de aceptación' : 'Offert inväntar godkännande')} · #{quote?.quote_number || '—'}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Subtotal conocido: ${money(quote?.total)} · faltan precios, no es total final` : `Känt delbelopp: ${money(quote?.total)} · priser saknas, ej slutbelopp`) : `Total: ${money(quote?.total)}`}</p>{quote?.variable_price && <p>Priset kan ändras och ska inte betraktas som fast.</p>}{quote?.warranty_enabled && <p>{labels.warranty}: {quote.warranty_months} månader / {quote.warranty_km} km.</p>}
