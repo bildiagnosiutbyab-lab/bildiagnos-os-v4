@@ -168,3 +168,19 @@
   color:#0f172a;
   border-bottom-color:#cbd5e1;
 }
+
+/* Printed Offert + Arbetsorder totals: align subtotal, VAT and grand total to the left */
+.quote-print .print-totals,
+.work-order-print .print-totals {
+  text-align:left;
+  margin-top:14px;
+}
+.quote-print .print-totals p,
+.work-order-print .print-totals p {
+  text-align:left;
+  margin:8px 0;
+}
+.quote-print .print-totals .print-total,
+.work-order-print .print-totals .print-total {
+  text-align:left;
+}
