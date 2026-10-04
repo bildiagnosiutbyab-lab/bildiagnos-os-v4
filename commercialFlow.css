@@ -191,3 +191,10 @@
   font-weight:800;
   letter-spacing:.02em;
 }
+
+/* Larger printed Bildiagnos brand */
+.commercial-print header > strong {
+  font-size:30px;
+  line-height:1;
+  font-weight:900;
+}
