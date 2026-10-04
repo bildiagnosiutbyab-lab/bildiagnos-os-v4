@@ -217,3 +217,15 @@
 .work-order-print .print-totals .print-total {
   text-align:right;
 }
+
+/* Printed customer/vehicle details as a vertical list */
+.commercial-print .print-info-list {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:5px;
+  align-items:start;
+}
+.commercial-print .print-info-list span {
+  display:block;
+  text-align:left;
+}
