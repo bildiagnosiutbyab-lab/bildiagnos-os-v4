@@ -157,6 +157,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const serviceLines = quoteLines.filter((item) => item.item_type === 'service');
   const partLines = quoteLines.filter((item) => item.item_type === 'part');
   const pricePending = quoteLines.length > 0 && quoteLines.some((item) => Number(item.unit_price) === 0);
+  const displayedSubtotal = Number(quote?.subtotal || 0);
+  const displayedVat = Number(quote?.vat_total || 0);
+  const displayedTotal = Number(quote?.total || 0);
   const invoice = context?.invoices[0];
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
@@ -215,7 +218,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <label className="commercial-check"><input type="checkbox" checked={quoteSettings.warrantyEnabled} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyEnabled: e.target.checked })} />Garantía</label>
         {quoteSettings.warrantyEnabled && <><label>Meses<input type="number" min="0" value={quoteSettings.warrantyMonths} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyMonths: e.target.value })} /></label><label>Kilómetros<input type="number" min="0" step="100" value={quoteSettings.warrantyKm} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyKm: e.target.value })} /></label></>}
       </div>
-      <div className="commercial-totals"><span>Exkl. moms <strong>{money(quote?.subtotal)}</strong></span><span>Moms <strong>{money(quote?.vat_total)}</strong></span><span>{pricePending ? 'Subtotal conocido' : 'Total'} <strong>{money(quote?.total)}</strong></span></div>
+      <div className="commercial-totals commercial-totals-prominent">
+        <span><small>Exkl. moms</small><strong>{money(displayedSubtotal)}</strong></span>
+        <span><small>Moms 25%</small><strong>{money(displayedVat)}</strong></span>
+        <span className="commercial-grand-total"><small>{pricePending ? 'Känt belopp inkl. moms' : 'Total inkl. moms'}</small><strong>{money(displayedTotal)}</strong></span>
+      </div>
       {pricePending && <p className="commercial-error">Faltan precios en las líneas marcadas con —. El subtotal conocido no es el precio final; completa las líneas pendientes antes de aceptar o cobrar.</p>}
       <div className="commercial-actions">
         <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>Preparar cotización</button>
@@ -255,7 +262,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="print-info"><span>{labels.customer}: <b>{workOrder.customer_name_snapshot}</b></span><span>{labels.plate}: <b>{workOrder.plate_snapshot}</b></span><span>Km: <b>{workOrder.mileage || '—'}</b></span><span>#{quote.quote_number || '—'}</span></div>
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
-      <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Subtotal conocido: ${money(quote.total)} · faltan precios, no es cotización final` : `Känt delbelopp: ${money(quote.total)} · priser saknas, ej slutlig offert`) : `Total: ${money(quote.total)}`}</p>
+      <div className="print-totals">
+        <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
+        <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
+        <p className="print-total">{pricePending ? (quoteSettings.documentLanguage === 'es' ? `Total conocido incl. IVA: ${money(displayedTotal)} · faltan precios` : `Känt belopp inkl. moms: ${money(displayedTotal)} · priser saknas`) : `Total inkl. moms: ${money(displayedTotal)}`}</p>
+      </div>
     </section>}
     <section className="commercial-print work-order-print">
       <header><strong>BILDIAGNOS I UTBY AB</strong><h1>{labels.title}</h1></header>
