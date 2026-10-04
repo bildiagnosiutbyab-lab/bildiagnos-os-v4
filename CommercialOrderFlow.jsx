@@ -146,7 +146,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       th{text-align:left;border-bottom:2px solid #555;padding:8px 4px}td{overflow-wrap:anywhere}
       th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
-      .print-section{margin:14px 0}.print-section h2{font-size:14px;margin:0 0 5px}.print-empty{color:#666}.work-order-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:14px;margin:0 0 8px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
+      .print-section{margin:14px 0}.print-section h2{font-size:14px;margin:0 0 5px}.print-empty{color:#666}.work-order-meta,.invoice-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p,.invoice-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:14px;margin:0 0 8px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
       .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:15px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
       .commercial-print{display:block}
     </style></head><body>${printableHtml}</body></html>`);
@@ -313,6 +313,24 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
-    {(lastInvoice || invoice) && <section className="commercial-print invoice-print"><h1>FAKTURA</h1><p>Nr. {(lastInvoice || invoice).invoice_number}</p><p>{workOrder.customer_name_snapshot} · {workOrder.plate_snapshot}</p><p>Förfallodatum: {date((lastInvoice || invoice).due_at)}</p><h2>{money((lastInvoice || invoice).total)}</h2></section>}
+    {(lastInvoice || invoice) && <section className="commercial-print invoice-print">
+      <header><strong>BILDIAGNOS AB</strong><h1>FAKTURA</h1></header>
+      <div className="invoice-meta">
+        <p><strong>Fakturanr:</strong> {(lastInvoice || invoice).invoice_number || '—'}</p>
+        <p><strong>Fakturadatum:</strong> {date((lastInvoice || invoice).created_at)}</p>
+        <p><strong>Förfallodatum:</strong> {date((lastInvoice || invoice).due_at)}</p>
+        <p><strong>Arbetsorder:</strong> #{workOrder.order_number || '—'}</p>
+      </div>
+      {vehicleInfo}
+      <div className="print-section"><h2>Arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
+      <div className="print-section"><h2>Reservdelar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
+      <div className="print-totals">
+        <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
+        <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
+        <p className="print-total">Att betala: {money(Number((lastInvoice || invoice).total || displayedTotal))}</p>
+      </div>
+      {((lastInvoice || invoice).ocr || (lastInvoice || invoice).ocr_number) && <p><strong>OCR:</strong> {(lastInvoice || invoice).ocr || (lastInvoice || invoice).ocr_number}</p>}
+      {(lastInvoice || invoice).reference && <p><strong>Referens:</strong> {(lastInvoice || invoice).reference}</p>}
+    </section>}
   </section>;
 }
