@@ -140,3 +140,48 @@
   .commercial-work-card > h3,
   .commercial-parts-card > h3 { margin:-.75rem -.75rem .8rem; }
 }
+
+/* Stronger visual controls: work=teal, parts=blue, destructive=red */
+.commercial-work-card input[type="radio"],
+.commercial-work-card input[type="checkbox"] { accent-color:#0f766e; }
+.commercial-parts-card input[type="radio"],
+.commercial-parts-card input[type="checkbox"] { accent-color:#2563eb; }
+
+.commercial-work-card input[type="radio"],
+.commercial-work-card input[type="checkbox"],
+.commercial-parts-card input[type="radio"],
+.commercial-parts-card input[type="checkbox"] {
+  width:20px;
+  height:20px;
+  cursor:pointer;
+  vertical-align:middle;
+}
+
+.commercial-work-card button:not(.danger),
+.commercial-work-card .commercial-status {
+  border-color:#0f766e;
+}
+.commercial-parts-card button:not(.danger),
+.commercial-parts-card .commercial-status {
+  border-color:#2563eb;
+}
+
+.commercial-work-card button:focus-visible,
+.commercial-work-card input:focus-visible,
+.commercial-work-card textarea:focus-visible {
+  outline:3px solid #14b8a6;
+  outline-offset:2px;
+}
+.commercial-parts-card button:focus-visible,
+.commercial-parts-card input:focus-visible,
+.commercial-parts-card textarea:focus-visible {
+  outline:3px solid #3b82f6;
+  outline-offset:2px;
+}
+
+button.danger,
+.commercial-edit-line button[aria-label*="Eliminar"],
+.commercial-edit-line button[title*="Eliminar"] {
+  border-color:#dc2626;
+  color:#991b1b;
+}
