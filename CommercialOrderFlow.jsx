@@ -336,7 +336,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="commercial-totals commercial-totals-prominent">
         <span><small>Exkl. moms</small><strong>{money(displayedSubtotal)}</strong></span>
         <span><small>Moms 25%</small><strong>{money(displayedVat)}</strong></span>
-        <span className="commercial-grand-total"><small>{pricePending ? 'Känt belopp inkl. moms' : 'Total inkl. moms'}</small><strong>{money(displayedTotal)}</strong></span>
+        <span><small>{pricePending ? 'Känt belopp inkl. moms' : 'Total inkl. moms'}</small><strong>{money(displayedTotal)}</strong></span>
+        {!pricePending && Math.abs(Math.round(displayedTotal) - displayedTotal) >= 0.005 && <span><small>Öresutjämning</small><strong>{money(Math.round(displayedTotal) - displayedTotal)}</strong></span>}
+        <span className="commercial-grand-total"><small>{pricePending ? 'Känt belopp' : 'Att betala'}</small><strong>{money(pricePending ? displayedTotal : Math.round(displayedTotal))}</strong></span>
       </div>
       {pricePending && <p className="commercial-error">Faltan precios en las líneas marcadas con —. El subtotal conocido no es el precio final; completa las líneas pendientes antes de aceptar o cobrar.</p>}
       <div className="commercial-actions">
