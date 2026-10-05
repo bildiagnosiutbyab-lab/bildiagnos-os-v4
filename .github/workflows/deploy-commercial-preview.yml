@@ -2,7 +2,7 @@ name: Deploy commercial preview
 
 on:
   push:
-    branches: [integrate/v1-base-central-20260918]
+    branches: [fix/ad-cart-import-20260927]
   workflow_dispatch:
 
 permissions:
