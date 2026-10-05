@@ -246,12 +246,17 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       }));
     return [...services, ...parts];
   }, [context]);
-  const liveTotal = liveLines.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  // Work/service and part prices are entered excluding VAT. Keep the live
+  // order calculation in the same basis as Fortnox: net + 25% VAT.
+  const liveSubtotal = liveLines.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const liveVat = liveSubtotal * 0.25;
+  const liveTotal = liveSubtotal + liveVat;
   const quoteMatchesLiveOrder = quoteLines.length === liveLines.length &&
+    Math.abs(Number(quote?.subtotal || 0) - liveSubtotal) < 0.005 &&
     Math.abs(Number(quote?.total || 0) - liveTotal) < 0.005;
+  const displayedSubtotal = quoteMatchesLiveOrder ? Number(quote?.subtotal || 0) : liveSubtotal;
+  const displayedVat = quoteMatchesLiveOrder ? Number(quote?.vat_total || 0) : liveVat;
   const displayedTotal = quoteMatchesLiveOrder ? Number(quote?.total || 0) : liveTotal;
-  const displayedSubtotal = displayedTotal / 1.25;
-  const displayedVat = displayedTotal - displayedSubtotal;
   const invoice = context?.invoices[0];
   const invoicePreview = lastInvoice || invoice || {
     invoice_number: 'FÖRHANDSVISNING',
