@@ -42,11 +42,11 @@ function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.form
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
 function DocumentLinesTable({ lines, language, kind, showPrice }) {
-  if (!lines.length) return <p className="print-empty">{language === 'es' ? 'Sin líneas registradas.' : 'Inga rader registrerade.'}</p>;
+  if (!lines.length) return <p className="print-empty">{language === 'es' ? 'Inga rader registrerade.' : 'Inga rader registrerade.'}</p>;
   const isSpanish = language === 'es';
   return <table className="print-lines">
     <thead><tr>
-      <th>{isSpanish ? 'Descripción' : 'Beskrivning'}</th>
+      <th>{isSpanish ? 'Beskrivning' : 'Beskrivning'}</th>
       <th>{kind === 'service' ? (isSpanish ? 'Horas' : 'Timmar') : (isSpanish ? 'Cant.' : 'Antal')}</th>
       {showPrice && <><th>{kind === 'service' ? (isSpanish ? 'Precio/h' : 'Pris/h') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th><th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
     </tr></thead>
@@ -97,7 +97,7 @@ function PartLineEditor({ item, busy, onSave, onDelete }) {
   }), [item.description_snapshot, item.part_number_snapshot, item.quantity, item.actual_cost, item.sale_price, item.discount_percent]);
   return <li className="commercial-edit-line commercial-part-line">
     <label>Reservdel<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Nº artículo<input value={draft.partNumber} onChange={(e) => setDraft({ ...draft, partNumber: e.target.value })} /></label>
+    <label>Artikelnummer<input value={draft.partNumber} onChange={(e) => setDraft({ ...draft, partNumber: e.target.value })} /></label>
     <label>Antal<input type="number" min="0.001" step="0.001" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /></label>
     <label>Inköpspris<input type="number" min="0" step="0.01" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} /></label>
     <label>Pris<input type="number" min="0" step="0.01" value={draft.salePrice} onChange={(e) => setDraft({ ...draft, salePrice: e.target.value })} /></label>
@@ -193,7 +193,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     setFortnoxInvoiceTest({ state: 'loading', message: 'Creando factura ficticia en Fortnox Test…', result: null });
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session?.access_token) {
-      setFortnoxInvoiceTest({ state: 'error', message: 'La sesión ha caducado. Vuelve a iniciar sesión.', result: null });
+      setFortnoxInvoiceTest({ state: 'error', message: 'Sessionen har gått ut. Logga in igen.', result: null });
       return;
     }
     const { data, error } = await supabase.functions.invoke('fortnox-invoice-test-v2', {
@@ -278,7 +278,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const workOrder = context.workOrder;
   const accepted = quote?.status === 'approved';
   const labels = quoteSettings.documentLanguage === 'es'
-    ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Matrícula', work: 'Trabajos', parts: 'Piezas', quote: 'Cotización aceptada', warranty: 'Garantía', print: 'PDF / Imprimir orden' }
+    ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Registreringsnummer', work: 'Trabajos', parts: 'Piezas', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Imprimir orden' }
     : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
   const vehicle = context.vehicle || {};
   const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
@@ -302,26 +302,26 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     <div className="commercial-grid">
       <section className="commercial-card commercial-work-card">
         <h3>Arbeten i arbetsordern</h3>
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Operación añadida.').then((ok) => ok && setService(emptyService)); }}>
+        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Arbete tillagt.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Beskrivning av arbete" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
           <input required type="number" min="0.01" step="0.01" placeholder="Timmar" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
           <input required type="number" min="0" placeholder="Pris/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <ServiceLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialService(item.id, draft), 'Trabajo actualizado.')} onDelete={() => window.confirm('¿Eliminar este trabajo/tiempo de la orden? Esta acción también lo quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')} />)}</ul>
+        <ul className="commercial-lines">{context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <ServiceLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialService(item.id, draft), 'Trabajo actualizado.')} onDelete={() => window.confirm('Ta bort detta arbete/tid från arbetsordern? Det tas även bort från den aktuella offerten, men historiska dokument sparas.') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')} />)}</ul>
       </section>
 
       <section className="commercial-card commercial-parts-card">
         <h3>Reservdelar i arbetsordern</h3>
-        <form className="commercial-inline-form commercial-parts-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialPart(context, part), 'Pieza añadida.').then((ok) => ok && setPart(emptyPart)); }}>
+        <form className="commercial-inline-form commercial-parts-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialPart(context, part), 'Reservdel tillagd.').then((ok) => ok && setPart(emptyPart)); }}>
           <input required placeholder="Reservdel / beskrivning" value={part.description} onChange={(e) => setPart({ ...part, description: e.target.value })} />
-          <input placeholder="Nº artículo" value={part.partNumber} onChange={(e) => setPart({ ...part, partNumber: e.target.value })} />
+          <input placeholder="Artikelnummer" value={part.partNumber} onChange={(e) => setPart({ ...part, partNumber: e.target.value })} />
           <input required type="number" min="1" step="1" placeholder="Cant." value={part.quantity} onChange={(e) => setPart({ ...part, quantity: e.target.value })} />
           <input type="number" min="0" placeholder="Inköpspris" value={part.cost} onChange={(e) => setPart({ ...part, cost: e.target.value })} />
           <input required type="number" min="0" placeholder="Pris" value={part.salePrice} onChange={(e) => setPart({ ...part, salePrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
-        <ul className="commercial-lines">{context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <PartLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialPart(item.id, draft), 'Pieza actualizada.')} onDelete={() => window.confirm('¿Eliminar esta pieza de la orden? Esta acción también la quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')} />)}</ul>
+        <ul className="commercial-lines">{context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <PartLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialPart(item.id, draft), 'Pieza actualizada.')} onDelete={() => window.confirm('Ta bort denna reservdel från arbetsordern? Den tas även bort från den aktuella offerten, men historiska dokument sparas.') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')} />)}</ul>
       </section>
     </div>
 
@@ -330,8 +330,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="commercial-settings">
         <label>Notas<textarea value={quoteSettings.notes} placeholder="Validez, disponibilidad u otras condiciones" onChange={(e) => setQuoteSettings({ ...quoteSettings, notes: e.target.value })} /></label>
         <label className="commercial-check"><input type="checkbox" checked={quoteSettings.variablePrice} onChange={(e) => setQuoteSettings({ ...quoteSettings, variablePrice: e.target.checked })} />Precio variable</label>
-        <label className="commercial-check"><input type="checkbox" checked={quoteSettings.warrantyEnabled} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyEnabled: e.target.checked })} />Garantía</label>
-        {quoteSettings.warrantyEnabled && <><label>Meses<input type="number" min="0" value={quoteSettings.warrantyMonths} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyMonths: e.target.value })} /></label><label>Kilómetros<input type="number" min="0" step="100" value={quoteSettings.warrantyKm} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyKm: e.target.value })} /></label></>}
+        <label className="commercial-check"><input type="checkbox" checked={quoteSettings.warrantyEnabled} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyEnabled: e.target.checked })} />Garanti</label>
+        {quoteSettings.warrantyEnabled && <><label>Meses<input type="number" min="0" value={quoteSettings.warrantyMonths} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyMonths: e.target.value })} /></label><label>Kilometer<input type="number" min="0" step="100" value={quoteSettings.warrantyKm} onChange={(e) => setQuoteSettings({ ...quoteSettings, warrantyKm: e.target.value })} /></label></>}
       </div>
       <div className="commercial-totals commercial-totals-prominent">
         <span><small>Exkl. moms</small><strong>{money(displayedSubtotal)}</strong></span>
@@ -344,8 +344,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="commercial-actions">
         <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Offert förberedd.')}>{quoteMatchesLiveOrder ? 'Förbered offert' : 'Uppdatera offert'}</button>
         <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
-        <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Kunden godkänner</button>
-        <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Kunden avvisar</button>
+        <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('Bekräfta att kunden har godkänt offerten?') && run(() => decideCommercialQuote(context, 'approved'), 'Offert godkänd.')}>Kunden godkänner</button>
+        <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('Bekräfta att kunden har avvisat offerten?') && run(() => decideCommercialQuote(context, 'rejected'), 'Offert avvisad.')}>Kunden avvisar</button>
         <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Markera reservdelar som beställda</button>
         {quote && <button onClick={() => printDocument('work-order')}>PDF / Imprimir arbetsorder</button>}{accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
       </div>
@@ -433,7 +433,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><strong>Orderdatum:</strong> {date(workOrder.created_at)}</p>
         <p><strong>Utskriftsdatum:</strong> __PRINT_DATETIME__</p>
       </div>
-      <p>{quoteSettings.documentLanguage === 'es' ? 'Cotización' : 'Offert'}: #{quote?.quote_number || '—'} · {accepted ? (quoteSettings.documentLanguage === 'es' ? 'aceptada' : 'godkänd') : (quoteSettings.documentLanguage === 'es' ? 'pendiente de aceptación' : 'inväntar godkännande')}</p>{vehicleInfo}
+      <p>{quoteSettings.documentLanguage === 'es' ? 'Offert' : 'Offert'}: #{quote?.quote_number || '—'} · {accepted ? (quoteSettings.documentLanguage === 'es' ? 'aceptada' : 'godkänd') : (quoteSettings.documentLanguage === 'es' ? 'väntar på godkännande' : 'inväntar godkännande')}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <div className="print-totals">
