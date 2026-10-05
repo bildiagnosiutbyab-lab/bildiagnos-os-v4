@@ -18,7 +18,7 @@ import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const emptyPart = { description: '', partNumber: '', quantity: '1', cost: '', salePrice: '', discount: '' };
-const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '' };
+const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '1000' };
 
 const statusLabels = {
   pending_approval: 'Pendiente de aprobación', approved: 'Aprobado', ordered: 'Pedido',
