@@ -154,7 +154,7 @@ export default function WorkOrders() {
     : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
   const orderDate = (order) => {
     const raw = order.createdAt || order.updatedAt;
-    if (!raw) return 'Sin fecha';
+    if (!raw) return 'Utan datum';
     const parsed = new Date(String(raw).replace(' ', 'T'));
     return Number.isNaN(parsed.getTime()) ? String(raw).slice(0, 10) : new Intl.DateTimeFormat('sv-SE').format(parsed);
   };
@@ -172,7 +172,7 @@ export default function WorkOrders() {
         if (active) setOrders(cloudOrders);
       } catch (error) {
         console.error('No se pudieron cargar las órdenes relacionales:', error);
-        if (active) setSyncMessage('Sin conexión: usando copia local');
+        if (active) setSyncMessage('Offline: lokal kopia används');
       }
     }
     refresh();
@@ -223,7 +223,7 @@ export default function WorkOrders() {
       console.error('No se pudo guardar la orden:', error);
       setSyncMessage(error.message?.includes('ORDER_VERSION_CONFLICT')
         ? 'Conflicto detectado: recargando la versión más reciente'
-        : 'Error de sincronización');
+        : 'Synkroniseringsfel');
       const latest = await loadRelationalOrders().catch(() => null);
       if (latest) setOrders(latest);
     }
@@ -446,29 +446,29 @@ export default function WorkOrders() {
           </section>
           <p>
             <strong>Vehículo:</strong>{' '}
-            {selectedOrder.vehicle || 'Sin especificar'}
+            {selectedOrder.vehicle || 'Ej angivet'}
           </p>
 
           <p>
             <strong>Mätarställning:</strong>{' '}
             {selectedOrder.mileage
               ? `${selectedOrder.mileage} km`
-              : 'Sin especificar'}
+              : 'Ej angivet'}
           </p>
 
           <p>
             <strong>Beställt arbete:</strong>{' '}
-            {selectedOrder.requestedWork || 'Sin descripción'}
+            {selectedOrder.requestedWork || 'Ingen beskrivning'}
           </p>
 
           <p>
             <strong>Diagnóstico:</strong>{' '}
-            {selectedOrder.diagnosis || 'Sin diagnóstico'}
+            {selectedOrder.diagnosis || 'Ingen diagnos'}
           </p>
 
           <p>
             <strong>DTC:</strong>{' '}
-            {selectedOrder.dtc || 'Sin códigos registrados'}
+            {selectedOrder.dtc || 'Inga felkoder registrerade'}
           </p>
 
           <p>
@@ -529,7 +529,7 @@ export default function WorkOrders() {
         <PageHeader
           title={
             editingOrderId
-              ? 'Editar orden de trabajo'
+              ? 'Redigera arbetsorder'
               : 'Ny arbetsorder'
           }
           subtitle="Kund, fordon, diagnos och reparation"
@@ -661,7 +661,7 @@ export default function WorkOrders() {
         {normalizedPlateSearch && <p style={{ margin: '8px 0 0' }}>
           {plateHistoryOrders.length
             ? `${plateHistoryOrders.length} orden(es) encontradas para esta matrícula.`
-            : 'No hay historial para esta matrícula.'}
+            : 'Ingen historik för detta registreringsnummer.'}
         </p>}
       </section>
 
@@ -673,7 +673,7 @@ export default function WorkOrders() {
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>{normalizedPlateSearch ? 'No hay historial para esta matrícula' : orderView === 'history' ? 'No hay órdenes cerradas' : orderView === 'cancelled' ? 'No hay órdenes canceladas' : 'No hay órdenes abiertas o pendientes'}</h2>
+          <h2>{normalizedPlateSearch ? 'Ingen historik för detta registreringsnummer' : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : 'Inga öppna eller väntande arbetsorder'}</h2>
           <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : (
@@ -696,17 +696,17 @@ export default function WorkOrders() {
               <h2>{order.customer}</h2>
 
               <p>
-                <strong>Vehículo:</strong> {order.vehicle || 'Sin especificar'}
+                <strong>Vehículo:</strong> {order.vehicle || 'Ej angivet'}
               </p>
 
               <p>
                 <strong>Mätarställning:</strong>{' '}
-                {order.mileage ? `${order.mileage} km` : 'Sin especificar'}
+                {order.mileage ? `${order.mileage} km` : 'Ej angivet'}
               </p>
 
               <p>
                 <strong>Trabajo:</strong>{' '}
-                {order.requestedWork || 'Sin descripción'}
+                {order.requestedWork || 'Ingen beskrivning'}
               </p>
 
               <p>
