@@ -137,12 +137,20 @@ export default function WorkOrders() {
   const [orders, setOrders] = useState(loadOrders);
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
-  const [showCancelled, setShowCancelled] = useState(false);
+  const [orderView, setOrderView] = useState('active');
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
+  const closedStatuses = new Set(['Pagada', 'Terminada']);
+  const historyOrders = orders.filter((order) => closedStatuses.has(order.status));
   const cancelledOrders = orders.filter((order) => order.status === 'Cancelada');
-  const activeOrders = orders.filter((order) => order.status !== 'Cancelada');
-  const visibleOrders = showCancelled ? cancelledOrders : activeOrders;
+  const activeOrders = orders.filter((order) => !closedStatuses.has(order.status) && order.status !== 'Cancelada');
+  const visibleOrders = orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
+  const orderDate = (order) => {
+    const raw = order.createdAt || order.updatedAt;
+    if (!raw) return 'Sin fecha';
+    const parsed = new Date(String(raw).replace(' ', 'T'));
+    return Number.isNaN(parsed.getTime()) ? String(raw).slice(0, 10) : new Intl.DateTimeFormat('sv-SE').format(parsed);
+  };
 
   useEffect(() => {
     saveOrders(orders);
@@ -633,14 +641,15 @@ export default function WorkOrders() {
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
 
       <div className="segmented">
-        <button type="button" className={!showCancelled ? 'selected' : ''} onClick={() => setShowCancelled(false)}>Activas ({activeOrders.length})</button>
-        <button type="button" className={showCancelled ? 'selected' : ''} onClick={() => setShowCancelled(true)}>Canceladas ({cancelledOrders.length})</button>
+        <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
+        <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historial ({historyOrders.length})</button>
+        <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
       </div>
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>{showCancelled ? 'No hay órdenes canceladas' : 'No hay órdenes activas'}</h2>
-          <p>{showCancelled ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
+          <h2>{orderView === 'history' ? 'No hay órdenes cerradas' : orderView === 'cancelled' ? 'No hay órdenes canceladas' : 'No hay órdenes abiertas o pendientes'}</h2>
+          <p>{orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : (
         <section className="orders-list">
@@ -655,7 +664,7 @@ export default function WorkOrders() {
                 </button>
 
                 <span className="status warning">
-                  {order.status || 'Abierta'}
+                  {order.status || 'Abierta'} · {orderDate(order)}
                 </span>
               </div>
 
