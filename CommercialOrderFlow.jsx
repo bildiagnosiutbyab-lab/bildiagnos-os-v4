@@ -139,9 +139,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   useEffect(() => {
     let cancelled = false;
     const restoreFortnoxTestInvoice = async () => {
-      const { data, error } = await supabase.functions.invoke('fortnox-test', { body: { action: 'invoice_test_status' } });
-      if (cancelled || error || !data?.latestInvoice) return;
-      const result = data.latestInvoice;
+      const { data, error } = await supabase.functions.invoke('fortnox-invoice-test-v2', { body: { action: 'get_latest' } });
+      if (cancelled || error || !data?.ok || !data?.found) return;
+      const result = data;
       setFortnoxInvoiceTest({ state: 'success', message: 'Última factura ficticia recuperada de Fortnox Test.', result });
       setLastInvoice({
         invoice_number: result.invoiceNumber || '—',
