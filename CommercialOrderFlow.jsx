@@ -437,17 +437,26 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><strong>Fakturanr:</strong> {invoicePreview.invoice_number || '—'}</p>
         <p><strong>Fakturadatum:</strong> {date(invoicePreview.created_at)}</p>
         <p><strong>Förfallodatum:</strong> {date(invoicePreview.due_at)}</p>
-        <p><strong>Arbetsorder:</strong> #{workOrder.order_number || '—'}</p>
+        {!invoicePreview.fortnox_test && <p><strong>Arbetsorder:</strong> #{workOrder.order_number || '—'}</p>}
       </div>
-      {vehicleInfo}
-      <div className="print-section"><h2>Arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
-      <div className="print-section"><h2>Reservdelar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
-      <div className="print-totals">
-        <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
-        <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
-        <p className="print-total">Att betala: {money(Number(invoicePreview.total || displayedTotal))}</p>
-      </div>
-      {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
+      {invoicePreview.fortnox_test ? <>
+        <div className="print-info print-info-list"><span>Kund: <b>Testkund Bildiagnos</b></span></div>
+        <div className="print-section"><h2>Fakturarad</h2><table className="print-lines"><thead><tr><th>Beskrivning</th><th>Antal</th><th>Pris</th><th>Belopp</th></tr></thead><tbody><tr><td>Testfaktura - Bildiagnos OS</td><td>1</td><td>100,00 kr</td><td>100,00 kr</td></tr></tbody></table></div>
+        <div className="print-totals">
+          <p>Exkl. moms: <strong>100,00 kr</strong></p>
+          <p>Moms 25%: <strong>25,00 kr</strong></p>
+          <p className="print-total">Att betala: {money(Number(invoicePreview.total || 125))}</p>
+        </div>
+      </> : <>
+        {vehicleInfo}
+        <div className="print-section"><h2>Arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
+        <div className="print-section"><h2>Reservdelar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
+        <div className="print-totals">
+          <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
+          <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
+          <p className="print-total">Att betala: {money(Number(invoicePreview.total || displayedTotal))}</p>
+        </div>
+      </>}
       {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>Betala med OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
       {invoicePreview.bankgiro && <p><strong>Bankgiro:</strong> {invoicePreview.bankgiro}</p>}
       {invoicePreview.reference && <p><strong>Referens:</strong> {invoicePreview.reference}</p>}
