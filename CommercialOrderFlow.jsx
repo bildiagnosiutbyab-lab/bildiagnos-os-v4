@@ -197,7 +197,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       return;
     }
     const { data, error } = await supabase.functions.invoke('fortnox-invoice-test-v2', {
-      body: {},
+      body: { workOrderId: orderId },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     if (error || !data?.ok) {
