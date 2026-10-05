@@ -55,7 +55,7 @@ export default function Lager() {
     setCounting(null);
   }
 
-  return <><PageHeader title="Lager / Inventario" subtitle="Stock físico del taller y movimientos trazables" />
+  return <><PageHeader title="Lager" subtitle="Stock físico del taller y movimientos trazables" />
     {message && <p className="lager-message" role="status">{message}</p>}
     <section className="card lager-toolbar">
       <label>Buscar por nombre, EAN, artículo o ubicación<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="H7, 405030…, Bombillas-12…" /></label>
