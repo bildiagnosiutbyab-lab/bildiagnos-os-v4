@@ -17,14 +17,14 @@ function googleEventUrl(a) {
   const start = googleDate(a.starts_at);
   const end = googleDate(a.ends_at || new Date(new Date(a.starts_at).getTime() + 60 * 60 * 1000));
   const title = [a.plate_snapshot, a.reason].filter(Boolean).join(' · ') || 'Bildiagnos';
-  const details = [a.notes, a.plate_snapshot ? 'Matrícula: ' + a.plate_snapshot : ''].filter(Boolean).join('\n');
+  const details = [a.notes, a.plate_snapshot ? 'Registreringsnummer: ' + a.plate_snapshot : ''].filter(Boolean).join('\n');
   const p = new URLSearchParams({ action: 'TEMPLATE', text: title, dates: start + '/' + end, details });
   return 'https://calendar.google.com/calendar/render?' + p.toString();
 }
 function googlePayload(a) {
   return {
     summary: [a.plate_snapshot, a.reason].filter(Boolean).join(' · ') || 'Bildiagnos',
-    description: [a.notes, a.plate_snapshot ? 'Matrícula: ' + a.plate_snapshot : '', 'Bildiagnos appointment: ' + a.id].filter(Boolean).join('\n'),
+    description: [a.notes, a.plate_snapshot ? 'Registreringsnummer: ' + a.plate_snapshot : '', 'Bildiagnos appointment: ' + a.id].filter(Boolean).join('\n'),
     start: { dateTime: new Date(a.starts_at).toISOString(), timeZone: 'Europe/Stockholm' },
     end: { dateTime: new Date(a.ends_at || new Date(new Date(a.starts_at).getTime() + 60 * 60 * 1000)).toISOString(), timeZone: 'Europe/Stockholm' }
   };
@@ -34,7 +34,7 @@ export default function Calendar() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMånadsage] = useState('');
   const [googleToken, setGoogleToken] = useState(() => sessionStorage.getItem(GOOGLE_TOKEN_KEY) || '');
   const [googleBusy, setGoogleBusy] = useState(false);
   const now = new Date();
@@ -50,7 +50,7 @@ export default function Calendar() {
       .select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status')
       .eq('workshop_id', WORKSHOP_ID)
       .order('starts_at', { ascending: true });
-    if (error) setMessage('No se pudo cargar el calendario: ' + error.message);
+    if (error) setMånadsage('No se pudo cargar el calendario: ' + error.message);
     else setAppointments(data || []);
     setLoading(false);
   }
@@ -63,7 +63,7 @@ export default function Calendar() {
       if (token) {
         sessionStorage.setItem(GOOGLE_TOKEN_KEY, token);
         setGoogleToken(token);
-        setMessage('Google Calendar conectado.');
+        setMånadsage('Google Calendar conectado.');
       }
     });
 
@@ -87,7 +87,7 @@ export default function Calendar() {
 
   async function connectGoogle() {
     setGoogleBusy(true);
-    setMessage('Abriendo autorización de Google…');
+    setMånadsage('Abriendo autorización de Google…');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -101,14 +101,14 @@ export default function Calendar() {
     });
     if (error) {
       setGoogleBusy(false);
-      setMessage('No se pudo iniciar la autorización de Google: ' + error.message);
+      setMånadsage('No se pudo iniciar la autorización de Google: ' + error.message);
     }
   }
 
   async function pushToGoogle(a) {
     const token = googleToken || sessionStorage.getItem(GOOGLE_TOKEN_KEY);
     if (!token) {
-      setMessage('Primero conecta Google Calendar.');
+      setMånadsage('Primero conecta Google Calendar.');
       return false;
     }
     setGoogleBusy(true);
@@ -138,12 +138,12 @@ export default function Calendar() {
         google_sync_status: 'synced'
       }).eq('id', a.id);
       if (error) throw error;
-      setMessage('Reserva sincronizada con Google Calendar.');
+      setMånadsage('Reserva sincronizada con Google Calendar.');
       await load();
       return true;
     } catch (error) {
       await supabase.from('appointments').update({ google_sync_status: 'error' }).eq('id', a.id);
-      setMessage(error.message || 'No se pudo sincronizar con Google Calendar.');
+      setMånadsage(error.message || 'No se pudo sincronizar con Google Calendar.');
       return false;
     } finally {
       setGoogleBusy(false);
@@ -152,7 +152,7 @@ export default function Calendar() {
 
   async function save(e) {
     e.preventDefault();
-    setMessage('');
+    setMånadsage('');
     const plate = form.plate.replace(/\s+/g, '').toUpperCase();
     const { data, error } = await supabase.from('appointments').insert({
       workshop_id: WORKSHOP_ID,
@@ -164,9 +164,9 @@ export default function Calendar() {
       status: 'scheduled',
       google_sync_status: googleToken ? 'pending' : null
     }).select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status').single();
-    if (error) { setMessage('No se pudo guardar: ' + error.message); return; }
+    if (error) { setMånadsage('No se pudo guardar: ' + error.message); return; }
     setShowForm(false);
-    setMessage('Reserva guardada en Bildiagnos.');
+    setMånadsage('Reserva guardada en Bildiagnos.');
     if (googleToken && data) await pushToGoogle(data);
     else await load();
   }
@@ -183,7 +183,7 @@ export default function Calendar() {
 
   return (
     <>
-      <PageHeader title="Calendario" subtitle="Reservas del taller · Europe/Stockholm" action="Nueva reserva" onAction={() => setShowForm(v => !v)} />
+      <PageHeader title="Kalender" subtitle="Reservas del taller · Europe/Stockholm" action="Ny bokning" onAction={() => setShowForm(v => !v)} />
       <div className="calendar-toolbar">
         <button className={googleToken ? 'secondary-button google-connected' : 'primary-button'} onClick={connectGoogle} disabled={googleBusy}>
           <Link2 size={17}/>{googleToken ? 'Google conectado' : 'Conectar Google Calendar'}
@@ -198,15 +198,15 @@ export default function Calendar() {
 
       {showForm && (
         <form className="card order-form calendar-form" onSubmit={save}>
-          <h2>Nueva reserva</h2>
-          <label>Matrícula<input value={form.plate} onChange={e => setForm({...form, plate:e.target.value})} placeholder="FGU510" /></label>
-          <label>Trabajo / motivo<input value={form.reason} onChange={e => setForm({...form, reason:e.target.value})} placeholder="Servicio, diagnóstico..." /></label>
+          <h2>Ny bokning</h2>
+          <label>Registreringsnummer<input value={form.plate} onChange={e => setForm({...form, plate:e.target.value})} placeholder="FGU510" /></label>
+          <label>Arbete / motivo<input value={form.reason} onChange={e => setForm({...form, reason:e.target.value})} placeholder="Servicio, diagnóstico..." /></label>
           <div className="calendar-form-grid">
             <label>Inicio<input type="datetime-local" required value={form.startsAt} onChange={e => setForm({...form, startsAt:e.target.value})} /></label>
             <label>Fin<input type="datetime-local" value={form.endsAt} onChange={e => setForm({...form, endsAt:e.target.value})} /></label>
           </div>
           <label>Notas<textarea value={form.notes} onChange={e => setForm({...form, notes:e.target.value})} /></label>
-          <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button"><Plus size={17}/> Guardar reserva</button></div>
+          <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Avbryt</button><button className="primary-button"><Plus size={17}/> Spara reserva</button></div>
         </form>
       )}
 
@@ -220,7 +220,7 @@ export default function Calendar() {
               <div className="appointment-row" key={a.id}>
                 <div className="appointment-time">{new Date(a.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})}{a.ends_at ? '–' + new Date(a.ends_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
                 <div className="appointment-main">
-                  <strong>{a.plate_snapshot || 'Sin matrícula'}</strong>
+                  <strong>{a.plate_snapshot || 'Utan registreringsnummer'}</strong>
                   <span>{a.reason || 'Reserva'}</span>
                   {a.notes && <small>{a.notes}</small>}
                   {a.google_event_id && <small className="sync-ok">✓ Google sincronizado</small>}
