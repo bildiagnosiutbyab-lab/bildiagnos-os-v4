@@ -33,6 +33,7 @@ export default function Dashboard({ onNewOrder }) {
     vehiclesToday: 0,
     hours: '0.0',
   });
+  const [finance, setFinance] = useState({ revenue: 0, vat: 0, partsSales: 0, partsCost: 0, labor: 0 });
   const [fortnoxStatus, setFortnoxStatus] = useState({
     state: 'idle',
     message: '',
@@ -143,6 +144,37 @@ export default function Dashboard({ onNewOrder }) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    async function loadFinance() {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+      const { data: invoices, error } = await supabase.from('invoices').select('id,subtotal,vat_total,total').gte('issued_at', monthStart).lt('issued_at', nextMonth).neq('status', 'cancelled');
+      if (error || !active) return;
+      const ids = (invoices || []).map((item) => item.id);
+      const { data: lines } = ids.length ? await supabase.from('invoice_items').select('item_type,quantity,unit_price,part_line_id').in('invoice_id', ids) : { data: [] };
+      const partIds = [...new Set((lines || []).map((line) => line.part_line_id).filter(Boolean))];
+      const { data: parts } = partIds.length ? await supabase.from('work_order_parts').select('id,actual_cost,quantity').in('id', partIds) : { data: [] };
+      const costs = new Map((parts || []).map((part) => [part.id, Number(part.actual_cost || 0)]));
+      const labor = (lines || []).filter((line) => line.item_type === 'service').reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
+      const partsSales = (lines || []).filter((line) => line.item_type === 'part').reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
+      const partsCost = (lines || []).filter((line) => line.item_type === 'part').reduce((sum, line) => sum + Number(line.quantity || 0) * Number(costs.get(line.part_line_id) || 0), 0);
+      if (active) setFinance({
+        revenue: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0),
+        vat: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.vat_total || 0), 0),
+        labor, partsSales, partsCost,
+      });
+    }
+    loadFinance();
+    return () => { active = false; };
+  }, []);
+
+  const monthlyGoal = 60000;
+  const goalPercent = Math.min(100, Math.max(0, finance.revenue / monthlyGoal * 100));
+  const remaining = Math.max(0, monthlyGoal - finance.revenue);
+  const money = (value) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(Number(value || 0));
+
   const stats = [
     ['Órdenes abiertas', String(summary.openOrders)],
     ['Vehículos hoy', String(summary.vehiclesToday)],
@@ -166,6 +198,20 @@ export default function Dashboard({ onNewOrder }) {
             <strong>{value}</strong>
           </article>
         ))}
+      </section>
+
+      <section className="card finance-card">
+        <div className="finance-heading"><div><h2>Mål denna månad</h2><p>Försäljning exkl. moms mot målet 60 000 kr</p></div><strong>{Math.round(goalPercent)}%</strong></div>
+        <div className="goal-track" aria-label={`${Math.round(goalPercent)} procent av målet`}><div className="goal-fill" style={{ width: `${goalPercent}%` }} /></div>
+        <div className="finance-grid">
+          <div><small>Försäljning exkl. moms</small><b>{money(finance.revenue)}</b></div>
+          <div><small>Kvar till målet</small><b>{money(remaining)}</b></div>
+          <div><small>Arbete</small><b>{money(finance.labor)}</b></div>
+          <div><small>Delar, försäljning</small><b>{money(finance.partsSales)}</b></div>
+          <div><small>Delar, inköpskostnad</small><b>{money(finance.partsCost)}</b></div>
+          <div><small>Moms</small><b>{money(finance.vat)}</b></div>
+        </div>
+        <p className="finance-note">Målet räknas exklusive moms. Moms visas separat och räknas inte som verkstadens intäkt.</p>
       </section>
 
       <section className="card">
