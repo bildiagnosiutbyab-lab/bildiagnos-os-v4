@@ -176,18 +176,18 @@ export default function Dashboard({ onNewOrder }) {
   const money = (value) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(Number(value || 0));
 
   const stats = [
-    ['Órdenes abiertas', String(summary.openOrders)],
-    ['Vehículos hoy', String(summary.vehiclesToday)],
-    ['Facturas pendientes', '—'],
-    ['Horas registradas', summary.hours],
+    ['Öppna arbetsorder', String(summary.openOrders)],
+    ['Fordon idag', String(summary.vehiclesToday)],
+    ['Obetalda fakturor', '—'],
+    ['Registrerade timmar', summary.hours],
   ];
 
   return (
     <>
       <PageHeader
-        title="Buenos días"
-        subtitle="Resumen del taller"
-        action="Nueva orden"
+        title="Översikt"
+        subtitle="Verkstadens sammanfattning"
+        action="Ny arbetsorder"
         onAction={onNewOrder}
       />
 
@@ -215,8 +215,8 @@ export default function Dashboard({ onNewOrder }) {
       </section>
 
       <section className="card">
-        <h2>Trabajos de hoy</h2>
-        <p>Abre Órdenes para ver los vehículos y actualizar cada trabajo.</p>
+        <h2>Dagens arbeten</h2>
+        <p>Öppna Arbetsorder för att se fordon och uppdatera arbeten.</p>
       </section>
 
       <section className="card fortnox-test-card">
