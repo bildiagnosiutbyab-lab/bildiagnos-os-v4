@@ -192,6 +192,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       message: 'Factura ficticia creada en Fortnox Test. No se ha enviado ni contabilizado.',
       result: data,
     });
+    setLastInvoice({
+      invoice_number: data.invoiceNumber || '—',
+      created_at: data.invoiceDate || new Date().toISOString(),
+      due_at: data.dueDate || dueDateFromDays(15),
+      total: Number(data.total || 0),
+      ocr: data.ocr || '',
+      reference: data.reference || 'Fortnox Test',
+      bankgiro: data.bankgiro || '',
+      fortnox_test: true,
+    });
   };
 
   const quote = context?.quotes[0];
@@ -335,6 +345,19 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           </button>
           {fortnoxInvoiceTest.message && <p className={`fortnox-test-message ${fortnoxInvoiceTest.state}`}>{fortnoxInvoiceTest.message}</p>}
           {fortnoxInvoiceTest.result && <div className="fortnox-test-result">
+            <button type="button" className="secondary-button" onClick={() => {
+              setLastInvoice({
+                invoice_number: fortnoxInvoiceTest.result.invoiceNumber || '—',
+                created_at: fortnoxInvoiceTest.result.invoiceDate || new Date().toISOString(),
+                due_at: fortnoxInvoiceTest.result.dueDate || dueDateFromDays(15),
+                total: Number(fortnoxInvoiceTest.result.total || 0),
+                ocr: fortnoxInvoiceTest.result.ocr || '',
+                reference: fortnoxInvoiceTest.result.reference || 'Fortnox Test',
+                bankgiro: fortnoxInvoiceTest.result.bankgiro || '',
+                fortnox_test: true,
+              });
+              window.setTimeout(() => printDocument('invoice'), 0);
+            }}>Imprimir factura Fortnox Test</button>
             <span>Fakturanr: <b>{fortnoxInvoiceTest.result.invoiceNumber || '—'}</b></span>
             <span>OCR: <b>{fortnoxInvoiceTest.result.ocr || '—'}</b></span>
             <span>Bankgiro: <b>{fortnoxInvoiceTest.result.bankgiro || '—'}</b></span>
@@ -404,7 +427,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p className="print-total">Att betala: {money(Number(invoicePreview.total || displayedTotal))}</p>
       </div>
       {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
+      {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>Betala med OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
+      {invoicePreview.bankgiro && <p><strong>Bankgiro:</strong> {invoicePreview.bankgiro}</p>}
       {invoicePreview.reference && <p><strong>Referens:</strong> {invoicePreview.reference}</p>}
+      {invoicePreview.fortnox_test && <p><strong>TESTFAKTURA – Fortnox Test. Ej skickad eller bokförd.</strong></p>}
     </section>}
   </section>;
 }
