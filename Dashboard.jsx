@@ -37,6 +37,46 @@ export default function Dashboard({ onNewOrder }) {
     message: '',
   });
 
+  async function authorizeFortnoxTest() {
+    setFortnoxStatus({
+      state: 'loading',
+      message: 'Preparando autorización de Fortnox Test…',
+    });
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      setFortnoxStatus({
+        state: 'error',
+        message: 'La sesión ha caducado. Cierra sesión y vuelve a entrar.',
+      });
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke('fortnox-test', {
+      body: { action: 'service_authorization_url' },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (error || !data?.ok || !data?.authorizationUrl) {
+      setFortnoxStatus({
+        state: 'error',
+        message:
+          data?.error ||
+          error?.message ||
+          'No se pudo preparar la autorización de Fortnox Test.',
+      });
+      return;
+    }
+
+    window.location.assign(data.authorizationUrl);
+  }
+
   async function verifyFortnoxTest() {
     setFortnoxStatus({
       state: 'loading',
@@ -164,16 +204,27 @@ export default function Dashboard({ onNewOrder }) {
           </p>
         </div>
 
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={verifyFortnoxTest}
-          disabled={fortnoxStatus.state === 'loading'}
-        >
-          {fortnoxStatus.state === 'loading'
-            ? 'Verificando…'
-            : 'Verificar Fortnox Test'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={authorizeFortnoxTest}
+            disabled={fortnoxStatus.state === 'loading'}
+          >
+            Autorizar Fortnox Test
+          </button>
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={verifyFortnoxTest}
+            disabled={fortnoxStatus.state === 'loading'}
+          >
+            {fortnoxStatus.state === 'loading'
+              ? 'Verificando…'
+              : 'Verificar Fortnox Test'}
+          </button>
+        </div>
 
         {fortnoxStatus.message && (
           <p
