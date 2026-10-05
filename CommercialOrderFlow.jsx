@@ -21,9 +21,9 @@ const emptyPart = { description: '', partNumber: '', quantity: '1', cost: '', sa
 const emptyService = { description: '', quantity: '1', hours: '', unitPrice: '1000' };
 
 const statusLabels = {
-  pending_approval: 'Pendiente de aprobación', approved: 'Aprobado', ordered: 'Pedido',
-  prepared: 'Cotización preparada', draft: 'Borrador', rejected: 'Rechazado',
-  completed: 'Terminado', quote: 'En cotización',
+  pending_approval: 'Väntar på godkännande', approved: 'Godkänd', ordered: 'Beställd',
+  prepared: 'Offert förberedd', draft: 'Utkast', rejected: 'Avvisad',
+  completed: 'Klar', quote: 'I offert',
 };
 function statusLabel(value) { return statusLabels[value] || value || ''; }
 
@@ -70,11 +70,11 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
     unitPrice: String(item.unit_price ?? ''),
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
-    <label>Trabajo<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Horas<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
-    <label>Precio/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} h × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Precio pendiente'}</small>
-    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
+    <label>Arbete<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Timmar<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
+    <label>Pris/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
+    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} h × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
+    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Spara</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Ta bort</button></div>
   </li>;
 }
 
@@ -96,14 +96,14 @@ function PartLineEditor({ item, busy, onSave, onDelete }) {
     discount: item.discount_percent ?? '',
   }), [item.description_snapshot, item.part_number_snapshot, item.quantity, item.actual_cost, item.sale_price, item.discount_percent]);
   return <li className="commercial-edit-line commercial-part-line">
-    <label>Pieza<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>Reservdel<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
     <label>Nº artículo<input value={draft.partNumber} onChange={(e) => setDraft({ ...draft, partNumber: e.target.value })} /></label>
-    <label>Cant.<input type="number" min="0.001" step="0.001" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /></label>
-    <label>Coste<input type="number" min="0" step="0.01" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} /></label>
-    <label>Precio<input type="number" min="0" step="0.01" value={draft.salePrice} onChange={(e) => setDraft({ ...draft, salePrice: e.target.value })} /></label>
-    <label>Desc. %<input type="number" min="0" max="100" step="0.01" value={draft.discount} onChange={(e) => setDraft({ ...draft, discount: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {Number(draft.salePrice) > 0 ? `Total ${money(Number(draft.salePrice) * Number(draft.quantity || 0))}` : 'Precio pendiente'}</small>
-    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Guardar</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Eliminar</button></div>
+    <label>Antal<input type="number" min="0.001" step="0.001" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /></label>
+    <label>Inköpspris<input type="number" min="0" step="0.01" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} /></label>
+    <label>Pris<input type="number" min="0" step="0.01" value={draft.salePrice} onChange={(e) => setDraft({ ...draft, salePrice: e.target.value })} /></label>
+    <label>Rabatt %<input type="number" min="0" max="100" step="0.01" value={draft.discount} onChange={(e) => setDraft({ ...draft, discount: e.target.value })} /></label>
+    <small>{statusLabel(item.status)} · {Number(draft.salePrice) > 0 ? `Totalt ${money(Number(draft.salePrice) * Number(draft.quantity || 0))}` : 'Pris saknas'}</small>
+    <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Spara</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Ta bort</button></div>
   </li>;
 }
 
@@ -294,31 +294,31 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
   return <section className="commercial-flow" data-print-mode={printMode || undefined}>
     <header className="commercial-heading">
-      <div><p>Flujo comercial</p><h2>Cotización, cobro y documentos</h2></div>
+      <div><p>Affärsflöde</p><h2>Offert, betalning och dokument</h2></div>
       {quote && <span className={`commercial-status commercial-status-${quote.status}`}>{statusLabel(quote.status)}</span>}
     </header>
     {message && <p className={message.includes('No se pudo') ? 'commercial-error' : 'commercial-message'}>{message}</p>}
 
     <div className="commercial-grid">
       <section className="commercial-card commercial-work-card">
-        <h3>Trabajos de la orden</h3>
+        <h3>Arbeten i arbetsordern</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Operación añadida.').then((ok) => ok && setService(emptyService)); }}>
-          <input required placeholder="Descripción del trabajo" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
-          <input required type="number" min="0.01" step="0.01" placeholder="Horas" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
-          <input required type="number" min="0" placeholder="Precio/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
+          <input required placeholder="Beskrivning av arbete" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
+          <input required type="number" min="0.01" step="0.01" placeholder="Timmar" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
+          <input required type="number" min="0" placeholder="Pris/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
         <ul className="commercial-lines">{context.services.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <ServiceLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialService(item.id, draft), 'Trabajo actualizado.')} onDelete={() => window.confirm('¿Eliminar este trabajo/tiempo de la orden? Esta acción también lo quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialService(item.id), 'Trabajo eliminado.')} />)}</ul>
       </section>
 
       <section className="commercial-card commercial-parts-card">
-        <h3>Piezas de la orden</h3>
+        <h3>Reservdelar i arbetsordern</h3>
         <form className="commercial-inline-form commercial-parts-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialPart(context, part), 'Pieza añadida.').then((ok) => ok && setPart(emptyPart)); }}>
-          <input required placeholder="Pieza / descripción" value={part.description} onChange={(e) => setPart({ ...part, description: e.target.value })} />
+          <input required placeholder="Reservdel / beskrivning" value={part.description} onChange={(e) => setPart({ ...part, description: e.target.value })} />
           <input placeholder="Nº artículo" value={part.partNumber} onChange={(e) => setPart({ ...part, partNumber: e.target.value })} />
           <input required type="number" min="1" step="1" placeholder="Cant." value={part.quantity} onChange={(e) => setPart({ ...part, quantity: e.target.value })} />
-          <input type="number" min="0" placeholder="Coste" value={part.cost} onChange={(e) => setPart({ ...part, cost: e.target.value })} />
-          <input required type="number" min="0" placeholder="Precio" value={part.salePrice} onChange={(e) => setPart({ ...part, salePrice: e.target.value })} />
+          <input type="number" min="0" placeholder="Inköpspris" value={part.cost} onChange={(e) => setPart({ ...part, cost: e.target.value })} />
+          <input required type="number" min="0" placeholder="Pris" value={part.salePrice} onChange={(e) => setPart({ ...part, salePrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
         <ul className="commercial-lines">{context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <PartLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialPart(item.id, draft), 'Pieza actualizada.')} onDelete={() => window.confirm('¿Eliminar esta pieza de la orden? Esta acción también la quitará de la cotización actual; los documentos históricos se conservarán.') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')} />)}</ul>
@@ -326,7 +326,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     </div>
 
     <section className="commercial-card quote-card">
-      <h3>Cotización del cliente</h3>
+      <h3>Kundoffert</h3>
       <div className="commercial-settings">
         <label>Notas<textarea value={quoteSettings.notes} placeholder="Validez, disponibilidad u otras condiciones" onChange={(e) => setQuoteSettings({ ...quoteSettings, notes: e.target.value })} /></label>
         <label className="commercial-check"><input type="checkbox" checked={quoteSettings.variablePrice} onChange={(e) => setQuoteSettings({ ...quoteSettings, variablePrice: e.target.checked })} />Precio variable</label>
@@ -342,11 +342,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
       {pricePending && <p className="commercial-error">Faltan precios en las líneas marcadas con —. El subtotal conocido no es el precio final; completa las líneas pendientes antes de aceptar o cobrar.</p>}
       <div className="commercial-actions">
-        <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>{quoteMatchesLiveOrder ? 'Preparar cotización' : 'Actualizar cotización'}</button>
+        <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Offert förberedd.')}>{quoteMatchesLiveOrder ? 'Förbered offert' : 'Uppdatera offert'}</button>
         <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
-        <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Cliente acepta</button>
-        <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Cliente rechaza</button>
-        <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Marcar piezas pedidas</button>
+        <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Kunden godkänner</button>
+        <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Kunden avvisar</button>
+        <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Markera reservdelar som beställda</button>
         {quote && <button onClick={() => printDocument('work-order')}>PDF / Imprimir arbetsorder</button>}{accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
       </div>
     </section>
@@ -358,7 +358,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Importe" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
           <input placeholder="Referencia" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending}>Confirmar pago</button>
+          <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
         <ul className="commercial-lines">{context.payments.map((item) => <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference} · {date(item.accepted_at)}</small></li>)}</ul>
       </section>
@@ -366,7 +366,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <section className="commercial-card">
         <h3>Faktura</h3>
         <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Factura creada.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
-          <input required type="email" placeholder="Correo cliente" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
+          <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor
             <select value={invoiceForm.paymentTermsDays} onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentTermsDays: e.target.value })}>
               <option value="10">10 dagar</option>
@@ -377,7 +377,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
           <input placeholder="Referencia" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending}>Crear factura</button>
+          <button disabled={busy || pricePending}>Skapa faktura</button>
         </form>
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
@@ -388,7 +388,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           </div>
           <p>Prueba aislada. No usa ni modifica esta orden real.</p>
           <button type="button" className="secondary-button" disabled={fortnoxInvoiceTest.state === 'loading'} onClick={createFortnoxTestInvoice}>
-            {fortnoxInvoiceTest.state === 'loading' ? 'Creando prueba…' : 'Crear factura ficticia en Fortnox Test'}
+            {fortnoxInvoiceTest.state === 'loading' ? 'Creando prueba…' : 'Skapa testfaktura i Fortnox Test'}
           </button>
           {fortnoxInvoiceTest.message && <p className={`fortnox-test-message ${fortnoxInvoiceTest.state}`}>{fortnoxInvoiceTest.message}</p>}
           {fortnoxInvoiceTest.result && <div className="fortnox-test-result">
@@ -404,7 +404,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
                 fortnox_test: true,
               });
               window.setTimeout(() => printDocument('invoice'), 0);
-            }}>Imprimir factura Fortnox Test</button>
+            }}>Skriv ut Fortnox Test-faktura</button>
             <span>Fakturanr: <b>{fortnoxInvoiceTest.result.invoiceNumber || '—'}</b></span>
             <span>OCR: <b>{fortnoxInvoiceTest.result.ocr || '—'}</b></span>
             <span>Bankgiro: <b>{fortnoxInvoiceTest.result.bankgiro || '—'}</b></span>
@@ -412,7 +412,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <span>Total: <b>{money(fortnoxInvoiceTest.result.total)}</b></span>
           </div>}
         </div>
-        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Confirmar pago</button>}</li>)}</ul>
+        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Bekräfta betalning</button>}</li>)}</ul>
       </section>
     </div>
 
