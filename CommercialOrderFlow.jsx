@@ -175,8 +175,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       setFortnoxInvoiceTest({ state: 'error', message: 'La sesión ha caducado. Vuelve a iniciar sesión.', result: null });
       return;
     }
-    const { data, error } = await supabase.functions.invoke('fortnox-test', {
-      body: { action: 'create_test_invoice' },
+    const { data, error } = await supabase.functions.invoke('fortnox-invoice-test-v2', {
+      body: {},
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     if (error || !data?.ok) {
