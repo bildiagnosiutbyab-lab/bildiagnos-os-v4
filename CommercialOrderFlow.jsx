@@ -230,9 +230,28 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const serviceLines = quoteLines.filter((item) => item.item_type === 'service');
   const partLines = quoteLines.filter((item) => item.item_type === 'part');
   const pricePending = quoteLines.length > 0 && quoteLines.some((item) => Number(item.unit_price) === 0);
-  const displayedSubtotal = Number(quote?.subtotal || 0);
-  const displayedVat = Number(quote?.vat_total || 0);
-  const displayedTotal = Number(quote?.total || 0);
+  const liveLines = useMemo(() => {
+    if (!context) return [];
+    const services = context.services
+      .filter((item) => !['rejected', 'removed'].includes(item.status))
+      .map((item) => ({
+        quantity: Number(item.estimated_minutes || 0) / 60,
+        unit_price: Number(item.unit_price || 0),
+      }));
+    const parts = context.parts
+      .filter((item) => !['rejected', 'removed'].includes(item.status))
+      .map((item) => ({
+        quantity: Number(item.quantity || 1),
+        unit_price: Number(item.sale_price || 0),
+      }));
+    return [...services, ...parts];
+  }, [context]);
+  const liveTotal = liveLines.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const quoteMatchesLiveOrder = quoteLines.length === liveLines.length &&
+    Math.abs(Number(quote?.total || 0) - liveTotal) < 0.005;
+  const displayedTotal = quoteMatchesLiveOrder ? Number(quote?.total || 0) : liveTotal;
+  const displayedSubtotal = displayedTotal / 1.25;
+  const displayedVat = displayedTotal - displayedSubtotal;
   const invoice = context?.invoices[0];
   const invoicePreview = lastInvoice || invoice || {
     invoice_number: 'FÖRHANDSVISNING',
@@ -316,7 +335,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
       {pricePending && <p className="commercial-error">Faltan precios en las líneas marcadas con —. El subtotal conocido no es el precio final; completa las líneas pendientes antes de aceptar o cobrar.</p>}
       <div className="commercial-actions">
-        <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>Preparar cotización</button>
+        <button disabled={busy} onClick={() => run(() => prepareCommercialQuote(context, quoteSettings), 'Cotización preparada.')}>{quoteMatchesLiveOrder ? 'Preparar cotización' : 'Actualizar cotización'}</button>
         <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
         <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('¿Confirmar que el cliente aceptó la cotización?') && run(() => decideCommercialQuote(context, 'approved'), 'Cotización aceptada.')}>Cliente acepta</button>
         <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('¿Confirmar que el cliente rechazó la cotización?') && run(() => decideCommercialQuote(context, 'rejected'), 'Cotización rechazada.')}>Cliente rechaza</button>
