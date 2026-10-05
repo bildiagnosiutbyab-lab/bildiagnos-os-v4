@@ -138,13 +138,20 @@ export default function WorkOrders() {
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
   const [orderView, setOrderView] = useState('active');
+  const [plateHistorySearch, setPlateHistorySearch] = useState('');
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
   const closedStatuses = new Set(['Pagada', 'Terminada']);
   const historyOrders = orders.filter((order) => closedStatuses.has(order.status));
   const cancelledOrders = orders.filter((order) => order.status === 'Cancelada');
   const activeOrders = orders.filter((order) => !closedStatuses.has(order.status) && order.status !== 'Cancelada');
-  const visibleOrders = orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
+  const normalizedPlateSearch = plateHistorySearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const plateHistoryOrders = normalizedPlateSearch
+    ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '').includes(normalizedPlateSearch))
+    : [];
+  const visibleOrders = normalizedPlateSearch
+    ? plateHistoryOrders
+    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
   const orderDate = (order) => {
     const raw = order.createdAt || order.updatedAt;
     if (!raw) return 'Sin fecha';
@@ -640,16 +647,34 @@ export default function WorkOrders() {
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
 
-      <div className="segmented">
+      <section className="card" style={{ marginBottom: '14px' }}>
+        <label style={{ display: 'grid', gap: '7px' }}>
+          <strong>🔎 Buscar historial por matrícula</strong>
+          <input
+            type="search"
+            placeholder="Ej. EUK368"
+            value={plateHistorySearch}
+            onChange={(event) => setPlateHistorySearch(event.target.value)}
+            style={{ width: '100%' }}
+          />
+        </label>
+        {normalizedPlateSearch && <p style={{ margin: '8px 0 0' }}>
+          {plateHistoryOrders.length
+            ? `${plateHistoryOrders.length} orden(es) encontradas para esta matrícula.`
+            : 'No hay historial para esta matrícula.'}
+        </p>}
+      </section>
+
+      {!normalizedPlateSearch && <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
         <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historial ({historyOrders.length})</button>
         <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
-      </div>
+      </div>}
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>{orderView === 'history' ? 'No hay órdenes cerradas' : orderView === 'cancelled' ? 'No hay órdenes canceladas' : 'No hay órdenes abiertas o pendientes'}</h2>
-          <p>{orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
+          <h2>{normalizedPlateSearch ? 'No hay historial para esta matrícula' : orderView === 'history' ? 'No hay órdenes cerradas' : orderView === 'cancelled' ? 'No hay órdenes canceladas' : 'No hay órdenes abiertas o pendientes'}</h2>
+          <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : (
         <section className="orders-list">
