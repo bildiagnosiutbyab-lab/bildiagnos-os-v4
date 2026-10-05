@@ -27,12 +27,12 @@ async function refreshQuoteTotals(quoteIds) {
       .eq('quote_id', quoteId);
     throwIfError(itemsError);
     const totals = (items || []).reduce((result, item) => {
-      const gross = Number(item.quantity || 0) * Number(item.unit_price || 0);
+      const net = Number(item.quantity || 0) * Number(item.unit_price || 0);
       const vatRate = Number(item.vat_rate ?? VAT_RATE);
-      const net = vatRate > 0 ? gross / (1 + vatRate) : gross;
-      result.total += gross;
+      const vat = net * vatRate;
       result.subtotal += net;
-      result.vatTotal += gross - net;
+      result.vatTotal += vat;
+      result.total += net + vat;
       return result;
     }, { total: 0, subtotal: 0, vatTotal: 0 });
     const { error: quoteError } = await supabase.from('quotes').update({
