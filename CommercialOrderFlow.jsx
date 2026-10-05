@@ -137,6 +137,27 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
   useEffect(() => { refresh().catch((error) => setMessage(error.message || 'No se pudo cargar el flujo comercial.')); }, [orderId]);
   useEffect(() => {
+    let cancelled = false;
+    const restoreFortnoxTestInvoice = async () => {
+      const { data, error } = await supabase.functions.invoke('fortnox-test', { body: { action: 'invoice_test_status' } });
+      if (cancelled || error || !data?.latestInvoice) return;
+      const result = data.latestInvoice;
+      setFortnoxInvoiceTest({ state: 'success', message: 'Última factura ficticia recuperada de Fortnox Test.', result });
+      setLastInvoice({
+        invoice_number: result.invoiceNumber || '—',
+        created_at: result.invoiceDate || new Date().toISOString(),
+        due_at: result.dueDate || dueDateFromDays(15),
+        total: Number(result.total || 0),
+        ocr: result.ocr || '',
+        reference: result.testReference || 'Fortnox Test',
+        bankgiro: result.bankgiro || '',
+        fortnox_test: true,
+      });
+    };
+    restoreFortnoxTestInvoice().catch(() => {});
+    return () => { cancelled = true; };
+  }, [orderId]);
+  useEffect(() => {
     const clearPrintMode = () => setPrintMode(null);
     window.addEventListener('afterprint', clearPrintMode);
     return () => window.removeEventListener('afterprint', clearPrintMode);
