@@ -280,7 +280,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <h3>Trabajos de la orden</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Operación añadida.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Descripción del trabajo" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
-          <input required type="number" min="1" step="0.25" placeholder="Horas" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
+          <input required type="number" min="0.01" step="0.01" placeholder="Horas" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
           <input required type="number" min="0" placeholder="Precio/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
