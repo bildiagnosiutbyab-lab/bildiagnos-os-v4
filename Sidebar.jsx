@@ -1,13 +1,13 @@
 import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, CalendarDays, Boxes } from 'lucide-react';
 
 const items = [
-  ['dashboard', 'Inicio', LayoutDashboard],
-  ['orders', 'Órdenes', ClipboardList],
-  ['customers', 'Clientes', Users],
-  ['vehicles', 'Vehículos', Car],
-  ['parts', 'Piezas', PackageSearch],
-  ['lager', 'Lager / Inventario', Boxes],
-  ['calendar', 'Calendario', CalendarDays]
+  ['dashboard', 'Översikt', LayoutDashboard],
+  ['orders', 'Arbetsorder', ClipboardList],
+  ['customers', 'Kunder', Users],
+  ['vehicles', 'Fordon', Car],
+  ['parts', 'Reservdelar', PackageSearch],
+  ['lager', 'Lager', Boxes],
+  ['calendar', 'Kalender', CalendarDays]
 ];
 
 export default function Sidebar({ active, onChange }) {
@@ -15,7 +15,7 @@ export default function Sidebar({ active, onChange }) {
     <aside className="sidebar">
       <div>
         <div className="brand">Bildiagnos OS</div>
-        <div className="brand-subtitle">Workshop management</div>
+        <div className="brand-subtitle">Verkstadsystem</div>
       </div>
 
       <nav className="nav">
@@ -31,7 +31,7 @@ export default function Sidebar({ active, onChange }) {
         ))}
       </nav>
 
-      <div className="sidebar-footer">ES / SV · v0.1</div>
+      <div className="sidebar-footer">SV · v0.1</div>
     </aside>
   );
 }
