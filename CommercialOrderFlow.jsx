@@ -181,7 +181,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       .print-lines th:first-child,.print-lines td:first-child{width:55%}
       .print-section{margin:14px 0}.print-section h2{font-size:14px;margin:0 0 5px}.print-empty{color:#666}.work-order-meta,.invoice-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 24px;align-items:center}.work-order-meta p,.invoice-meta p{margin:4px 0}.work-order-approval{margin-top:24px;padding-top:12px;border-top:2px solid #111}.work-order-approval h2{font-size:14px;margin:0 0 8px}.approval-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.approval-grid p{margin:3px 0}.approval-signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;padding-top:8px}
       .print-totals,.print-totals p,.print-total{text-align:right!important}.print-total{font-size:15px;font-weight:700;margin:14px 0 0;padding-top:8px;border-top:2px solid #111}
-      .commercial-print{display:block}
+      .invoice-top{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;border-bottom:2px solid #111;padding-bottom:10px}.invoice-brand{border:2px solid #222;padding:12px 18px;display:flex;align-items:baseline;gap:10px;width:max-content}.invoice-brand strong{font-size:25px;letter-spacing:4px}.invoice-brand span{font-size:12px}.invoice-title{display:flex;justify-content:space-between;align-items:baseline}.invoice-title h1{font-size:22px!important}.invoice-address{margin:12px 0 18px;display:grid;gap:4px}.invoice-address strong{font-size:13px}.invoice-bottom{display:grid;grid-template-columns:1fr 1fr;gap:42px;align-items:end;margin-top:34px}.invoice-payment-box{border:1px solid #333;padding:9px}.invoice-payment-box p{margin:3px 0}.invoice-summary p{display:flex;justify-content:space-between;margin:4px 0}.invoice-summary h2{font-size:14px}.invoice-pay{border-top:2px solid #111;padding-top:9px!important;margin-top:10px!important;font-size:16px;font-weight:700}.invoice-footer{display:grid;grid-template-columns:1.2fr 1fr .8fr;gap:20px;border-top:2px solid #111;margin-top:26px;padding-top:8px;font-size:10px;line-height:1.45}.commercial-print{display:block}
     </style></head><body>${printableHtml}</body></html>`);
     popup.document.close();
     popup.focus();
@@ -431,36 +431,43 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
     </section>
     {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
-    {<section className="commercial-print invoice-print">
-      <header><strong>BILDIAGNOS AB</strong><h1>FAKTURA</h1></header>
-      <div className="invoice-meta">
-        <p><strong>Fakturanr:</strong> {invoicePreview.invoice_number || '—'}</p>
-        <p><strong>Fakturadatum:</strong> {date(invoicePreview.created_at)}</p>
-        <p><strong>Förfallodatum:</strong> {date(invoicePreview.due_at)}</p>
-        {!invoicePreview.fortnox_test && <p><strong>Arbetsorder:</strong> #{workOrder.order_number || '—'}</p>}
+    {<section className="commercial-print invoice-print invoice-classic">
+      <div className="invoice-top">
+        <div className="invoice-brand"><strong>BILDIAGNOS</strong><span>I UTBY AB</span></div>
+        <div className="invoice-title"><h1>FAKTURA</h1><b>Nr: {invoicePreview.invoice_number || '—'}</b></div>
       </div>
-      {invoicePreview.fortnox_test ? <>
-        <div className="print-info print-info-list"><span>Kund: <b>Testkund Bildiagnos</b></span></div>
-        <div className="print-section"><h2>Fakturarad</h2><table className="print-lines"><thead><tr><th>Beskrivning</th><th>Antal</th><th>Pris</th><th>Belopp</th></tr></thead><tbody><tr><td>Testfaktura - Bildiagnos OS</td><td>1</td><td>100,00 kr</td><td>100,00 kr</td></tr></tbody></table></div>
-        <div className="print-totals">
-          <p>Exkl. moms: <strong>100,00 kr</strong></p>
-          <p>Moms 25%: <strong>25,00 kr</strong></p>
-          <p className="print-total">Att betala: {money(Number(invoicePreview.total || 125))}</p>
-        </div>
-      </> : <>
-        {vehicleInfo}
-        <div className="print-section"><h2>Arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
-        <div className="print-section"><h2>Reservdelar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
-        <div className="print-totals">
-          <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
-          <p>Moms 25%: <strong>{money(displayedVat)}</strong></p>
-          <p className="print-total">Att betala: {money(Number(invoicePreview.total || displayedTotal))}</p>
-        </div>
+      <div className="invoice-meta">
+        <p><small>Ordernr</small><br/><b>{invoicePreview.fortnox_test ? 'TEST' : workOrder.order_number || '—'}</b></p>
+        <p><small>Fakturadatum</small><br/><b>{date(invoicePreview.created_at)}</b></p>
+        <p><small>Förfallodatum</small><br/><b>{date(invoicePreview.due_at)}</b></p>
+      </div>
+      <div className="invoice-address"><small>Faktureringsadress</small><strong>{invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : workOrder.customer_name_snapshot || '—'}</strong></div>
+      {!invoicePreview.fortnox_test && <div className="invoice-vehicle">{vehicleInfo}</div>}
+      {invoicePreview.fortnox_test ? <div className="print-section"><h2>Utfört arbete / Artiklar</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody><tr><td>Testfaktura - Bildiagnos OS</td><td>1,00</td><td>100,00</td><td>100,00</td></tr></tbody></table></div> : <>
+        <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
+        <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
       </>}
-      {(invoicePreview.ocr || invoicePreview.ocr_number) && <p><strong>Betala med OCR:</strong> {invoicePreview.ocr || invoicePreview.ocr_number}</p>}
-      {invoicePreview.bankgiro && <p><strong>Bankgiro:</strong> {invoicePreview.bankgiro}</p>}
-      {invoicePreview.reference && <p><strong>Referens:</strong> {invoicePreview.reference}</p>}
-      {invoicePreview.fortnox_test && <p><strong>TESTFAKTURA – Fortnox Test. Ej skickad eller bokförd.</strong></p>}
+      <div className="invoice-bottom">
+        <div className="invoice-payment-box">
+          <p><strong>Ange OCR-nr vid betalning:</strong> {invoicePreview.ocr || invoicePreview.ocr_number || '—'}</p>
+          <p>Betalningsvillkor: {invoiceForm.paymentTermsDays || 15} dagar netto</p>
+          <p>Förfallodatum: {date(invoicePreview.due_at)}</p>
+          {invoicePreview.fortnox_test && <p><strong>TESTFAKTURA – ej skickad eller bokförd</strong></p>}
+        </div>
+        <div className="invoice-summary">
+          <h2>Summering:</h2>
+          <p><span>Arbete</span><b>{invoicePreview.fortnox_test ? '100,00 kr' : money(serviceLines.reduce((s,l)=>s+Number(l.quantity||0)*Number(l.unit_price||0),0))}</b></p>
+          <p><span>Material</span><b>{invoicePreview.fortnox_test ? '0,00 kr' : money(partLines.reduce((s,l)=>s+Number(l.quantity||0)*Number(l.unit_price||0),0))}</b></p>
+          <p><span>Summa exkl. moms</span><b>{invoicePreview.fortnox_test ? '100,00 kr' : money(displayedSubtotal)}</b></p>
+          <p><span>Moms 25%</span><b>{invoicePreview.fortnox_test ? '25,00 kr' : money(displayedVat)}</b></p>
+          <p className="invoice-pay"><span>Att betala</span><b>{money(Number(invoicePreview.total || displayedTotal))}</b></p>
+        </div>
+      </div>
+      <div className="invoice-footer">
+        <div><strong>BILDIAGNOS I UTBY AB</strong><br/>VAGNMAKAREGATAN 8C<br/>415 72 GÖTEBORG</div>
+        <div>Vat.nr: SE559082480001<br/>Mail: bildiagnosiutbyab@gmail.com<br/>Godkänd för F-skatt</div>
+        <div>Tel: 072-975 77 52<br/>Bg: 5927-4746</div>
+      </div>
     </section>}
   </section>;
 }
