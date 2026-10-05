@@ -257,7 +257,11 @@ export async function prepareCommercialQuote(context, settings) {
   const activePartIds = context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => item.id);
   if (!lines.length) throw new Error('Añade al menos una operación o una pieza antes de preparar la cotización.');
   const totals = quoteTotals(lines);
-  const lastQuote = context.quotes[0];
+  // Only reuse an editable quote. Once a quote is approved/rejected it is historical;
+  // new or changed order lines must produce a fresh revision so labor/parts cannot disappear.
+  const lastQuote = context.quotes.find((item) =>
+    ['draft', 'prepared', 'pending_approval'].includes(item.status)
+  ) || context.quotes[0];
   const quotePayload = {
     workshop_id: workOrder.workshop_id,
     work_order_id: workOrder.id,
@@ -279,7 +283,7 @@ export async function prepareCommercialQuote(context, settings) {
   };
 
   let quote;
-  if (lastQuote && lastQuote.status !== 'approved') {
+  if (lastQuote && ['draft', 'prepared', 'pending_approval'].includes(lastQuote.status)) {
     const { data, error } = await supabase
       .from('quotes')
       .update(quotePayload)
