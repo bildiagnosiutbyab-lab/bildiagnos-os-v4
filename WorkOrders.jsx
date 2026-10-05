@@ -375,7 +375,7 @@ export default function WorkOrders() {
     return (
       <>
         <PageHeader
-          title={`Orden ${selectedOrder.plate}`}
+          title={`Arbetsorder ${selectedOrder.plate}`}
           subtitle={selectedOrder.customer}
         />
 
@@ -389,7 +389,7 @@ export default function WorkOrders() {
           <h2>{selectedOrder.customer}</h2>
 
           <label className="status-control">
-            Estado de la orden
+            Orderstatus
             <select
               value={selectedOrder.status}
               onChange={(event) =>
@@ -450,14 +450,14 @@ export default function WorkOrders() {
           </p>
 
           <p>
-            <strong>Kilometraje:</strong>{' '}
+            <strong>Mätarställning:</strong>{' '}
             {selectedOrder.mileage
               ? `${selectedOrder.mileage} km`
               : 'Sin especificar'}
           </p>
 
           <p>
-            <strong>Trabajo solicitado:</strong>{' '}
+            <strong>Beställt arbete:</strong>{' '}
             {selectedOrder.requestedWork || 'Sin descripción'}
           </p>
 
@@ -515,7 +515,7 @@ export default function WorkOrders() {
               className="danger-button"
               onClick={() => deleteOrder(selectedOrder.id)}
             >
-              Eliminar orden
+              Ta bort arbetsorder
             </button>
           </div>
         </section>
@@ -530,14 +530,14 @@ export default function WorkOrders() {
           title={
             editingOrderId
               ? 'Editar orden de trabajo'
-              : 'Nueva orden de trabajo'
+              : 'Ny arbetsorder'
           }
-          subtitle="Cliente, vehículo, diagnóstico y reparación"
+          subtitle="Kund, fordon, diagnos och reparation"
         />
 
         <section className="card order-form">
           <label>
-            Cliente
+            Kund
             <input
               name="customer"
               type="text"
@@ -570,7 +570,7 @@ export default function WorkOrders() {
           </label>
 
           <label>
-            Kilometraje
+            Mätarställning
             <input
               name="mileage"
               type="number"
@@ -592,7 +592,7 @@ export default function WorkOrders() {
           </label>
 
           <label>
-            Trabajo solicitado
+            Beställt arbete
             <textarea
               name="requestedWork"
               placeholder="Describe el problema o trabajo solicitado"
@@ -628,7 +628,7 @@ export default function WorkOrders() {
             </button>
 
             <button className="primary-button" onClick={saveOrder}>
-              {editingOrderId ? 'Guardar cambios' : 'Guardar orden'}
+              {editingOrderId ? 'Spara ändringar' : 'Spara arbetsorder'}
             </button>
           </div>
         </section>
@@ -639,8 +639,8 @@ export default function WorkOrders() {
   return (
     <>
       <PageHeader
-        title="Órdenes de trabajo"
-        subtitle="Diagnóstico, reparación, tiempo y piezas"
+        title="Arbetsorder"
+        subtitle="Diagnos, reparation, tid och reservdelar"
         action="Crear orden"
         onAction={startNewOrder}
       />
@@ -649,7 +649,7 @@ export default function WorkOrders() {
 
       <section className="card" style={{ marginBottom: '14px' }}>
         <label style={{ display: 'grid', gap: '7px' }}>
-          <strong>🔎 Buscar historial por matrícula</strong>
+          <strong>🔎 Sök historik via registreringsnummer</strong>
           <input
             type="search"
             placeholder="Ej. EUK368"
@@ -667,7 +667,7 @@ export default function WorkOrders() {
 
       {!normalizedPlateSearch && <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
-        <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historial ({historyOrders.length})</button>
+        <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik ({historyOrders.length})</button>
         <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
       </div>}
 
@@ -700,7 +700,7 @@ export default function WorkOrders() {
               </p>
 
               <p>
-                <strong>Kilometraje:</strong>{' '}
+                <strong>Mätarställning:</strong>{' '}
                 {order.mileage ? `${order.mileage} km` : 'Sin especificar'}
               </p>
 
