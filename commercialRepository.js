@@ -7,12 +7,15 @@ function throwIfError(error) {
 }
 
 function quoteTotals(items) {
-  const total = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0),
     0
   );
-  const subtotal = total / (1 + VAT_RATE);
-  return { total, subtotal, vatTotal: total - subtotal };
+  const vatTotal = items.reduce(
+    (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0) * Number(item.vat_rate ?? VAT_RATE),
+    0
+  );
+  return { subtotal, vatTotal, total: subtotal + vatTotal };
 }
 
 async function refreshQuoteTotals(quoteIds) {
