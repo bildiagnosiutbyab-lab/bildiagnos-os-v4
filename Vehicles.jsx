@@ -51,8 +51,8 @@ export default function Vehicles() {
         <div className="vehicle-row" key={item?.id || item?.registration_plate}>
           <button type="button" className="plate">{item?.registration_plate || '—'}</button>
           <div>
-            <strong>{item?.raw_description || 'Ingen beskrivning'}</strong>
-            <span>Historial por matrícula</span>
+            <strong>{[item?.make, item?.model, item?.model_year].filter(Boolean).join(' ') || item?.raw_description || 'Ingen beskrivning'}</strong>
+            <span>{item?.vin ? `VIN ${item.vin}` : 'VIN saknas'}{item?.engine ? ` · Motor ${item.engine}` : ''}{item?.fuel_type ? ` · ${item.fuel_type}` : ''}</span>
           </div>
         </div>
       ))}
