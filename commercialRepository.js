@@ -424,27 +424,49 @@ export async function confirmCommercialPayment(context, form) {
   if (!Number.isFinite(enteredAmount) || Math.abs(enteredAmount - expectedAmount) > 0.005) {
     throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive öresutjämning.`);
   }
+  const receiptReference = `KV-${invoice.invoice_number || workOrder.order_number || invoice.id.slice(0, 8)}`;
+  const acceptedAt = new Date().toISOString();
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
       workshop_id: workOrder.workshop_id,
-      invoice_id: invoice?.id || null,
+      invoice_id: invoice.id,
       work_order_id: workOrder.id,
       customer_id: workOrder.customer_id,
       vehicle_id: workOrder.vehicle_id,
       method: form.method,
-      amount: Number(form.amount),
+      amount: enteredAmount,
       status: 'accepted',
       external_reference: form.reference || null,
-      accepted_at: new Date().toISOString(),
+      receipt_reference: receiptReference,
+      accepted_at: acceptedAt,
     })
     .select()
     .single();
   throwIfError(error);
-  if (invoice) {
-    const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
-    throwIfError(invoiceError);
+
+  const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
+  throwIfError(invoiceError);
+
+  const nextVersion = Number(workOrder.version || 0) + 1;
+  const { error: orderError } = await supabase
+    .from('work_orders')
+    .update({ status_code: 'paid', updated_at: acceptedAt, version: nextVersion })
+    .eq('id', workOrder.id);
+  throwIfError(orderError);
+
+  if (workOrder.status_code !== 'paid') {
+    const { error: historyError } = await supabase.from('order_status_history').insert({
+      workshop_id: workOrder.workshop_id,
+      work_order_id: workOrder.id,
+      from_status: workOrder.status_code || null,
+      to_status: 'paid',
+      reason: 'Betalning registrerad',
+      source: 'commercial_payment',
+    });
+    throwIfError(historyError);
   }
+
   return payment;
 }
 
