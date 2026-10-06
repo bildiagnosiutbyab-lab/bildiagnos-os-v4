@@ -142,7 +142,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       const { data, error } = await supabase.functions.invoke('fortnox-invoice-test-v2', { body: { action: 'get_latest' } });
       if (cancelled || error || !data?.ok || !data?.found) return;
       const result = data;
-      setFortnoxInvoiceTest({ state: 'success', message: 'Última factura ficticia recuperada de Fortnox Test.', result });
+      setFortnoxInvoiceTest({ state: 'success', message: 'Senaste testfakturan hämtad från Fortnox Test.', result });
       setLastInvoice({
         invoice_number: result.invoiceNumber || '—',
         created_at: result.invoiceDate || new Date().toISOString(),
@@ -190,7 +190,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
 
   const createFortnoxTestInvoice = async () => {
-    setFortnoxInvoiceTest({ state: 'loading', message: 'Creando factura ficticia en Fortnox Test…', result: null });
+    setFortnoxInvoiceTest({ state: 'loading', message: 'Skapar testfaktura i Fortnox Test…', result: null });
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session?.access_token) {
       setFortnoxInvoiceTest({ state: 'error', message: 'Sessionen har gått ut. Logga in igen.', result: null });
@@ -210,7 +210,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     }
     setFortnoxInvoiceTest({
       state: 'success',
-      message: 'Factura ficticia creada en Fortnox Test. No se ha enviado ni contabilizado.',
+      message: 'Testfaktura skapad i Fortnox Test. Den har inte skickats eller bokförts.',
       result: data,
     });
     setLastInvoice({
@@ -346,18 +346,18 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <button disabled={busy || !quote} onClick={() => printDocument('quote')}>PDF / Imprimir cotización</button>
         <button disabled={busy || !quote || pricePending} className="approve-button" onClick={() => window.confirm('Bekräfta att kunden har godkänt offerten?') && run(() => decideCommercialQuote(context, 'approved'), 'Offert godkänd.')}>Kunden godkänner</button>
         <button disabled={busy || !quote} className="reject-button" onClick={() => window.confirm('Bekräfta att kunden har avvisat offerten?') && run(() => decideCommercialQuote(context, 'rejected'), 'Offert avvisad.')}>Kunden avvisar</button>
-        <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Piezas marcadas como pedidas.')}>Markera reservdelar som beställda</button>
-        {quote && <button onClick={() => printDocument('work-order')}>PDF / Imprimir arbetsorder</button>}{accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
+        <button disabled={busy || !accepted} onClick={() => run(() => markApprovedPartsOrdered(context), 'Reservdelar markerade som beställda.')}>Markera reservdelar som beställda</button>
+        {quote && <button onClick={() => printDocument('work-order')}>PDF / Skriv ut arbetsorder</button>}{accepted && <><select value={quoteSettings.documentLanguage} onChange={(e) => setQuoteSettings({ ...quoteSettings, documentLanguage: e.target.value })}><option value="sv">Svenska</option><option value="es">Español</option></select><button onClick={() => printDocument('work-order')}>{labels.print}</button></>}
       </div>
     </section>
 
     <div className="commercial-grid">
       <section className="commercial-card">
-        <h3>Cobro y Kvitto</h3>
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Pago confirmado y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
+        <h3>Betalning och kvitto</h3>
+        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
-          <input required type="number" min="0.01" step="0.01" placeholder="Importe" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
-          <input placeholder="Referencia" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
+          <input required type="number" min="0.01" step="0.01" placeholder="Belopp" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
+          <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
         <ul className="commercial-lines">{context.payments.map((item) => <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference} · {date(item.accepted_at)}</small></li>)}</ul>
@@ -365,7 +365,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
-        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Factura creada.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
+        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Faktura skapad.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
           <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor
             <select value={invoiceForm.paymentTermsDays} onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentTermsDays: e.target.value })}>
@@ -376,7 +376,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             </select>
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
-          <input placeholder="Referencia" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
+          <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Skapa faktura</button>
         </form>
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
