@@ -415,7 +415,15 @@ export async function createCommercialInvoice(context, form) {
 export async function confirmCommercialPayment(context, form) {
   const { workOrder } = context;
   const invoice = form.invoiceId ? context.invoices.find((item) => item.id === form.invoiceId) : null;
-  if (invoice?.status === 'paid') throw new Error('Fakturan är redan betald.');
+  if (!invoice) throw new Error('Välj en faktura innan betalningen registreras.');
+  if (invoice.status === 'paid') throw new Error('Fakturan är redan betald.');
+  const existingPayment = context.payments.find((item) => item.invoice_id === invoice.id && item.status === 'accepted');
+  if (existingPayment) throw new Error('Det finns redan en registrerad betalning för fakturan.');
+  const expectedAmount = Math.round(Number(invoice.total || 0));
+  const enteredAmount = Number(form.amount);
+  if (!Number.isFinite(enteredAmount) || Math.abs(enteredAmount - expectedAmount) > 0.005) {
+    throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive öresutjämning.`);
+  }
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
