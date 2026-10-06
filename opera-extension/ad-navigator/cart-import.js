@@ -109,7 +109,26 @@
     if (!parts.length && !laborItems.length) throw new Error('No pude leer artículos de la cesta. Abre la cesta con piezas y trabajo visibles.');
     const requestedPlate = new URLSearchParams(location.search).get('bildiagnosReg')?.replace(/\s/g, '').toUpperCase();
     if (requestedPlate && rowPlate && requestedPlate !== rowPlate) throw new Error(`La cesta es de ${rowPlate}; la orden abierta era ${requestedPlate}.`);
-    return { source: 'AD Bildelar', plate: rowPlate || requestedPlate || '', parts, laborItems };
+    const pageText = document.body.innerText || rowText(root);
+    const pick = (...labels) => {
+      for (const label of labels) {
+        const match = pageText.match(new RegExp('(?:^|\\n)\\s*' + label + '\\s*:?\\s*(?:\\n\\s*)?([^\\n]+)', 'im'));
+        if (match?.[1]) return norm(match[1]);
+      }
+      return '';
+    };
+    const modelYearText = pick('Årsmodell','Modellår','År');
+    const modelYear = Number((modelYearText.match(/(?:19|20)\d{2}/) || [])[0]) || null;
+    const vehicle = {
+      make: pick('Märke','Fabrikat'),
+      model: pick('Modell'),
+      modelYear,
+      vin: pick('Chassinr','Chassinummer','VIN'),
+      engine: pick('Motorkod','Motor'),
+      fuelType: pick('Bränsle','Drivmedel')
+    };
+    vehicle.description = [vehicle.make, vehicle.model, vehicle.modelYear].filter(Boolean).join(' ');
+    return { source: 'AD Bildelar', plate: rowPlate || requestedPlate || '', vehicle, parts, laborItems };
   }
 
   function notice(button, message, error = false) {
