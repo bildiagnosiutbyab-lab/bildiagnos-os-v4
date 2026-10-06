@@ -11,11 +11,13 @@ import Lager from './Lager.jsx';
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
+  const [language, setLanguage] = useState(() => localStorage.getItem('bildiagnos-language') || 'sv');
+  const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
 
   return (
     <AuthGate>
       <div className="app-shell">
-        <Sidebar active={page} onChange={setPage} />
+        <Sidebar active={page} onChange={setPage} language={language} onLanguageChange={changeLanguage} />
 
         <main className="main-content">
           {page === 'dashboard' && (
