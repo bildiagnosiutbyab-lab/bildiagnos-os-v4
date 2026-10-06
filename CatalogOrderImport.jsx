@@ -150,7 +150,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
     <div className="catalog-mobile-fallback">
       <strong>📷 Móvil: captura / foto</strong>
       <p>Si el catálogo no envía los datos del vehículo, puedes cargar una captura desde el teléfono y completar aquí la ficha sin salir de la orden.</p>
-      <label className="catalog-preview-button">Elegir captura<input type="file" accept="image/*" capture="environment" onChange={chooseMobileImage} style={{display:'none'}} /></label>
+      <label className="catalog-preview-button">Elegir captura / foto<input type="file" accept="image/*" onChange={chooseMobileImage} style={{display:'none'}} /></label>
       {mobileImage && <div className="catalog-mobile-preview"><img src={mobileImage.url} alt="Captura del catálogo" /><div className="catalog-mobile-fields">
         <input placeholder="Marca" value={mobileVehicle.make} onChange={(e)=>setMobileVehicle({...mobileVehicle,make:e.target.value})}/>
         <input placeholder="Modelo" value={mobileVehicle.model} onChange={(e)=>setMobileVehicle({...mobileVehicle,model:e.target.value})}/>
