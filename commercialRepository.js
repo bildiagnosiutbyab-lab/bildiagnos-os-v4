@@ -362,10 +362,12 @@ export async function markApprovedPartsOrdered(context) {
 }
 
 export async function createCommercialInvoice(context, form) {
+  const existingInvoice = context.invoices.find((item) => !['cancelled', 'credited'].includes(item.status));
+  if (existingInvoice) throw new Error('Det finns redan en faktura för denna arbetsorder. Öppna den befintliga fakturan i stället.');
   const quote = context.quotes.find((item) => item.status === 'approved') || context.quotes[0];
-  if (!quote) throw new Error('Primero prepara una cotización válida.');
+  if (!quote) throw new Error('Förbered en giltig offert först.');
   const lines = context.quoteItems.filter((item) => item.quote_id === quote.id);
-  if (!lines.length) throw new Error('La cotización no tiene líneas facturables.');
+  if (!lines.length) throw new Error('Offerten saknar fakturerbara rader.');
   const { workOrder } = context;
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
@@ -413,7 +415,7 @@ export async function createCommercialInvoice(context, form) {
 export async function confirmCommercialPayment(context, form) {
   const { workOrder } = context;
   const invoice = form.invoiceId ? context.invoices.find((item) => item.id === form.invoiceId) : null;
-  if (invoice?.status === 'paid') throw new Error('La factura ya está pagada.');
+  if (invoice?.status === 'paid') throw new Error('Fakturan är redan betald.');
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
