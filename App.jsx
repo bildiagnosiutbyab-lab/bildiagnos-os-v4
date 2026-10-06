@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { translateUi } from './uiTranslations.js';
 import Sidebar from './Sidebar.jsx';
 import Dashboard from './Dashboard.jsx';
 import WorkOrders from './WorkOrders.jsx';
@@ -13,6 +14,14 @@ export default function App() {
   const [page, setPage] = useState('dashboard');
   const [language, setLanguage] = useState(() => localStorage.getItem('bildiagnos-language') || 'sv');
   const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
+
+  useEffect(() => {
+    const apply = () => translateUi(document.body, language);
+    apply();
+    const observer = new MutationObserver(() => apply());
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder','title','aria-label'] });
+    return () => observer.disconnect();
+  }, [language]);
 
   return (
     <AuthGate>
