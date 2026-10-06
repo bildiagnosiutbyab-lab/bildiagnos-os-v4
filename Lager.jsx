@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import { lampInventoryDraft, draftTotal } from './lampInventoryDraft.js';
-import { adjustInventory, countInventory, createInventoryItem, listInventory, listMovements } from './inventoryRepository.js';
+import { adjustInventory, countInventory, createInventoryItem, listInventory, listMovements, useInventory } from './inventoryRepository.js';
+import { loadRelationalOrders } from './ordersRepository.js';
 import './lager.css';
 
 const empty = { description: '', lamp_type: '', brand: '', voltage: '', wattage: '', color: '', barcode: '', manufacturer_part_number: '', supplier_part_number: '', supplier: '', cost_price: '', sale_price: '', quantity: '0', minimum_quantity: '0', location: '' };
@@ -18,8 +19,15 @@ export default function Lager() {
   const [counting, setCounting] = useState(null);
   const [counted, setCounted] = useState('');
   const [showDraft, setShowDraft] = useState(true);
+  const [orders, setOrders] = useState([]);
+  const [usingItem, setUsingItem] = useState(null);
+  const [useOrderId, setUseOrderId] = useState('');
+  const [useQuantity, setUseQuantity] = useState('1');
   async function refresh() { setItems(await listInventory()); }
-  useEffect(() => { refresh().catch((error) => setMessage(error.message)); }, []);
+  useEffect(() => {
+    refresh().catch((error) => setMessage(error.message));
+    loadRelationalOrders().then((rows) => setOrders(Array.isArray(rows) ? rows : [])).catch(() => setOrders([]));
+  }, []);
   const filtered = useMemo(() => items.filter((item) => {
     const part = item.parts || {};
     return [part.description, part.lamp_type, part.brand, part.barcode, part.manufacturer_part_number, part.internal_number,
@@ -33,10 +41,25 @@ export default function Lager() {
     finally { setBusy(false); }
   }
   async function movement(item, delta) {
-    const reason = window.prompt(`Motivo del ${delta > 0 ? 'aumento' : 'descuento'} de ${item.parts?.description}:`);
-    if (!reason?.trim()) return;
-    await run(() => adjustInventory(item.id, delta, reason.trim()), 'Movimiento guardado.');
+    if (delta < 0) {
+      setUsingItem(item);
+      setUseOrderId('');
+      setUseQuantity('1');
+      return;
+    }
+    await run(() => adjustInventory(item.id, 1, 'Manuell lagerökning'), 'En unidad añadida al inventario.');
     if (history?.id === item.id) setHistory({ id: item.id, rows: await listMovements(item.id) });
+  }
+
+  async function useForOrder() {
+    if (!usingItem || !useOrderId) { setMessage('Selecciona la orden o el vehículo.'); return; }
+    const qty = Number(useQuantity);
+    if (!Number.isFinite(qty) || qty <= 0) { setMessage('Introduce una cantidad válida.'); return; }
+    if (qty > Number(usingItem.quantity || 0)) { setMessage('No hay suficiente stock.'); return; }
+    await run(() => useInventory(usingItem.id, useOrderId, qty), 'Pieza asignada al vehículo y descontada del inventario.');
+    setUsingItem(null);
+    setUseOrderId('');
+    setUseQuantity('1');
   }
   async function showHistory(item) {
     try { setHistory({ id: item.id, rows: await listMovements(item.id) }); }
@@ -78,9 +101,19 @@ export default function Lager() {
         </div>
         <div className="lager-controls"><strong>{item.quantity} st</strong>
           {Number(item.quantity) <= Number(item.minimum_quantity ?? 0) && <span className="lager-low">Lågt lager · mínimo {item.minimum_quantity ?? 0}</span>}
-          <div className="lager-stepper"><button type="button" disabled={busy || Number(item.quantity) < 1} onClick={() => movement(item,-1)} title="Ta ut 1 st">−</button><span>{item.quantity} st</span><button type="button" disabled={busy} onClick={() => movement(item,1)} title="Lägg till 1 st">+</button></div>
+          <div className="lager-stepper"><button type="button" disabled={busy || Number(item.quantity) < 1} onClick={() => movement(item,-1)} title="Usar en un vehículo">−</button><span>{item.quantity} st</span><button type="button" disabled={busy} onClick={() => movement(item,1)} title="Añadir 1 al inventario">+</button></div>
           <div><button type="button" onClick={() => { setCounting(item.id); setCounted(String(item.quantity)); }}>Räkna</button><button type="button" onClick={() => showHistory(item)}>Historik</button></div>
         </div>
+        {usingItem?.id === item.id && <div className="lager-count">
+          <span>¿Para qué vehículo / orden?</span>
+          <select value={useOrderId} onChange={(e) => setUseOrderId(e.target.value)}>
+            <option value="">Selecciona una orden…</option>
+            {orders.filter((order) => !['Pagada','Terminada','Cancelada'].includes(order.status)).map((order) => <option key={order.relationalId || order.id} value={order.relationalId}>{order.plate || 'Sin matrícula'} · {order.customer || ''} · {order.requestedWork || ''}</option>)}
+          </select>
+          <input aria-label="Cantidad a usar" type="number" min="0.001" step="0.001" max={item.quantity} value={useQuantity} onChange={(e) => setUseQuantity(e.target.value)} />
+          <button type="button" disabled={busy || !useOrderId} onClick={useForOrder}>Usar y descontar</button>
+          <button type="button" onClick={() => setUsingItem(null)}>Cancelar</button>
+        </div>}
         {counting === item.id && <div className="lager-count"><span>Sistema: {item.quantity} · Contado: </span><input aria-label="Räknat antal" type="number" min="0" step="0.001" value={counted} onChange={(e) => setCounted(e.target.value)} /><span>Diferencia: {counted === '' ? '—' : Number(counted) - Number(item.quantity)}</span><button disabled={busy} onClick={() => saveCount(item)}>Guardar conteo</button><button onClick={() => setCounting(null)}>Cancelar</button></div>}
         {history?.id === item.id && <div className="lager-history"><button onClick={() => setHistory(null)}>Cerrar historial</button>{history.rows.length ? history.rows.map((row) => <p key={row.id}>{new Date(row.occurred_at).toLocaleString('sv-SE')} · {row.quantity > 0 ? '+' : ''}{row.quantity} · {row.reason || row.movement_type} · {row.plate_snapshot || 'Utan registreringsnummer'} · Usuario {row.created_by || '—'}</p>) : <p>Sin movimientos.</p>}</div>}
       </article>)}
