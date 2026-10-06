@@ -273,6 +273,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     total: displayedTotal,
     reference: invoiceForm.reference || String(context?.workOrder?.order_number || ''),
   };
+  const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
+  const receiptLines = receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
+  const receiptSubtotal = receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
+  const receiptVat = receiptInvoice ? Number(receiptInvoice.vat_total || 0) : 0;
+  const receiptAccountingTotal = receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
+  const receiptPayable = Number(lastReceipt?.payment?.amount || Math.round(receiptAccountingTotal));
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
     try { const value = await action(); await refresh(); await onSaved?.(); setMessage(success); return value; }
@@ -368,7 +374,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
-        <ul className="commercial-lines">{context.payments.map((item) => <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference} · {date(item.accepted_at)}</small></li>)}</ul>
+        <ul className="commercial-lines">{context.payments.map((item) => {
+          const paymentInvoice = context.invoices.find((inv) => inv.id === item.invoice_id) || null;
+          return <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference || 'Kvitto'} · {date(item.accepted_at)}</small><button type="button" onClick={() => { setLastReceipt({ payment: item, order: workOrder, invoice: paymentInvoice }); window.setTimeout(() => printDocument('receipt'), 0); }}>Imprimir Kvitto</button></li>;
+        })}</ul>
       </section>
 
       <section className="commercial-card">
@@ -464,21 +473,47 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         </div>
       </div>
     </section>
-    {lastReceipt && <section className="commercial-print receipt-print">
-      <header><strong>BILDIAGNOS I UTBY AB</strong><h1>KVITTO / RECIBO</h1></header>
-      <div className="print-info print-info-list">
-        <span>Kvittonr / Recibo: <b>{lastReceipt.payment.receipt_reference || '—'}</b></span>
-        <span>Ordernr / Orden: <b>{lastReceipt.order.order_number || '—'}</b></span>
-        <span>Faktura / Factura: <b>{lastReceipt.invoice?.invoice_number || '—'}</b></span>
-        <span>Registreringsnummer / Matrícula: <b>{lastReceipt.order.plate_snapshot || '—'}</b></span>
-        <span>Betalsätt / Pago: <b>{lastReceipt.payment.method}</b></span>
-        <span>Datum / Fecha: <b>{date(lastReceipt.payment.accepted_at)}</b></span>
+    {lastReceipt && <section className="commercial-print receipt-print receipt-classic">
+      <div className="receipt-top">
+        <div className="invoice-brand"><strong>BILDIAGNOS</strong><span>I UTBY AB</span></div>
+        <div className="receipt-title"><h1>KVITTO</h1><b>{lastReceipt.payment.receipt_reference || '—'}</b></div>
       </div>
-      <div className="print-totals">
-        {lastReceipt.invoice && <><p>Summa inkl. moms: <strong>{money(lastReceipt.invoice.total)}</strong></p>{Math.abs(Math.round(Number(lastReceipt.invoice.total || 0)) - Number(lastReceipt.invoice.total || 0)) >= 0.005 && <p>Öresutjämning: <strong>{money(Math.round(Number(lastReceipt.invoice.total || 0)) - Number(lastReceipt.invoice.total || 0))}</strong></p>}</>}
-        <p className="print-total">Betalt / Pagado: <strong>{money(lastReceipt.payment.amount)}</strong></p>
+      <div className="receipt-meta">
+        <p><small>Datum</small><br/><b>{date(lastReceipt.payment.accepted_at)}</b></p>
+        <p><small>Ordernr</small><br/><b>{lastReceipt.order.order_number || '—'}</b></p>
+        <p><small>Fakturanr</small><br/><b>{receiptInvoice?.invoice_number || '—'}</b></p>
       </div>
-      <p>Tack för ditt köp / Gracias por su compra.</p>
+      <div className="invoice-address">
+        <small>Kund</small>
+        <strong>{lastReceipt.order.customer_name_snapshot || '—'}</strong>
+      </div>
+      <div className="invoice-vehicle invoice-vehicle-strip">
+        <span><small>Reg nr</small><b>{lastReceipt.order.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
+        <span><small>Fabrikat</small><b>{vehicle.make || '—'}</b></span>
+        <span><small>Modell</small><b>{vehicle.model || vehicle.raw_description || '—'}</b></span>
+        <span><small>Årsmodell</small><b>{vehicle.model_year || '—'}</b></span>
+        <span><small>Mätarställning</small><b>{lastReceipt.order.mileage ? `${lastReceipt.order.mileage} km` : '—'}</b></span>
+        <span><small>VIN</small><b>{vehicle.vin || '—'}</b></span>
+      </div>
+      {receiptLines.length > 0 && <div className="print-section"><h2>Betalda varor och tjänster</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody>{receiptLines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{Number(line.quantity || 0).toLocaleString('sv-SE',{maximumFractionDigits:2})}</td><td>{money(line.unit_price)}</td><td>{money(Number(line.quantity || 0) * Number(line.unit_price || 0))}</td></tr>)}</tbody></table></div>}
+      <div className="receipt-bottom">
+        <div className="receipt-payment">
+          <p><strong>Betalsätt:</strong> {lastReceipt.payment.method}</p>
+          {lastReceipt.payment.external_reference && <p><strong>Referens:</strong> {lastReceipt.payment.external_reference}</p>}
+          <p><strong>Status:</strong> Betald</p>
+        </div>
+        <div className="invoice-summary">
+          {receiptInvoice && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
+          {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
+          <p className="invoice-pay"><span>Betalt</span><b>{money(receiptPayable)}</b></p>
+        </div>
+      </div>
+      <p className="receipt-thanks">Tack för ditt besök!</p>
+      <div className="invoice-footer">
+        <div><strong>BILDIAGNOS I UTBY AB</strong><br/>VAGNMAKAREGATAN 8C<br/>415 72 GÖTEBORG</div>
+        <div>Vat.nr: SE559082480001<br/>Mail: bildiagnosiutbyab@gmail.com<br/>Godkänd för F-skatt</div>
+        <div>Tel: 072-975 77 52<br/>Bg: 5927-4746</div>
+      </div>
     </section>}
     {<section className="commercial-print invoice-print invoice-classic">
       <div className="invoice-top">
