@@ -364,8 +364,8 @@ export async function markApprovedPartsOrdered(context) {
 export async function createCommercialInvoice(context, form) {
   const existingInvoice = context.invoices.find((item) => !['cancelled', 'credited'].includes(item.status));
   if (existingInvoice) throw new Error('Det finns redan en faktura för denna arbetsorder. Öppna den befintliga fakturan i stället.');
-  const quote = context.quotes.find((item) => item.status === 'approved') || context.quotes[0];
-  if (!quote) throw new Error('Förbered en giltig offert först.');
+  const quote = context.quotes.find((item) => item.status === 'approved');
+  if (!quote) throw new Error('Offerten måste vara godkänd innan fakturan skapas.');
   const lines = context.quoteItems.filter((item) => item.quote_id === quote.id);
   if (!lines.length) throw new Error('Offerten saknar fakturerbara rader.');
   const { workOrder } = context;
