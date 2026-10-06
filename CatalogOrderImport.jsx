@@ -28,17 +28,28 @@ function parsePayload(raw, expectedSource) {
   const laborItems = rawLabor.map((item) => ({ code: String(item.code ?? item.articleNumber ?? '').trim(), description: String(item.description ?? item.name ?? item.title ?? '').trim(), hours: parseCatalogLaborHours(item), hourlyRate: numeric(item.hourlyRate ?? item.unitPrice ?? item.rate) })).filter((item) => item.description);
   if (!parts.length && !laborItems.length) throw new Error('La exportación no contiene piezas ni trabajos reconocibles.');
   if (parts.some((item) => !item.description || !item.quantity || item.quantity <= 0)) throw new Error('Cada pieza necesita descripción y cantidad mayor que cero.');
-  const rawVehicle = (payload.vehicle && typeof payload.vehicle === 'object' ? payload.vehicle : null) || (payload.car && typeof payload.car === 'object' ? payload.car : null) || {};
+  const rawVehicle = (
+    payload.vehicle && typeof payload.vehicle === 'object' ? payload.vehicle :
+    payload.car && typeof payload.car === 'object' ? payload.car :
+    payload.vehicleData && typeof payload.vehicleData === 'object' ? payload.vehicleData :
+    payload.carInfo && typeof payload.carInfo === 'object' ? payload.carInfo :
+    {}
+  );
   const vehicle = {
-    make: String(rawVehicle.make ?? rawVehicle.brand ?? rawVehicle.manufacturer ?? payload.make ?? payload.vehicleMake ?? '').trim(),
-    model: String(rawVehicle.model ?? payload.model ?? payload.vehicleModel ?? '').trim(),
-    modelYear: numeric(rawVehicle.modelYear ?? rawVehicle.year ?? payload.modelYear ?? payload.year),
-    vin: String(rawVehicle.vin ?? rawVehicle.chassisNumber ?? rawVehicle.chassis ?? payload.vin ?? payload.chassisNumber ?? '').trim(),
-    engine: String(rawVehicle.engine ?? rawVehicle.engineCode ?? payload.engine ?? payload.engineCode ?? '').trim(),
-    fuelType: String(rawVehicle.fuelType ?? rawVehicle.fuel ?? payload.fuelType ?? payload.fuel ?? '').trim(),
-    description: String(rawVehicle.description ?? rawVehicle.name ?? payload.vehicleDescription ?? payload.carDescription ?? '').trim(),
+    make: String(rawVehicle.make ?? rawVehicle.brand ?? rawVehicle.manufacturer ?? rawVehicle.makeName ?? payload.make ?? payload.vehicleMake ?? payload.makeName ?? '').trim(),
+    model: String(rawVehicle.model ?? rawVehicle.modelName ?? payload.model ?? payload.vehicleModel ?? payload.modelName ?? '').trim(),
+    modelYear: numeric(rawVehicle.modelYear ?? rawVehicle.year ?? rawVehicle.yearModel ?? payload.modelYear ?? payload.year ?? payload.yearModel),
+    vin: String(rawVehicle.vin ?? rawVehicle.VIN ?? rawVehicle.chassisNumber ?? rawVehicle.chassis ?? rawVehicle.chassisNo ?? payload.vin ?? payload.VIN ?? payload.chassisNumber ?? payload.chassisNo ?? '').trim(),
+    engine: String(rawVehicle.engine ?? rawVehicle.engineCode ?? rawVehicle.motorCode ?? payload.engine ?? payload.engineCode ?? payload.motorCode ?? '').trim(),
+    fuelType: String(rawVehicle.fuelType ?? rawVehicle.fuel ?? rawVehicle.fuelName ?? payload.fuelType ?? payload.fuel ?? payload.fuelName ?? '').trim(),
+    description: String(rawVehicle.description ?? rawVehicle.name ?? rawVehicle.vehicleName ?? payload.vehicleDescription ?? payload.carDescription ?? payload.vehicleName ?? '').trim(),
   };
-  return { plate: String(payload.plate ?? payload.registrationNumber ?? rawVehicle.registrationNumber ?? rawVehicle.plate ?? '').trim(), vehicle, parts, laborItems };
+  return {
+    plate: String(payload.plate ?? payload.registrationNumber ?? payload.regNo ?? payload.regnr ?? rawVehicle.registrationNumber ?? rawVehicle.regNo ?? rawVehicle.regnr ?? rawVehicle.plate ?? '').trim(),
+    vehicle,
+    parts,
+    laborItems,
+  };
 }
 
 function validatePreview(preview) {
