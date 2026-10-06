@@ -16,10 +16,15 @@ export default function App() {
   const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
 
   useEffect(() => {
+    document.documentElement.lang = language === 'es' ? 'es' : 'sv';
     const apply = () => translateUi(document.body, language);
     apply();
-    const observer = new MutationObserver(() => apply());
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder','title','aria-label'] });
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.addedNodes?.length)) {
+        window.requestAnimationFrame(apply);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [language]);
 
