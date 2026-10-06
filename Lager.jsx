@@ -18,7 +18,7 @@ export default function Lager() {
   const [history, setHistory] = useState(null);
   const [counting, setCounting] = useState(null);
   const [counted, setCounted] = useState('');
-  const [showDraft, setShowDraft] = useState(true);
+  const [showDraft, setShowDraft] = useState(false);
   const [orders, setOrders] = useState([]);
   const [usingItem, setUsingItem] = useState(null);
   const [useOrderId, setUseOrderId] = useState('');
@@ -118,7 +118,7 @@ export default function Lager() {
         {history?.id === item.id && <div className="lager-history"><button onClick={() => setHistory(null)}>Cerrar historial</button>{history.rows.length ? history.rows.map((row) => <p key={row.id}>{new Date(row.occurred_at).toLocaleString('sv-SE')} · {row.quantity > 0 ? '+' : ''}{row.quantity} · {row.reason || row.movement_type} · {row.plate_snapshot || 'Utan registreringsnummer'} · Usuario {row.created_by || '—'}</p>) : <p>Sin movimientos.</p>}</div>}
       </article>)}
     </section>
-    <section className="card lager-draft"><div className="lager-draft-heading"><div><h2>Primera carga: bombillas · previsualización</h2><p>{lampInventoryDraft.length} referencias · {draftTotal} unidades contadas. <b>No están guardadas.</b> Ubicaciones, precios y datos desconocidos quedan pendientes.</p></div><button onClick={() => setShowDraft(!showDraft)}>{showDraft ? 'Ocultar' : 'Mostrar'}</button></div>
+    <section className="card lager-draft"><div className="lager-draft-heading"><div><h2>Conteo antiguo de bombillas · aún no importado</h2><p>{lampInventoryDraft.length} referencias · {draftTotal} unidades. <b>Esta tabla NO es el inventario activo y por eso no tiene + / −.</b> Los botones + / − aparecen arriba, en "Existencias registradas".</p></div><button onClick={() => setShowDraft(!showDraft)}>{showDraft ? 'Ocultar conteo antiguo' : 'Mostrar conteo antiguo'}</button></div>
       {showDraft && <div className="lager-table-wrap"><table><thead><tr><th>Tipo</th><th>Marca</th><th>EAN / referencia</th><th>Cantidad</th><th>Ubicación</th><th>Precio</th></tr></thead><tbody>{lampInventoryDraft.map((part, index) => <tr key={index}><td>{part.type}</td><td>{part.brand || 'Väntar'}</td><td>{part.ean || part.manufacturerNumber || 'Väntar'}{part.ean && part.manufacturerNumber ? ` · ${part.manufacturerNumber}` : ''}</td><td>{part.quantity} st</td><td>Väntar</td><td>Väntar</td></tr>)}</tbody><tfoot><tr><th colSpan="3">Total (sin importar)</th><th>{draftTotal} st</th><th colSpan="2">Esperando confirmación</th></tr></tfoot></table></div>}
     </section>
   </>;
