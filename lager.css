@@ -24,7 +24,14 @@
 .lager-draft table { border-collapse:collapse; width:100%; min-width:650px; text-align:left; }
 .lager-draft th,.lager-draft td { padding:9px; border-bottom:1px solid #e2e8f0; }
 .lager-message { padding:12px; border-radius:8px; background:#eff6ff; }
-.order-inventory { margin:16px 0; }
-.order-inventory>div { display:flex; flex-wrap:wrap; gap:8px; }
-.order-inventory select { flex:1; min-width:200px; }.order-inventory input { width:110px; }
-@media(max-width:600px){ .lager-controls { justify-items:start; } .lager-draft-heading { flex-direction:column; } }
+.order-inventory { margin:16px 0; overflow:hidden; }
+.order-inventory form { display:grid; grid-template-columns:minmax(0,1fr) 110px auto; gap:8px; align-items:center; width:100%; }
+.order-inventory select { min-width:0; width:100%; max-width:100%; }
+.order-inventory input { width:110px; min-width:0; }
+.order-inventory button { white-space:nowrap; }
+@media(max-width:760px){
+  .order-inventory form { grid-template-columns:1fr; }
+  .order-inventory input,.order-inventory button { width:100%; }
+  .lager-controls { justify-items:start; }
+  .lager-draft-heading { flex-direction:column; }
+}
