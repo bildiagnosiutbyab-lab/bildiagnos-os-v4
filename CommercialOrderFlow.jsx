@@ -362,7 +362,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     <div className="commercial-grid">
       <section className="commercial-card">
         <h3>Betalning och kvitto</h3>
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
+        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Belopp" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
@@ -420,7 +420,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <span>Total: <b>{money(fortnoxInvoiceTest.result.total)}</b></span>
           </div>}
         </div>
-        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: item.total, reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Bekräfta betalning</button>}</li>)}</ul>
+        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: Math.round(Number(item.total || 0)), reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: item }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Bekräfta betalning</button>}</li>)}</ul>
       </section>
     </div>
 
@@ -464,7 +464,22 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         </div>
       </div>
     </section>
-    {lastReceipt && <section className="commercial-print receipt-print"><h1>KVITTO / RECIBO</h1><p>{lastReceipt.payment.receipt_reference}</p><p>{lastReceipt.order.plate_snapshot} · {lastReceipt.payment.method}</p><h2>{money(lastReceipt.payment.amount)}</h2><p>{date(lastReceipt.payment.accepted_at)}</p></section>}
+    {lastReceipt && <section className="commercial-print receipt-print">
+      <header><strong>BILDIAGNOS I UTBY AB</strong><h1>KVITTO / RECIBO</h1></header>
+      <div className="print-info print-info-list">
+        <span>Kvittonr / Recibo: <b>{lastReceipt.payment.receipt_reference || '—'}</b></span>
+        <span>Ordernr / Orden: <b>{lastReceipt.order.order_number || '—'}</b></span>
+        <span>Faktura / Factura: <b>{lastReceipt.invoice?.invoice_number || '—'}</b></span>
+        <span>Registreringsnummer / Matrícula: <b>{lastReceipt.order.plate_snapshot || '—'}</b></span>
+        <span>Betalsätt / Pago: <b>{lastReceipt.payment.method}</b></span>
+        <span>Datum / Fecha: <b>{date(lastReceipt.payment.accepted_at)}</b></span>
+      </div>
+      <div className="print-totals">
+        {lastReceipt.invoice && <><p>Summa inkl. moms: <strong>{money(lastReceipt.invoice.total)}</strong></p>{Math.abs(Math.round(Number(lastReceipt.invoice.total || 0)) - Number(lastReceipt.invoice.total || 0)) >= 0.005 && <p>Öresutjämning: <strong>{money(Math.round(Number(lastReceipt.invoice.total || 0)) - Number(lastReceipt.invoice.total || 0))}</strong></p>}</>}
+        <p className="print-total">Betalt / Pagado: <strong>{money(lastReceipt.payment.amount)}</strong></p>
+      </div>
+      <p>Tack för ditt köp / Gracias por su compra.</p>
+    </section>}
     {<section className="commercial-print invoice-print invoice-classic">
       <div className="invoice-top">
         <div className="invoice-brand"><strong>BILDIAGNOS</strong><span>I UTBY AB</span></div>
@@ -501,7 +516,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <p><span>Material</span><b>{invoicePreview.fortnox_test ? '0,00 kr' : money(partLines.reduce((s,l)=>s+Number(l.quantity||0)*Number(l.unit_price||0),0))}</b></p>
           <p><span>Summa exkl. moms</span><b>{invoicePreview.fortnox_test ? '100,00 kr' : money(displayedSubtotal)}</b></p>
           <p><span>Moms 25%</span><b>{invoicePreview.fortnox_test ? '25,00 kr' : money(displayedVat)}</b></p>
-          <p className="invoice-pay"><span>Att betala</span><b>{money(Number(invoicePreview.total || displayedTotal))}</b></p>
+          {!invoicePreview.fortnox_test && Math.abs(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal)) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal))}</b></p>}
+          <p className="invoice-pay"><span>Att betala</span><b>{money(invoicePreview.fortnox_test ? Number(invoicePreview.total || displayedTotal) : Math.round(Number(invoicePreview.total || displayedTotal)))}</b></p>
         </div>
       </div>
       <div className="invoice-footer">
