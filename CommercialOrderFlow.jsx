@@ -132,7 +132,15 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       warrantyMonths: String(quote.warranty_months ?? 3), warrantyKm: String(quote.warranty_km ?? 1000),
       documentLanguage: quote.document_language || 'sv',
     });
-    setPaymentForm((current) => ({ ...current, amount: current.amount || String(quote?.total || ''), reference: current.reference || String(data.workOrder.order_number || '') }));
+    const invoice = data.invoices?.find((item) => !['cancelled', 'credited'].includes(item.status)) || null;
+    const accountingTotal = Number(invoice?.total ?? quote?.total ?? 0);
+    const payableTotal = Math.round(accountingTotal);
+    setPaymentForm((current) => ({
+      ...current,
+      amount: current.amount || (accountingTotal ? payableTotal.toFixed(2) : ''),
+      reference: current.reference || String(data.workOrder.order_number || ''),
+      invoiceId: current.invoiceId || invoice?.id || '',
+    }));
   };
 
   useEffect(() => { refresh().catch((error) => setMessage(error.message || 'No se pudo cargar el flujo comercial.')); }, [orderId]);
