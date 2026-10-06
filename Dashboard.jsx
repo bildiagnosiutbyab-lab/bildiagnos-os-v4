@@ -173,6 +173,10 @@ export default function Dashboard({ onNewOrder }) {
   const monthlyGoal = 60000;
   const goalPercent = Math.min(100, Math.max(0, finance.revenue / monthlyGoal * 100));
   const remaining = Math.max(0, monthlyGoal - finance.revenue);
+  const nowForGoal = new Date();
+  const daysInMonth = new Date(nowForGoal.getFullYear(), nowForGoal.getMonth() + 1, 0).getDate();
+  const daysLeftIncludingToday = Math.max(1, daysInMonth - nowForGoal.getDate() + 1);
+  const neededPerDay = remaining / daysLeftIncludingToday;
   const money = (value) => new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(Number(value || 0));
 
   const stats = [
@@ -206,6 +210,7 @@ export default function Dashboard({ onNewOrder }) {
         <div className="finance-grid">
           <div><small>Försäljning exkl. moms</small><b>{money(finance.revenue)}</b></div>
           <div><small>Kvar till målet</small><b>{money(remaining)}</b></div>
+          <div><small>Behövs per dag</small><b>{money(neededPerDay)}</b></div>
           <div><small>Arbete</small><b>{money(finance.labor)}</b></div>
           <div><small>Delar, försäljning</small><b>{money(finance.partsSales)}</b></div>
           <div><small>Delar, inköpskostnad</small><b>{money(finance.partsCost)}</b></div>
