@@ -78,8 +78,8 @@ export default function Lager() {
         </div>
         <div className="lager-controls"><strong>{item.quantity} st</strong>
           {Number(item.quantity) <= Number(item.minimum_quantity ?? 0) && <span className="lager-low">Lågt lager · mínimo {item.minimum_quantity ?? 0}</span>}
-          <div><button disabled={busy || Number(item.quantity) < 1} onClick={() => movement(item,-1)} title="Restar una unidad">−</button><button disabled={busy} onClick={() => movement(item,1)} title="Añadir una unidad">+</button>
-          <button onClick={() => { setCounting(item.id); setCounted(String(item.quantity)); }}>Contar</button><button onClick={() => showHistory(item)}>Historial</button></div>
+          <div className="lager-stepper"><button type="button" disabled={busy || Number(item.quantity) < 1} onClick={() => movement(item,-1)} title="Ta ut 1 st">−</button><span>{item.quantity} st</span><button type="button" disabled={busy} onClick={() => movement(item,1)} title="Lägg till 1 st">+</button></div>
+          <div><button type="button" onClick={() => { setCounting(item.id); setCounted(String(item.quantity)); }}>Räkna</button><button type="button" onClick={() => showHistory(item)}>Historik</button></div>
         </div>
         {counting === item.id && <div className="lager-count"><span>Sistema: {item.quantity} · Contado: </span><input aria-label="Räknat antal" type="number" min="0" step="0.001" value={counted} onChange={(e) => setCounted(e.target.value)} /><span>Diferencia: {counted === '' ? '—' : Number(counted) - Number(item.quantity)}</span><button disabled={busy} onClick={() => saveCount(item)}>Guardar conteo</button><button onClick={() => setCounting(null)}>Cancelar</button></div>}
         {history?.id === item.id && <div className="lager-history"><button onClick={() => setHistory(null)}>Cerrar historial</button>{history.rows.length ? history.rows.map((row) => <p key={row.id}>{new Date(row.occurred_at).toLocaleString('sv-SE')} · {row.quantity > 0 ? '+' : ''}{row.quantity} · {row.reason || row.movement_type} · {row.plate_snapshot || 'Utan registreringsnummer'} · Usuario {row.created_by || '—'}</p>) : <p>Sin movimientos.</p>}</div>}
