@@ -1,5 +1,5 @@
 (() => {
-  const VERSION='1.0.3';
+  const VERSION='1.0.4';
   const params=new URLSearchParams(location.search);
   const plate=(params.get('bildiagnosReg')||'').replace(/\s+/g,'').toUpperCase();
   const path=(params.get('bdClick')||'').split('>').map(s=>s.trim()).filter(Boolean);
@@ -89,11 +89,26 @@
 
   function readVehicle(){
     const text=document.body.innerText||'';
-    const pick=label=>{
-      const m=text.match(new RegExp(label+'\\s*\\n?\\s*([^\\n]+)','i'));
-      return m?m[1].trim():'';
+    const pick=(...labels)=>{
+      for(const label of labels){
+        const m=text.match(new RegExp('(?:^|\\n)\\s*'+label+'\\s*:?\\s*(?:\\n\\s*)?([^\\n]+)','im'));
+        if(m?.[1]) return m[1].trim();
+      }
+      return '';
     };
-    return {regNr:plate||pick('Regnr'),typeNo:pick('Ktypnr'),engineCode:pick('Motorkod'),manufactureDate:pick('Tillv\\.datum')};
+    const modelYearText=pick('Årsmodell','Modellår','År');
+    const modelYear=Number((modelYearText.match(/(?:19|20)\\d{2}/)||[])[0])||null;
+    return {
+      regNr:plate||pick('Regnr','Registreringsnummer'),
+      typeNo:pick('Ktypnr','Typnr'),
+      engineCode:pick('Motorkod','Motor'),
+      manufactureDate:pick('Tillv\\.datum','Tillverkningsdatum'),
+      make:pick('Märke','Fabrikat'),
+      model:pick('Modell'),
+      modelYear,
+      vin:pick('Chassinr','Chassinummer','VIN'),
+      fuelType:pick('Bränsle','Drivmedel')
+    };
   }
 
   async function waitForAuth(){
@@ -244,7 +259,11 @@
       const hours=laborHours(repairText(article));
       if(hours!==null&&hours>0)laborItems.push({code:String(articleNumber||''),description:`Arbetstid · ${name}`,hours,hourlyRate:null});
     });
-    const payload={source:'AD Bildelar',plate:vehicle.regNr||plate,parts,laborItems};
+    const payload={source:'AD Bildelar',plate:vehicle.regNr||plate,vehicle:{
+      make:vehicle.make||'',model:vehicle.model||'',modelYear:vehicle.modelYear||null,
+      vin:vehicle.vin||'',engine:vehicle.engineCode||'',fuelType:vehicle.fuelType||'',
+      description:[vehicle.make,vehicle.model,vehicle.modelYear].filter(Boolean).join(' ')
+    },parts,laborItems};
     chrome.storage.local.set({bildiagnosCatalogTransfer:{payload,createdAt:new Date().toISOString(),version:1}},()=>{
       if(chrome.runtime.lastError){status('no pude preparar la transferencia a Bildiagnos.',false);return;}
       status(parts.length+' pieza(s) preparada(s). Vuelve a Bildiagnos y pulsa Recibir selección.');
