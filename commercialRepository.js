@@ -535,3 +535,52 @@ export async function removeCommercialPart(id) {
   throwIfError(result.error);
   await refreshQuoteTotals(quoteLinks.editableIds);
 }
+
+
+export async function loadSupplierDeliveryNotes(workOrderId) {
+  const { data: notes, error } = await supabase
+    .from('supplier_delivery_notes')
+    .select('*, supplier_delivery_note_lines(*)')
+    .eq('work_order_id', workOrderId)
+    .order('created_at', { ascending: false });
+  throwIfError(error);
+  return notes || [];
+}
+
+export async function confirmSupplierDeliveryNote(workOrderId, note, lines, sourceFile = null) {
+  if (!workOrderId) throw new Error('La orden no está disponible.');
+  if (!note?.supplierName?.trim()) throw new Error('Revisa el proveedor antes de confirmar.');
+  if (!Array.isArray(lines) || !lines.length) throw new Error('No hay líneas para confirmar.');
+
+  const payloadLines = lines.map((line) => ({
+    supplierPartNumber: line.supplierPartNumber || '',
+    description: line.description || '',
+    quantity: Number(line.quantity || 1),
+    listUnitPriceExVat: line.listUnitPriceExVat === '' || line.listUnitPriceExVat == null ? null : Number(line.listUnitPriceExVat),
+    discountPercent: line.discountPercent === '' || line.discountPercent == null ? null : Number(line.discountPercent),
+    netUnitCostExVat: line.netUnitCostExVat === '' || line.netUnitCostExVat == null ? null : Number(line.netUnitCostExVat),
+    lineNetExVat: line.lineNetExVat === '' || line.lineNetExVat == null ? null : Number(line.lineNetExVat),
+    vatRate: line.vatRate === '' || line.vatRate == null ? null : Number(line.vatRate),
+    workOrderPartId: line.workOrderPartId || null,
+    manualMatch: Boolean(line.manualMatch),
+  }));
+
+  const { data, error } = await supabase.rpc('confirm_supplier_delivery_note', {
+    p_work_order_id: workOrderId,
+    p_supplier_name: note.supplierName.trim(),
+    p_document_number: note.documentNumber || null,
+    p_document_date: note.documentDate || null,
+    p_currency: note.currency || 'SEK',
+    p_subtotal_ex_vat: note.subtotalExVat == null || note.subtotalExVat === '' ? null : Number(note.subtotalExVat),
+    p_vat_total: note.vatTotal == null || note.vatTotal === '' ? null : Number(note.vatTotal),
+    p_total_inc_vat: note.totalIncVat == null || note.totalIncVat === '' ? null : Number(note.totalIncVat),
+    p_storage_bucket: null,
+    p_storage_path: null,
+    p_file_name: sourceFile?.name || null,
+    p_mime_type: sourceFile?.type || null,
+    p_raw_extraction: note,
+    p_lines: payloadLines,
+  });
+  throwIfError(error);
+  return data;
+}
