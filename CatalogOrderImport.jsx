@@ -70,7 +70,7 @@ async function imageFileForVision(file) {
       img.onerror = () => reject(new Error('El teléfono no pudo preparar esta imagen.'));
       img.src = originalUrl;
     });
-    const maxSide = 1600;
+    const maxSide = 1100;
     const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
@@ -78,7 +78,7 @@ async function imageFileForVision(file) {
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) throw new Error('No se pudo preparar la captura.');
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.82);
+    return canvas.toDataURL('image/jpeg', 0.68);
   } finally { URL.revokeObjectURL(originalUrl); }
 }
 function withTimeout(promise, milliseconds) {
@@ -180,7 +180,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
       try {
         imageDataUrl = await imageFileForVision(file);
       } catch (conversionError) {
-        if (file.size > 4 * 1024 * 1024) throw conversionError;
+        if (file.size > 2 * 1024 * 1024) throw conversionError;
         imageDataUrl = await readFileAsDataUrl(file);
       }
       setMessage('Leyendo los datos del vehículo con IA…');
