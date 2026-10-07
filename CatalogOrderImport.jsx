@@ -53,6 +53,42 @@ function parsePayload(raw, expectedSource) {
   };
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+async function imageFileForVision(file) {
+  const originalUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('El teléfono no pudo preparar esta imagen.'));
+      img.src = originalUrl;
+    });
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+    canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('No se pudo preparar la captura.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } finally { URL.revokeObjectURL(originalUrl); }
+}
+function withTimeout(promise, milliseconds) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error('La lectura tardó demasiado. Vuelve a elegir la captura.')), milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 function validatePreview(preview) {
   if (!preview || (!preview.parts.length && !preview.laborItems.length)) throw new Error('La selección no contiene piezas ni trabajos.');
   if (preview.parts.some((item) => !String(item.description || '').trim() || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) throw new Error('Cada pieza necesita descripción y cantidad mayor que cero.');
@@ -139,15 +175,19 @@ export default function CatalogOrderImport({ order, onSaved }) {
     setMobileReading(true);
     setMessage('Leyendo la captura con IA…');
     try {
-      const imageDataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
-      const { data, error } = await supabase.functions.invoke('vehicle-image-reader', {
-        body: { imageDataUrl, plate: orderPlate || null },
-      });
+      setMessage('Preparando la captura para lectura…');
+      let imageDataUrl;
+      try {
+        imageDataUrl = await imageFileForVision(file);
+      } catch (conversionError) {
+        if (file.size > 4 * 1024 * 1024) throw conversionError;
+        imageDataUrl = await readFileAsDataUrl(file);
+      }
+      setMessage('Leyendo los datos del vehículo con IA…');
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke('vehicle-image-reader', { body: { imageDataUrl, plate: orderPlate || null } }),
+        45000
+      );
       if (error) throw error;
       const detected = data?.vehicle || {};
       const next = {
