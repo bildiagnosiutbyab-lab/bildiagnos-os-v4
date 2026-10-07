@@ -15,6 +15,7 @@ import {
 } from './commercialRepository.js';
 import { supabase } from './supabaseClient.js';
 import DeliveryNoteReader from './DeliveryNoteReader.jsx';
+import ProfitabilityPanel from './ProfitabilityPanel.jsx';
 import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -341,6 +342,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
+    <ProfitabilityPanel context={context} />
     <DeliveryNoteReader orderId={orderId} parts={context.parts} onSaved={async () => { await refresh(); await onSaved?.(); }} />
 
     <section className="commercial-card quote-card">
