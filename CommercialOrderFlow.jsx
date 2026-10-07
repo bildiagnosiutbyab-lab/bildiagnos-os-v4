@@ -14,6 +14,7 @@ import {
   updateCommercialService,
 } from './commercialRepository.js';
 import { supabase } from './supabaseClient.js';
+import DeliveryNoteReader from './DeliveryNoteReader.jsx';
 import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -339,6 +340,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <ul className="commercial-lines">{context.parts.filter((item) => !['rejected', 'removed'].includes(item.status)).map((item) => <PartLineEditor key={item.id} item={item} busy={busy} onSave={(draft) => run(() => updateCommercialPart(item.id, draft), 'Pieza actualizada.')} onDelete={() => window.confirm('Ta bort denna reservdel från arbetsordern? Den tas även bort från den aktuella offerten, men historiska dokument sparas.') && run(() => removeCommercialPart(item.id), 'Pieza eliminada.')} />)}</ul>
       </section>
     </div>
+
+    <DeliveryNoteReader orderId={orderId} parts={context.parts} onSaved={async () => { await refresh(); await onSaved?.(); }} />
 
     <section className="commercial-card quote-card">
       <h3>Kundoffert</h3>
