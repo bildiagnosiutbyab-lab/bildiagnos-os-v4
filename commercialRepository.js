@@ -584,3 +584,29 @@ export async function confirmSupplierDeliveryNote(workOrderId, note, lines, sour
   throwIfError(error);
   return data;
 }
+
+
+export async function loadDailyProfitability(day = new Date()) {
+  const localDay = typeof day === 'string'
+    ? day
+    : [day.getFullYear(), String(day.getMonth() + 1).padStart(2, '0'), String(day.getDate()).padStart(2, '0')].join('-');
+  const { data, error } = await supabase.rpc('daily_profitability', { p_day: localDay });
+  throwIfError(error);
+  const row = Array.isArray(data) ? data[0] : null;
+  const target = 4500;
+  const contribution = Number(row?.contribution || 0);
+  return {
+    day: localDay,
+    target,
+    laborSales: Number(row?.labor_sales || 0),
+    partsSales: Number(row?.parts_sales || 0),
+    verifiedPartsCost: Number(row?.verified_parts_cost || 0),
+    verifiedPartsSales: Number(row?.verified_parts_sales || 0),
+    unverifiedPartsSales: Number(row?.unverified_parts_sales || 0),
+    verifiedPartLines: Number(row?.verified_part_lines || 0),
+    unverifiedPartLines: Number(row?.unverified_part_lines || 0),
+    contribution,
+    remaining: Math.max(0, target - contribution),
+    progress: target > 0 ? contribution / target : 0,
+  };
+}
