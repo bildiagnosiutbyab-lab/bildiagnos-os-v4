@@ -202,6 +202,37 @@ export async function updateCommercialPart(id, input) {
   await refreshQuoteTotals(quoteLinks.editableIds);
 }
 
+export async function updateCommercialOrderVehicle({ workOrderId, vehicle }) {
+  if (!workOrderId) throw new Error('La orden aún no está guardada en Supabase');
+  if (!vehicle || !Object.values(vehicle).some((value) => value !== null && value !== undefined && String(value).trim() !== '')) {
+    throw new Error('No hay datos del vehículo para guardar.');
+  }
+  const current = await loadCommercialOrder(workOrderId);
+  const vehicleId = current.workOrder.vehicle_id;
+  if (!vehicleId) throw new Error('La orden no tiene un vehículo relacionado.');
+
+  const description = vehicle.description || [vehicle.make, vehicle.model, vehicle.modelYear].filter(Boolean).join(' ');
+  const patch = {
+    ...(vehicle.make ? { make: vehicle.make } : {}),
+    ...(vehicle.model ? { model: vehicle.model } : {}),
+    ...(vehicle.modelYear ? { model_year: Number(vehicle.modelYear) } : {}),
+    ...(vehicle.vin ? { vin: vehicle.vin } : {}),
+    ...(vehicle.engine ? { engine: vehicle.engine } : {}),
+    ...(vehicle.fuelType ? { fuel_type: vehicle.fuelType } : {}),
+    ...(description ? { raw_description: description } : {}),
+    updated_at: new Date().toISOString(),
+  };
+  const { error: vehicleError } = await supabase.from('vehicles').update(patch).eq('id', vehicleId);
+  throwIfError(vehicleError);
+  if (description) {
+    const { error: orderVehicleError } = await supabase.from('work_orders').update({
+      vehicle_snapshot: description,
+      updated_at: new Date().toISOString(),
+    }).eq('id', workOrderId);
+    throwIfError(orderVehicleError);
+  }
+}
+
 export async function importCatalogOrderItems({ workOrderId, source, plate, vehicle, parts, laborItems }) {
   const { data, error } = await supabase.rpc('import_catalog_order_items', {
     p_work_order_id: workOrderId, p_source: source, p_plate: plate || null,
@@ -210,27 +241,7 @@ export async function importCatalogOrderItems({ workOrderId, source, plate, vehi
   throwIfError(error);
 
   if (vehicle && Object.values(vehicle).some((value) => value !== null && value !== undefined && String(value).trim() !== '')) {
-    const current = await loadCommercialOrder(workOrderId);
-    const vehicleId = current.workOrder.vehicle_id;
-    if (vehicleId) {
-      const description = vehicle.description || [vehicle.make, vehicle.model, vehicle.modelYear].filter(Boolean).join(' ');
-      const patch = {
-        ...(vehicle.make ? { make: vehicle.make } : {}),
-        ...(vehicle.model ? { model: vehicle.model } : {}),
-        ...(vehicle.modelYear ? { model_year: Number(vehicle.modelYear) } : {}),
-        ...(vehicle.vin ? { vin: vehicle.vin } : {}),
-        ...(vehicle.engine ? { engine: vehicle.engine } : {}),
-        ...(vehicle.fuelType ? { fuel_type: vehicle.fuelType } : {}),
-        ...(description ? { raw_description: description } : {}),
-        updated_at: new Date().toISOString(),
-      };
-      const { error: vehicleError } = await supabase.from('vehicles').update(patch).eq('id', vehicleId);
-      throwIfError(vehicleError);
-      if (description) {
-        const { error: orderVehicleError } = await supabase.from('work_orders').update({ vehicle_snapshot: description, updated_at: new Date().toISOString() }).eq('id', workOrderId);
-        throwIfError(orderVehicleError);
-      }
-    }
+    await updateCommercialOrderVehicle({ workOrderId, vehicle });
   }
 
   // Keep an existing editable quote synchronized with the persisted import.
