@@ -537,7 +537,6 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-summary">
           {receiptInvoice && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
           {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
-          {invoicePreview.fortnox_test && Math.abs(Number(invoicePreview.total || 0) - printedSubtotal - printedVat) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Number(invoicePreview.total || 0) - printedSubtotal - printedVat)}</b></p>}
           <p className="invoice-pay"><span>Betalt</span><b>{money(receiptPayable)}</b></p>
         </div>
       </div>
@@ -584,6 +583,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <p><span>Summa exkl. moms</span><b>{money(invoicePreview.fortnox_test ? printedSubtotal : displayedSubtotal)}</b></p>
           <p><span>Moms 25%</span><b>{money(invoicePreview.fortnox_test ? printedVat : displayedVat)}</b></p>
           {!invoicePreview.fortnox_test && Math.abs(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal)) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal))}</b></p>}
+          {invoicePreview.fortnox_test && Math.abs(Number(invoicePreview.total || 0) - printedSubtotal - printedVat) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Number(invoicePreview.total || 0) - printedSubtotal - printedVat)}</b></p>}
           <p className="invoice-pay"><span>Att betala</span><b>{money(invoicePreview.fortnox_test ? Number(invoicePreview.total || displayedTotal) : Math.round(Number(invoicePreview.total || displayedTotal)))}</b></p>
         </div>
       </div>
