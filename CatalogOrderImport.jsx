@@ -183,7 +183,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
     setConfirmedBlankPlate(false);
     try {
       const combined = { plate: '', vehicle: {}, parts: [], laborItems: [] };
-      const partKeys = new Set(), laborKeys = new Set();
+      const partKeys = new Map(), laborKeys = new Map();
       let failed = 0;
       for (let index = 0; index < batch.length; index++) {
         const file = batch[index];
@@ -207,15 +207,25 @@ export default function CatalogOrderImport({ order, onSaved }) {
           for (const p of Array.isArray(data?.parts) ? data.parts : []) {
             const key = [String(p.articleNumber || '').trim().toLowerCase(), String(p.description || '').trim().toLowerCase(), String(p.quantity ?? 1)].join('|');
             if (!key.replace(/\\|/g, '')) continue;
-            if (partKeys.has(key)) continue;
-            partKeys.add(key);
+            if (partKeys.has(key)) {
+              const previous = combined.parts[partKeys.get(key)];
+              for (const field of ['cost', 'price', 'discount']) {
+                if ((previous[field] === null || previous[field] === undefined || previous[field] === '') && p[field] !== null && p[field] !== undefined && p[field] !== '') previous[field] = p[field];
+              }
+              continue;
+            }
+            partKeys.set(key, combined.parts.length);
             combined.parts.push({ articleNumber: String(p.articleNumber || ''), description: String(p.description || ''), quantity: p.quantity ?? 1, cost: p.cost ?? null, price: p.price ?? null, discount: p.discount ?? null, supplier: p.supplier || source });
           }
           for (const l of Array.isArray(data?.laborItems) ? data.laborItems : []) {
             const key = [String(l.code || '').trim().toLowerCase(), String(l.description || '').trim().toLowerCase(), String(l.hours ?? '')].join('|');
             if (!key.replace(/\\|/g, '')) continue;
-            if (laborKeys.has(key)) continue;
-            laborKeys.add(key);
+            if (laborKeys.has(key)) {
+              const previous = combined.laborItems[laborKeys.get(key)];
+              if (previous.hourlyRate == null && l.hourlyRate != null) previous.hourlyRate = l.hourlyRate;
+              continue;
+            }
+            laborKeys.set(key, combined.laborItems.length);
             combined.laborItems.push({ code: String(l.code || ''), description: String(l.description || ''), hours: l.hours ?? null, hourlyRate: l.hourlyRate ?? null });
           }
         } catch { failed++; }
@@ -288,4 +298,4 @@ export default function CatalogOrderImport({ order, onSaved }) {
       </div>}
     </div>{message && <p className={message.startsWith('No se') || message.includes('necesita') || message.includes('corresponde') ? 'catalog-import-error' : 'catalog-import-message'}>{message}</p>}{preview && <div className="catalog-preview"><h3>Previsualización obligatoria</h3><p>Puedes corregir o quitar líneas antes de guardar. Matrícula de la orden: <b>{orderPlate || '—'}</b> · Matrícula exportada: <b>{preview.plate || 'no incluida'}</b></p>{preview.vehicle && Object.values(preview.vehicle).some(Boolean) && <p><strong>Vehículo detectado automáticamente:</strong> {[preview.vehicle.make, preview.vehicle.model, preview.vehicle.modelYear, preview.vehicle.engine].filter(Boolean).join(' · ')}{preview.vehicle.vin ? ` · VIN ${preview.vehicle.vin}` : ''}</p>}{mismatch && <p className="catalog-import-error">La matrícula no coincide. No se puede guardar esta importación.</p>}{!preview.plate && <label className="catalog-confirm-plate"><input type="checkbox" checked={confirmedBlankPlate} onChange={(event) => setConfirmedBlankPlate(event.target.checked)} /> Confirmo que la exportación corresponde a la matrícula {orderPlate || 'de esta orden'}.</label>}{!!count.parts && <><h4>Piezas</h4><Table headers={['Artículo','Descripción','Cant.','Proveedor','Coste','Precio','Desc.','']} rows={preview.parts.map((item, index) => [<input value={item.articleNumber} onChange={(e) => updatePreview('parts', index, 'articleNumber', e.target.value)} />, <input value={item.description} onChange={(e) => updatePreview('parts', index, 'description', e.target.value)} />, <input type="number" min="0.001" step="0.001" value={item.quantity ?? ''} onChange={(e) => updatePreview('parts', index, 'quantity', e.target.value)} />, <input value={item.supplier} onChange={(e) => updatePreview('parts', index, 'supplier', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.cost ?? ''} onChange={(e) => updatePreview('parts', index, 'cost', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.price ?? ''} onChange={(e) => updatePreview('parts', index, 'price', e.target.value)} />, <input type="number" min="0" max="100" step="0.01" value={item.discount ?? ''} onChange={(e) => updatePreview('parts', index, 'discount', e.target.value)} />, <button type="button" className="catalog-remove-line" onClick={() => removePreview('parts', index)}>Quitar</button>])}/></>}{!!count.labor && <><h4>Trabajo</h4><Table headers={['Código','Descripción','Horas estimadas','Precio/h','']} rows={preview.laborItems.map((item, index) => [<input value={item.code} onChange={(e) => updatePreview('laborItems', index, 'code', e.target.value)} />, <input value={item.description} onChange={(e) => updatePreview('laborItems', index, 'description', e.target.value)} />, <input type="number" min="0" step="0.25" value={item.hours ?? ''} onChange={(e) => updatePreview('laborItems', index, 'hours', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.hourlyRate ?? ''} onChange={(e) => updatePreview('laborItems', index, 'hourlyRate', e.target.value)} />, <button type="button" className="catalog-remove-line" onClick={() => removePreview('laborItems', index)}>Quitar</button>])}/></>} {!previewValid && <p className="catalog-import-error">Revisa cantidades, precios, descuentos y horas antes de importar.</p>}<button type="button" className="catalog-confirm-button" disabled={!canConfirm || busy} onClick={confirmImport}>{busy ? 'Guardando…' : 'Confirmar e importar en esta orden'}</button></div>}</section>;
 }
-function Table({ headers, rows }) { return <div className="catalog-table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table></div>; }
+function Table({ headers, rows }) { return <div className="catalog-table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell} data-label={headers[cell]}>{value}</td>)}</tr>)}</tbody></table></div>; }
