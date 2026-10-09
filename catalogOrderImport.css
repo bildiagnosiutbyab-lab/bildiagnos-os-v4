@@ -59,3 +59,16 @@
  .catalog-preview table { font-size:.9rem; }
  .catalog-confirm-button { width:100%; min-height:48px; }
 }
+
+/* Mobile preview: each field stays visible, with its own label instead of a clipped wide table. */
+@media (max-width:700px) {
+ .catalog-preview, .catalog-table-wrap { min-width:0; max-width:100%; box-sizing:border-box; }
+ .catalog-preview table { display:block; width:100%; min-width:0; border:0; }
+ .catalog-preview thead { display:none; }
+ .catalog-preview tbody { display:grid; gap:.85rem; }
+ .catalog-preview tr { display:grid; grid-template-columns:minmax(0,1fr); gap:.55rem; padding:.85rem; border:1px solid #cbd5e1; border-radius:10px; background:#fff; min-width:0; }
+ .catalog-preview td { display:flex; flex-direction:column; align-items:stretch; gap:.25rem; padding:0; min-width:0; border:0; white-space:normal; }
+ .catalog-preview td::before { content:attr(data-label); font-weight:650; color:#334155; font-size:.85rem; }
+ .catalog-preview td input, .catalog-preview td:nth-child(2) input { width:100%; min-width:0; max-width:100%; min-height:44px; font-size:16px; }
+ .catalog-preview .catalog-remove-line { width:100%; min-height:44px; }
+}
