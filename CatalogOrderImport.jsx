@@ -101,6 +101,8 @@ function validatePreview(preview) {
 export default function CatalogOrderImport({ order, onSaved }) {
   const [source, setSource] = useState('AD Bildelar'); const [raw, setRaw] = useState(''); const [preview, setPreview] = useState(null); const [message, setMessage] = useState(''); const [confirmedBlankPlate, setConfirmedBlankPlate] = useState(false); const [busy, setBusy] = useState(false); const importingRef = useRef(false);
   const [mobileImage, setMobileImage] = useState(null);
+  const [mobileImages, setMobileImages] = useState([]);
+  const [imageBatch, setImageBatch] = useState(null);
   const [mobileVehicle, setMobileVehicle] = useState({ make:'', model:'', modelYear:'', vin:'', engine:'', fuelType:'', description:'' });
   const [mobileReading, setMobileReading] = useState(false);
   const [mobileSaving, setMobileSaving] = useState(false);
@@ -164,55 +166,82 @@ export default function CatalogOrderImport({ order, onSaved }) {
   const updatePreview = (group, index, field, value) => setPreview((current) => ({ ...current, [group]: current[group].map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
   const removePreview = (group, index) => setPreview((current) => ({ ...current, [group]: current[group].filter((_, itemIndex) => itemIndex !== index) }));
   const chooseMobileImage = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { setMessage('Selecciona una captura o foto.'); return; }
-    if (file.size > 10 * 1024 * 1024) { setMessage('La imagen es demasiado grande. Usa una captura de menos de 10 MB.'); return; }
-    if (mobileImage?.url) URL.revokeObjectURL(mobileImage.url);
-    const url = URL.createObjectURL(file);
-    setMobileImage({ file, url, name: file.name });
-    setMobileVehicle({ make:'', model:'', modelYear:'', vin:'', engine:'', fuelType:'', description:'' });
-    setMobileReading(true);
-    setMessage('Leyendo la captura con IA…');
-    try {
-      setMessage('Preparando la captura para lectura…');
-      let imageDataUrl;
-      try {
-        imageDataUrl = await imageFileForVision(file);
-      } catch (conversionError) {
-        if (file.size > 2 * 1024 * 1024) throw conversionError;
-        imageDataUrl = await readFileAsDataUrl(file);
-      }
-      setMessage('Leyendo los datos del vehículo con IA…');
-      const { data, error } = await withTimeout(
-        supabase.functions.invoke('vehicle-image-reader', { body: { imageDataUrl, plate: orderPlate || null } }),
-        45000
-      );
-      if (error) throw error;
-      const detected = data?.vehicle || {};
-      const foundParts = Array.isArray(data?.parts) ? data.parts : [];
-      const foundLabor = Array.isArray(data?.laborItems) ? data.laborItems : [];
-      if (foundParts.length || foundLabor.length) {
-        setPreview({ plate: String(data?.plate || '').trim(), vehicle: detected, parts: foundParts.map(p => ({ articleNumber: String(p.articleNumber || ''), description: String(p.description || ''), quantity: p.quantity ?? 1, cost: p.cost ?? null, price: p.price ?? null, discount: p.discount ?? null, supplier: p.supplier || source })), laborItems: foundLabor.map(l => ({ code: String(l.code || ''), description: String(l.description || ''), hours: l.hours ?? 0, hourlyRate: l.hourlyRate ?? null })) });
-        setConfirmedBlankPlate(false);
-      } else { setPreview(null); }
-      const next = {
-        make: String(detected.make || '').trim(),
-        model: String(detected.model || '').trim(),
-        modelYear: detected.modelYear ? String(detected.modelYear).trim() : '',
-        vin: String(detected.vin || '').trim().toUpperCase(),
-        engine: String(detected.engine || '').trim(),
-        fuelType: String(detected.fuelType || '').trim(),
-        description: String(detected.description || '').trim(),
-      };
-      setMobileVehicle(next);
-      setMessage(foundParts.length || foundLabor.length ? `Detectadas ${foundParts.length} piezas y ${foundLabor.length} trabajos. Revisa la previsualización antes de importar.` : Object.values(next).some(Boolean) ? 'Datos del vehículo detectados. Revisa antes de guardar.' : 'No se reconocieron piezas ni datos del vehículo. Prueba una captura donde se vea la lista de artículos.');
-    } catch (error) {
-      setMessage(error?.message || 'No se pudo leer automáticamente la captura. Puedes completar los datos manualmente.');
-    } finally {
-      setMobileReading(false);
-      event.target.value = '';
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (files.some(file => !file.type.startsWith('image/') || file.size > 10 * 1024 * 1024)) {
+      setMessage('Selecciona imágenes de menos de 10 MB cada una.'); return;
     }
+    const batch = [...(imageBatch || []), ...files];
+    setImageBatch(batch);
+    setMobileImages(current => {
+      current.forEach(item => URL.revokeObjectURL(item.url));
+      return batch.map(file => ({ name: file.name, url: URL.createObjectURL(file) }));
+    });
+    setMobileReading(true);
+    setPreview(null);
+    setConfirmedBlankPlate(false);
+    try {
+      const combined = { plate: '', vehicle: {}, parts: [], laborItems: [] };
+      const partKeys = new Set(), laborKeys = new Set();
+      let failed = 0;
+      for (let index = 0; index < batch.length; index++) {
+        const file = batch[index];
+        setMessage(`Leyendo captura ${index + 1} de ${batch.length}…`);
+        try {
+          let imageDataUrl;
+          try { imageDataUrl = await imageFileForVision(file); }
+          catch (conversionError) {
+            if (file.size > 2 * 1024 * 1024) throw conversionError;
+            imageDataUrl = await readFileAsDataUrl(file);
+          }
+          const { data, error } = await withTimeout(
+            supabase.functions.invoke('vehicle-image-reader', { body: { imageDataUrl, plate: orderPlate || null } }),
+            45000
+          );
+          if (error) throw error;
+          if (data?.plate && !combined.plate) combined.plate = String(data.plate).trim();
+          if (data?.vehicle) for (const [key, value] of Object.entries(data.vehicle)) {
+            if (value !== null && value !== undefined && value !== '' && !combined.vehicle[key]) combined.vehicle[key] = value;
+          }
+          for (const p of Array.isArray(data?.parts) ? data.parts : []) {
+            const key = [String(p.articleNumber || '').trim().toLowerCase(), String(p.description || '').trim().toLowerCase(), String(p.quantity ?? 1)].join('|');
+            if (!key.replace(/\\|/g, '')) continue;
+            if (partKeys.has(key)) continue;
+            partKeys.add(key);
+            combined.parts.push({ articleNumber: String(p.articleNumber || ''), description: String(p.description || ''), quantity: p.quantity ?? 1, cost: p.cost ?? null, price: p.price ?? null, discount: p.discount ?? null, supplier: p.supplier || source });
+          }
+          for (const l of Array.isArray(data?.laborItems) ? data.laborItems : []) {
+            const key = [String(l.code || '').trim().toLowerCase(), String(l.description || '').trim().toLowerCase(), String(l.hours ?? '')].join('|');
+            if (!key.replace(/\\|/g, '')) continue;
+            if (laborKeys.has(key)) continue;
+            laborKeys.add(key);
+            combined.laborItems.push({ code: String(l.code || ''), description: String(l.description || ''), hours: l.hours ?? null, hourlyRate: l.hourlyRate ?? null });
+          }
+        } catch { failed++; }
+      }
+      const vehicle = combined.vehicle;
+      setMobileVehicle({
+        make: String(vehicle.make || ''), model: String(vehicle.model || ''),
+        modelYear: vehicle.modelYear ? String(vehicle.modelYear) : '',
+        vin: String(vehicle.vin || '').toUpperCase(), engine: String(vehicle.engine || ''),
+        fuelType: String(vehicle.fuelType || ''), description: String(vehicle.description || '')
+      });
+      if (failed) {
+        setMessage(`No se pudieron leer ${failed} de ${batch.length} capturas. No importes todavía: vuelve a seleccionar las capturas o revisa qué falta.`);
+        return;
+      }
+      if (combined.parts.length || combined.laborItems.length) {
+        setPreview(combined);
+        setMessage(`Revisadas ${batch.length} capturas: ${combined.parts.length} piezas y ${combined.laborItems.length} trabajos, sin repetir líneas idénticas. Comprueba que no falte nada antes de importar.`);
+      } else setMessage('No se reconocieron piezas ni trabajos. Prueba capturas donde se vea la lista completa.');
+    } finally { setMobileReading(false); }
+  };
+  const clearMobileImages = () => {
+    mobileImages.forEach(item => URL.revokeObjectURL(item.url));
+    setMobileImages([]); setImageBatch(null); setMobileImage(null); setPreview(null);
+    setConfirmedBlankPlate(false);
+    setMessage('Capturas borradas. Puedes empezar una importación nueva.');
   };
   const applyMobileVehicle = async () => {
     const vehicle = Object.fromEntries(Object.entries(mobileVehicle).map(([key,value]) => [key, String(value || '').trim()]));
@@ -241,17 +270,22 @@ export default function CatalogOrderImport({ order, onSaved }) {
   return <section className="catalog-import"><header><div><p>Catálogos externos</p><h2>Importar piezas y trabajo</h2></div><span>Orden · {orderPlate || 'sin matrícula'}</span></header><p className="catalog-import-note">Los catálogos se abren fuera de Bildiagnos. No se hacen pedidos ni se guardan credenciales.</p><div className="catalog-import-actions">{Object.keys(CATALOGS).map((catalog) => <button type="button" key={catalog} className="catalog-open" onClick={() => openCatalog(catalog)}>Abrir {catalog}</button>)}<label>Importar desde<select value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); }}><option>AD Bildelar</option><option>BilXtra</option><option>ZEPRO</option></select></label></div><div className="catalog-return"><p>{source === 'AD Bildelar' ? 'En AD marca las piezas y pulsa Enviar selección a Bildiagnos. Después vuelve a esta orden.' : 'Cuando termines de seleccionar en el catálogo, usa su opción de copiar a Bildiagnos y vuelve aquí.'}</p><button type="button" className="catalog-preview-button" onClick={receiveCatalogSelection}>Recibir selección del catálogo</button></div>
     <div className="catalog-mobile-fallback">
       <strong>📷 Móvil: importar piezas desde captura</strong>
-      <p>Sube una captura de la lista de piezas de BilXtra o AD Bildelar. Revisa artículos, cantidades y precios antes de confirmar. También puede reconocer el vehículo.</p>
-      <label className="catalog-preview-button">{mobileReading ? 'Leyendo captura…' : 'Elegir captura / foto'}<input type="file" accept="image/*" onChange={chooseMobileImage} disabled={mobileReading || mobileSaving} style={{display:'none'}} /></label>
-      {mobileImage && <div className="catalog-mobile-preview"><img src={mobileImage.url} alt="Captura del catálogo" /><div className="catalog-mobile-fields">
-        <input placeholder="Marca" value={mobileVehicle.make} onChange={(e)=>setMobileVehicle({...mobileVehicle,make:e.target.value})}/>
-        <input placeholder="Modelo" value={mobileVehicle.model} onChange={(e)=>setMobileVehicle({...mobileVehicle,model:e.target.value})}/>
-        <input placeholder="Año" inputMode="numeric" value={mobileVehicle.modelYear} onChange={(e)=>setMobileVehicle({...mobileVehicle,modelYear:e.target.value})}/>
-        <input placeholder="VIN / chasis" value={mobileVehicle.vin} onChange={(e)=>setMobileVehicle({...mobileVehicle,vin:e.target.value})}/>
-        <input placeholder="Motor / código motor" value={mobileVehicle.engine} onChange={(e)=>setMobileVehicle({...mobileVehicle,engine:e.target.value})}/>
-        <input placeholder="Combustible" value={mobileVehicle.fuelType} onChange={(e)=>setMobileVehicle({...mobileVehicle,fuelType:e.target.value})}/>
-        <button type="button" className="catalog-preview-button" disabled={mobileReading || mobileSaving} onClick={applyMobileVehicle}>{mobileSaving ? 'Guardando…' : 'Usar estos datos en esta orden'}</button>
-      </div></div>}
+      <p>Selecciona varias capturas del mismo vehículo y catálogo. Puedes añadir más capturas antes de confirmar. No se guardará nada hasta que revises la vista previa.</p>
+      <label className="catalog-preview-button">{mobileReading ? 'Leyendo capturas…' : imageBatch?.length ? 'Añadir más capturas' : 'Elegir capturas / fotos'}<input type="file" accept="image/*" multiple onChange={chooseMobileImage} disabled={mobileReading || mobileSaving} style={{display:'none'}} /></label>
+      {!!mobileImages.length && <div className="catalog-mobile-preview">
+        <p>{mobileImages.length} capturas seleccionadas</p>
+        <div style={{display:'flex',gap:8,overflowX:'auto'}}>{mobileImages.map((item,index)=><img key={index} src={item.url} alt={`Captura ${index+1}`} style={{maxHeight:110,maxWidth:120,objectFit:'contain'}} />)}</div>
+        <button type="button" onClick={clearMobileImages} disabled={mobileReading || mobileSaving}>Borrar capturas y empezar de nuevo</button>
+        <div className="catalog-mobile-fields">
+          <input placeholder="Marca" value={mobileVehicle.make} onChange={(e)=>setMobileVehicle({...mobileVehicle,make:e.target.value})}/>
+          <input placeholder="Modelo" value={mobileVehicle.model} onChange={(e)=>setMobileVehicle({...mobileVehicle,model:e.target.value})}/>
+          <input placeholder="Año" inputMode="numeric" value={mobileVehicle.modelYear} onChange={(e)=>setMobileVehicle({...mobileVehicle,modelYear:e.target.value})}/>
+          <input placeholder="VIN / chasis" value={mobileVehicle.vin} onChange={(e)=>setMobileVehicle({...mobileVehicle,vin:e.target.value})}/>
+          <input placeholder="Motor / código motor" value={mobileVehicle.engine} onChange={(e)=>setMobileVehicle({...mobileVehicle,engine:e.target.value})}/>
+          <input placeholder="Combustible" value={mobileVehicle.fuelType} onChange={(e)=>setMobileVehicle({...mobileVehicle,fuelType:e.target.value})}/>
+          <button type="button" className="catalog-preview-button" disabled={mobileReading || mobileSaving} onClick={applyMobileVehicle}>{mobileSaving ? 'Guardando…' : 'Usar estos datos en esta orden'}</button>
+        </div>
+      </div>}
     </div>{message && <p className={message.startsWith('No se') || message.includes('necesita') || message.includes('corresponde') ? 'catalog-import-error' : 'catalog-import-message'}>{message}</p>}{preview && <div className="catalog-preview"><h3>Previsualización obligatoria</h3><p>Puedes corregir o quitar líneas antes de guardar. Matrícula de la orden: <b>{orderPlate || '—'}</b> · Matrícula exportada: <b>{preview.plate || 'no incluida'}</b></p>{preview.vehicle && Object.values(preview.vehicle).some(Boolean) && <p><strong>Vehículo detectado automáticamente:</strong> {[preview.vehicle.make, preview.vehicle.model, preview.vehicle.modelYear, preview.vehicle.engine].filter(Boolean).join(' · ')}{preview.vehicle.vin ? ` · VIN ${preview.vehicle.vin}` : ''}</p>}{mismatch && <p className="catalog-import-error">La matrícula no coincide. No se puede guardar esta importación.</p>}{!preview.plate && <label className="catalog-confirm-plate"><input type="checkbox" checked={confirmedBlankPlate} onChange={(event) => setConfirmedBlankPlate(event.target.checked)} /> Confirmo que la exportación corresponde a la matrícula {orderPlate || 'de esta orden'}.</label>}{!!count.parts && <><h4>Piezas</h4><Table headers={['Artículo','Descripción','Cant.','Proveedor','Coste','Precio','Desc.','']} rows={preview.parts.map((item, index) => [<input value={item.articleNumber} onChange={(e) => updatePreview('parts', index, 'articleNumber', e.target.value)} />, <input value={item.description} onChange={(e) => updatePreview('parts', index, 'description', e.target.value)} />, <input type="number" min="0.001" step="0.001" value={item.quantity ?? ''} onChange={(e) => updatePreview('parts', index, 'quantity', e.target.value)} />, <input value={item.supplier} onChange={(e) => updatePreview('parts', index, 'supplier', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.cost ?? ''} onChange={(e) => updatePreview('parts', index, 'cost', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.price ?? ''} onChange={(e) => updatePreview('parts', index, 'price', e.target.value)} />, <input type="number" min="0" max="100" step="0.01" value={item.discount ?? ''} onChange={(e) => updatePreview('parts', index, 'discount', e.target.value)} />, <button type="button" className="catalog-remove-line" onClick={() => removePreview('parts', index)}>Quitar</button>])}/></>}{!!count.labor && <><h4>Trabajo</h4><Table headers={['Código','Descripción','Horas estimadas','Precio/h','']} rows={preview.laborItems.map((item, index) => [<input value={item.code} onChange={(e) => updatePreview('laborItems', index, 'code', e.target.value)} />, <input value={item.description} onChange={(e) => updatePreview('laborItems', index, 'description', e.target.value)} />, <input type="number" min="0" step="0.25" value={item.hours ?? ''} onChange={(e) => updatePreview('laborItems', index, 'hours', e.target.value)} />, <input type="number" min="0" step="0.01" value={item.hourlyRate ?? ''} onChange={(e) => updatePreview('laborItems', index, 'hourlyRate', e.target.value)} />, <button type="button" className="catalog-remove-line" onClick={() => removePreview('laborItems', index)}>Quitar</button>])}/></>} {!previewValid && <p className="catalog-import-error">Revisa cantidades, precios, descuentos y horas antes de importar.</p>}<button type="button" className="catalog-confirm-button" disabled={!canConfirm || busy} onClick={confirmImport}>{busy ? 'Guardando…' : 'Confirmar e importar en esta orden'}</button></div>}</section>;
 }
 function Table({ headers, rows }) { return <div className="catalog-table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table></div>; }
