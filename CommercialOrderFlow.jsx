@@ -288,9 +288,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const testPrintMismatch = Boolean(invoicePreview.fortnox_test && Math.abs(Math.round(printedSubtotal + printedVat) - Number(invoicePreview.total || 0)) > 0.01);
   const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
   const receiptLines = receiptInvoice?.fortnox_test ? [...testServiceLines, ...testPartLines] : receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
-  const receiptSubtotal = receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
-  const receiptVat = receiptInvoice ? Number(receiptInvoice.vat_total || 0) : 0;
-  const receiptAccountingTotal = receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
+  // Fortnox Test returns the final total but not subtotal/VAT; derive them from the
+  // same order rows used for the invoice, including the 25% VAT and ore rounding.
+  const receiptSubtotal = receiptInvoice?.fortnox_test ? receiptLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0) : receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
+  const receiptVat = receiptInvoice?.fortnox_test ? Math.round(receiptSubtotal * 25) / 100 : receiptInvoice ? Number(receiptInvoice.vat_total || 0) : 0;
+  const receiptAccountingTotal = receiptInvoice?.fortnox_test ? receiptSubtotal + receiptVat : receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
   const receiptPayable = Number(lastReceipt?.payment?.amount || Math.round(receiptAccountingTotal));
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
@@ -528,7 +530,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <span><small>Mätarställning</small><b>{lastReceipt.order.mileage ? `${lastReceipt.order.mileage} km` : '—'}</b></span>
         <span><small>VIN</small><b>{vehicle.vin || '—'}</b></span>
       </div>
-      {receiptLines.length > 0 && <div className="print-section"><h2>Betalda varor och tjänster</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody>{receiptLines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{Number(line.quantity || 0).toLocaleString('sv-SE',{maximumFractionDigits:2})}</td><td>{money(line.unit_price)}</td><td>{money(Number(line.quantity || 0) * Number(line.unit_price || 0))}</td></tr>)}</tbody></table></div>}
+      {receiptLines.length > 0 && <div className="print-section"><h2>{lastReceipt.payment.preview ? 'Varor och tjänster (ej betalda)' : 'Betalda varor och tjänster'}</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody>{receiptLines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.item_type === 'service' ? `${Number(line.quantity || 0).toLocaleString('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2})} h` : Number(line.quantity || 0).toLocaleString('sv-SE',{maximumFractionDigits:2})}</td><td>{line.item_type === 'service' ? '—' : money(line.unit_price)}</td><td>{money(Number(line.quantity || 0) * Number(line.unit_price || 0))}</td></tr>)}</tbody></table></div>}
       <div className="receipt-bottom">
         <div className="receipt-payment">
           <p><strong>Betalsätt:</strong> {lastReceipt.payment.method}</p>
@@ -538,7 +540,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-summary">
           {receiptInvoice && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
           {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
-          <p className="invoice-pay"><span>Betalt</span><b>{money(receiptPayable)}</b></p>
+          <p className="invoice-pay"><span>{lastReceipt.payment.preview ? 'Att betala (förhandsvisning)' : 'Betalt'}</span><b>{money(receiptPayable)}</b></p>
         </div>
       </div>
       <p className="receipt-thanks">Tack för ditt besök!</p>
