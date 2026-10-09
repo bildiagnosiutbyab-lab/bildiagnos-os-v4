@@ -190,6 +190,12 @@ export default function CatalogOrderImport({ order, onSaved }) {
       );
       if (error) throw error;
       const detected = data?.vehicle || {};
+      const foundParts = Array.isArray(data?.parts) ? data.parts : [];
+      const foundLabor = Array.isArray(data?.laborItems) ? data.laborItems : [];
+      if (foundParts.length || foundLabor.length) {
+        setPreview({ plate: String(data?.plate || '').trim(), vehicle: detected, parts: foundParts.map(p => ({ articleNumber: String(p.articleNumber || ''), description: String(p.description || ''), quantity: p.quantity ?? 1, cost: p.cost ?? null, price: p.price ?? null, discount: p.discount ?? null, supplier: p.supplier || source })), laborItems: foundLabor.map(l => ({ code: String(l.code || ''), description: String(l.description || ''), hours: l.hours ?? 0, hourlyRate: l.hourlyRate ?? null })) });
+        setConfirmedBlankPlate(false);
+      } else { setPreview(null); }
       const next = {
         make: String(detected.make || '').trim(),
         model: String(detected.model || '').trim(),
@@ -200,9 +206,7 @@ export default function CatalogOrderImport({ order, onSaved }) {
         description: String(detected.description || '').trim(),
       };
       setMobileVehicle(next);
-      setMessage(Object.values(next).some(Boolean)
-        ? 'Datos detectados con IA. Revísalos y pulsa “Usar estos datos en esta orden” para guardarlos.'
-        : 'La IA no encontró datos claros del vehículo. Puedes completarlos manualmente antes de confirmar.');
+      setMessage(foundParts.length || foundLabor.length ? `Detectadas ${foundParts.length} piezas y ${foundLabor.length} trabajos. Revisa la previsualización antes de importar.` : Object.values(next).some(Boolean) ? 'Datos del vehículo detectados. Revisa antes de guardar.' : 'No se reconocieron piezas ni datos del vehículo. Prueba una captura donde se vea la lista de artículos.');
     } catch (error) {
       setMessage(error?.message || 'No se pudo leer automáticamente la captura. Puedes completar los datos manualmente.');
     } finally {
@@ -236,8 +240,8 @@ export default function CatalogOrderImport({ order, onSaved }) {
   if (!order.relationalId) return null;
   return <section className="catalog-import"><header><div><p>Catálogos externos</p><h2>Importar piezas y trabajo</h2></div><span>Orden · {orderPlate || 'sin matrícula'}</span></header><p className="catalog-import-note">Los catálogos se abren fuera de Bildiagnos. No se hacen pedidos ni se guardan credenciales.</p><div className="catalog-import-actions">{Object.keys(CATALOGS).map((catalog) => <button type="button" key={catalog} className="catalog-open" onClick={() => openCatalog(catalog)}>Abrir {catalog}</button>)}<label>Importar desde<select value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); }}><option>AD Bildelar</option><option>BilXtra</option><option>ZEPRO</option></select></label></div><div className="catalog-return"><p>{source === 'AD Bildelar' ? 'En AD marca las piezas y pulsa Enviar selección a Bildiagnos. Después vuelve a esta orden.' : 'Cuando termines de seleccionar en el catálogo, usa su opción de copiar a Bildiagnos y vuelve aquí.'}</p><button type="button" className="catalog-preview-button" onClick={receiveCatalogSelection}>Recibir selección del catálogo</button></div>
     <div className="catalog-mobile-fallback">
-      <strong>📷 Móvil: captura / foto</strong>
-      <p>Si el catálogo no envía los datos del vehículo, carga una captura. La IA rellenará la ficha, pero no se guardará nada hasta que confirmes.</p>
+      <strong>📷 Móvil: importar piezas desde captura</strong>
+      <p>Sube una captura de la lista de piezas de BilXtra o AD Bildelar. Revisa artículos, cantidades y precios antes de confirmar. También puede reconocer el vehículo.</p>
       <label className="catalog-preview-button">{mobileReading ? 'Leyendo captura…' : 'Elegir captura / foto'}<input type="file" accept="image/*" onChange={chooseMobileImage} disabled={mobileReading || mobileSaving} style={{display:'none'}} /></label>
       {mobileImage && <div className="catalog-mobile-preview"><img src={mobileImage.url} alt="Captura del catálogo" /><div className="catalog-mobile-fields">
         <input placeholder="Marca" value={mobileVehicle.make} onChange={(e)=>setMobileVehicle({...mobileVehicle,make:e.target.value})}/>
