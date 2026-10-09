@@ -17,7 +17,7 @@ export default function ProfitabilityPanel({ context }) {
   const order = useMemo(() => {
     const services = (context?.services || []).filter(x => !['rejected','removed'].includes(x.status));
     const parts = (context?.parts || []).filter(x => !['rejected','removed'].includes(x.status));
-    const labor = services.reduce((s,x)=>s + Number(x.quantity || 1) * Number(x.unit_price || 0),0);
+    const labor = services.reduce((sum, item) => sum + (Number(item.estimated_minutes || 0) / 60) * Number(item.unit_price || 0), 0);
     const partsSales = parts.reduce((s,x)=>s + Number(x.quantity || 1) * Number(x.sale_price || 0),0);
     const verified = parts.filter(x=>x.actual_cost !== null && x.actual_cost !== undefined);
     const cost = verified.reduce((s,x)=>s + Number(x.quantity || 1) * Number(x.actual_cost || 0),0);
