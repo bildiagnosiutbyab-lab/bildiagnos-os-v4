@@ -276,6 +276,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     total: displayedTotal,
     reference: invoiceForm.reference || String(context?.workOrder?.order_number || ''),
   };
+  // Fortnox sandbox prints the actual order lines, never the old 100 kr placeholder.
+  const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.estimated_minutes || 0) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: Number(item.estimated_minutes || 0) / 60, unit_price: Number(item.unit_price || 0) }));
+  const testPartLines = (context?.parts || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.quantity || 0) > 0).map((item) => ({ id: item.id, item_type: 'part', description: item.description_snapshot, quantity: Number(item.quantity || 0), unit_price: Number(item.sale_price || 0) }));
+  const printedServiceLines = invoicePreview.fortnox_test ? testServiceLines : serviceLines;
+  const printedPartLines = invoicePreview.fortnox_test ? testPartLines : partLines;
+  const printedWork = printedServiceLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
+  const printedParts = printedPartLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
+  const printedSubtotal = printedWork + printedParts;
+  const printedVat = Math.round(printedSubtotal * 25) / 100;
+  const testPrintMismatch = Boolean(invoicePreview.fortnox_test && Math.abs(Math.round(printedSubtotal + printedVat) - Number(invoicePreview.total || 0)) > 0.01);
   const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
   const receiptLines = receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
   const receiptSubtotal = receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
@@ -556,10 +566,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <span><small>Mätarställning</small><b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
         <span><small>Chassinummer</small><b>{vehicle.vin || '—'}</b></span>
       </div>}
-      {invoicePreview.fortnox_test ? <div className="print-section"><h2>Utfört arbete / Artiklar</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody><tr><td>Testfaktura - Bildiagnos OS</td><td>1,00</td><td>100,00</td><td>100,00</td></tr></tbody></table></div> : <>
-        <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={serviceLines} language="sv" kind="service" showPrice /></div>
-        <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={partLines} language="sv" kind="part" showPrice /></div>
-      </>}
+      <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice /></div>
+      <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={printedPartLines} language="sv" kind="part" showPrice /></div>
+      {testPrintMismatch && <p style={{ color: '#b00020', fontWeight: 'bold' }}>FEL: Fakturans rader stämmer inte med Fortnox total. Kontrollera originalfakturan. ANVÄND INTE DETTA DOKUMENT.</p>}
       <div className="invoice-bottom">
         <div className="invoice-payment-box">
           <p><strong>Ange OCR-nr vid betalning:</strong> {invoicePreview.ocr || invoicePreview.ocr_number || '—'}</p>
@@ -569,10 +578,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         </div>
         <div className="invoice-summary">
           <h2>Summering:</h2>
-          <p><span>Arbete</span><b>{invoicePreview.fortnox_test ? '100,00 kr' : money(serviceLines.reduce((s,l)=>s+Number(l.quantity||0)*Number(l.unit_price||0),0))}</b></p>
-          <p><span>Material</span><b>{invoicePreview.fortnox_test ? '0,00 kr' : money(partLines.reduce((s,l)=>s+Number(l.quantity||0)*Number(l.unit_price||0),0))}</b></p>
-          <p><span>Summa exkl. moms</span><b>{invoicePreview.fortnox_test ? '100,00 kr' : money(displayedSubtotal)}</b></p>
-          <p><span>Moms 25%</span><b>{invoicePreview.fortnox_test ? '25,00 kr' : money(displayedVat)}</b></p>
+          <p><span>Arbete</span><b>{money(printedWork)}</b></p>
+          <p><span>Material</span><b>{money(printedParts)}</b></p>
+          <p><span>Summa exkl. moms</span><b>{money(invoicePreview.fortnox_test ? printedSubtotal : displayedSubtotal)}</b></p>
+          <p><span>Moms 25%</span><b>{money(invoicePreview.fortnox_test ? printedVat : displayedVat)}</b></p>
           {!invoicePreview.fortnox_test && Math.abs(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal)) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal))}</b></p>}
           <p className="invoice-pay"><span>Att betala</span><b>{money(invoicePreview.fortnox_test ? Number(invoicePreview.total || displayedTotal) : Math.round(Number(invoicePreview.total || displayedTotal)))}</b></p>
         </div>
