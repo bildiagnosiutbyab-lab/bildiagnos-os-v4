@@ -287,7 +287,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const printedVat = Math.round(printedSubtotal * 25) / 100;
   const testPrintMismatch = Boolean(invoicePreview.fortnox_test && Math.abs(Math.round(printedSubtotal + printedVat) - Number(invoicePreview.total || 0)) > 0.01);
   const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
-  const receiptLines = receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
+  const receiptLines = receiptInvoice?.fortnox_test ? [...testServiceLines, ...testPartLines] : receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
   const receiptSubtotal = receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
   const receiptVat = receiptInvoice ? Number(receiptInvoice.vat_total || 0) : 0;
   const receiptAccountingTotal = receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
@@ -384,21 +384,22 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     <div className="commercial-grid">
       <section className="commercial-card">
         <h3>Betalning och kvitto</h3>
-        {invoice && <button type="button" className="secondary-button" onClick={() => {
+        {(invoice || (fortnoxInvoiceTest.result?.invoiceNumber && lastInvoice?.fortnox_test)) && <button type="button" className="secondary-button" onClick={() => {
+          const previewInvoice = invoice || lastInvoice;
           const previewPayment = {
             id: 'preview',
-            invoice_id: invoice.id,
+            invoice_id: previewInvoice.id || null,
             method: paymentForm.method || 'Swish',
-            amount: Math.round(Number(invoice.total || 0)),
+            amount: Math.round(Number(previewInvoice.total || 0)),
             status: 'preview',
             receipt_reference: 'FÖRHANDSVISNING',
-            external_reference: paymentForm.reference || invoice.invoice_number || '',
+            external_reference: paymentForm.reference || previewInvoice.invoice_number || '',
             accepted_at: new Date().toISOString(),
             preview: true,
           };
-          setLastReceipt({ payment: previewPayment, order: workOrder, invoice });
+          setLastReceipt({ payment: previewPayment, order: workOrder, invoice: previewInvoice });
           window.setTimeout(() => printDocument('receipt'), 0);
-        }}>Vista previa Kvitto</button>}
+        }}>Vista previa Kvitto {(!invoice && lastInvoice?.fortnox_test) ? '(Fortnox Test)' : ''}</button>}
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Belopp" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
@@ -509,7 +510,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-brand"><strong>BILDIAGNOS</strong><span>I UTBY AB</span></div>
         <div className="receipt-title"><h1>KVITTO</h1><b>{lastReceipt.payment.receipt_reference || '—'}</b></div>
       </div>
-      {lastReceipt.payment.preview && <div className="receipt-preview-badge">FÖRHANDSVISNING · EJ REGISTRERAD BETALNING</div>}
+      {lastReceipt.payment.preview && <div className="receipt-preview-badge">{lastReceipt.invoice?.fortnox_test ? 'FORTNOX TEST · ' : ''}FÖRHANDSVISNING · EJ REGISTRERAD BETALNING</div>}
       <div className="receipt-meta">
         <p><small>Datum</small><br/><b>{date(lastReceipt.payment.accepted_at)}</b></p>
         <p><small>Ordernr</small><br/><b>{lastReceipt.order.order_number || '—'}</b></p>
