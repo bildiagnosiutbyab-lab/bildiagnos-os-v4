@@ -537,6 +537,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-summary">
           {receiptInvoice && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
           {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
+          {invoicePreview.fortnox_test && Math.abs(Number(invoicePreview.total || 0) - printedSubtotal - printedVat) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Number(invoicePreview.total || 0) - printedSubtotal - printedVat)}</b></p>}
           <p className="invoice-pay"><span>Betalt</span><b>{money(receiptPayable)}</b></p>
         </div>
       </div>
