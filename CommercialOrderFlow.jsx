@@ -43,19 +43,19 @@ function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
 function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
-function DocumentLinesTable({ lines, language, kind, showPrice }) {
+function DocumentLinesTable({ lines, language, kind, showPrice, hideHourlyRate = false }) {
   if (!lines.length) return <p className="print-empty">{language === 'es' ? 'Inga rader registrerade.' : 'Inga rader registrerade.'}</p>;
   const isSpanish = language === 'es';
   return <table className="print-lines">
     <thead><tr>
       <th>{isSpanish ? 'Beskrivning' : 'Beskrivning'}</th>
       <th>{kind === 'service' ? (isSpanish ? 'Horas' : 'Timmar') : (isSpanish ? 'Cant.' : 'Antal')}</th>
-      {showPrice && <><th>{kind === 'service' ? (isSpanish ? 'Precio/h' : 'Pris/h') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th><th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
+      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <th>{kind === 'service' ? (isSpanish ? 'Precio/h' : 'Pris/h') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th>}<th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
     </tr></thead>
     <tbody>{lines.map((line) => <tr key={line.id}>
       <td>{line.description}</td>
       <td>{quoteQuantity(line)}</td>
-      {showPrice && <><td>{Number(line.unit_price) > 0 ? money(line.unit_price) : '—'}</td><td>{Number(line.unit_price) > 0 ? money(Number(line.quantity) * Number(line.unit_price)) : '—'}</td></>}
+      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <td>{Number(line.unit_price) > 0 ? money(line.unit_price) : '—'}</td>}<td>{Number(line.unit_price) > 0 ? money(Number(line.quantity) * Number(line.unit_price)) : '—'}</td></>}
     </tr>)}</tbody>
   </table>;
 }
@@ -566,7 +566,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <span><small>Mätarställning</small><b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
         <span><small>Chassinummer</small><b>{vehicle.vin || '—'}</b></span>
       </div>}
-      <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice /></div>
+      <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice hideHourlyRate /></div>
       <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={printedPartLines} language="sv" kind="part" showPrice /></div>
       {testPrintMismatch && <p style={{ color: '#b00020', fontWeight: 'bold' }}>FEL: Fakturans rader stämmer inte med Fortnox total. Kontrollera originalfakturan. ANVÄND INTE DETTA DOKUMENT.</p>}
       <div className="invoice-bottom">
