@@ -305,3 +305,21 @@
   align-items:center;
   margin-top:8px;
 }
+
+/* Keep the payable amount together on one line in printed receipt previews. */
+@media print {
+  .receipt-print .invoice-summary .invoice-pay {
+    display:flex !important;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .receipt-print .invoice-summary .invoice-pay > span { flex:1 1 auto; min-width:0; }
+  .receipt-print .invoice-summary .invoice-pay > b {
+    flex:0 0 auto;
+    white-space:nowrap !important;
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+    font-size:15px;
+  }
+}
