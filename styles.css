@@ -349,3 +349,19 @@ button { font: inherit; }
 }
 
 .finance-card{display:grid;gap:16px;margin-top:20px}.finance-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}.finance-heading h2,.finance-heading p,.finance-note{margin:0}.finance-heading p,.finance-note{color:#64748b}.finance-heading>strong{font-size:28px}.goal-track{height:18px;border-radius:999px;background:#e2e8f0;overflow:hidden}.goal-fill{height:100%;background:#0f6cbd;border-radius:inherit;transition:width .25s ease}.finance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.finance-grid>div{display:grid;gap:5px;padding:12px;border:1px solid #e2e8f0;border-radius:10px}.finance-grid small{color:#64748b}.finance-grid b{font-size:18px}.finance-note{font-size:13px}@media(max-width:700px){.finance-grid{grid-template-columns:1fr 1fr}}@media(max-width:460px){.finance-grid{grid-template-columns:1fr}}
+
+/* Keep the iPhone standalone app at the device viewport width. */
+html,body,#root{width:100%;max-width:100%;overflow-x:clip}
+.app-shell{min-width:0;grid-template-columns:250px minmax(0,1fr)}
+.main-content,.orders-list,.order-card,.order-detail,.card{min-width:0;max-width:100%}
+.order-card p,.order-card h2,.order-detail p,.order-detail h2{overflow-wrap:anywhere}
+@media(max-width:850px){
+ .app-shell{display:block;width:100%;max-width:100%}
+ .sidebar{width:100%;max-width:100%;overflow:hidden}
+ .nav{display:flex;flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;gap:8px;margin-top:0}
+ .nav-item{flex:0 0 auto;min-width:0;white-space:nowrap}
+ .main-content{width:100%;max-width:100%;padding:16px}
+ .page-header{min-width:0}
+ .segmented{max-width:100%;overflow-x:auto}
+}
+@media(max-width:520px){.card{padding:16px}.page-header h1{font-size:26px}}
