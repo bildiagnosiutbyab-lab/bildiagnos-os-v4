@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
+import OrderFees from './OrderFees.jsx';
 import {
   loadRelationalOrders,
   saveRelationalOrder,
@@ -478,6 +479,8 @@ export default function WorkOrders() {
 
               </section>
               )}
+
+          <OrderFees key={selectedOrder.id} order={selectedOrder} />
 
           <p>
             <strong>Vehículo:</strong>{' '}
