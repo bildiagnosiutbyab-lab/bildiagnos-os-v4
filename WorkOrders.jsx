@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
-import OrderFees from './OrderFees.jsx';
 import {
   controlOrderTimer,
   deleteRelationalOrder,
@@ -467,7 +466,6 @@ export default function WorkOrders() {
             </p>
           )}
 
-          <OrderFees order={selectedOrder} />
           <CatalogOrderImport order={selectedOrder} onSaved={async () => {
             const latest = await loadRelationalOrders();
             setOrders(latest);
