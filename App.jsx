@@ -9,6 +9,7 @@ import Parts from './Parts.jsx';
 import Calendar from './Calendar.jsx';
 import AuthGate from './AuthGate.jsx';
 import Lager from './Lager.jsx';
+import WorkshopTimer from './WorkshopTimer.jsx';
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
@@ -43,6 +44,7 @@ export default function App() {
           {page === 'vehicles' && <Vehicles />}
           {page === 'parts' && <Parts />}
           {page === 'lager' && <Lager />}
+          {page === 'workshop' && <WorkshopTimer language={language} />}
           {page === 'calendar' && <Calendar />}
         </main>
       </div>
