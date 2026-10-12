@@ -56,3 +56,5 @@ jobs:
         uses: actions/deploy-pages@v4
 
 # redeploy commercial preview after legacy overwrite
+
+# Restore working preview publication without touching stored orders.
