@@ -6,7 +6,6 @@ import Customers from './Customers.jsx';
 import Vehicles from './Vehicles.jsx';
 import Parts from './Parts.jsx';
 import AuthGate from './AuthGate.jsx';
-import WorkshopCalendar from './WorkshopCalendar.jsx';
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
@@ -22,7 +21,6 @@ export default function App() {
           )}
 
           {page === 'orders' && <WorkOrders />}
-          {page === 'calendar' && <WorkshopCalendar />}
           {page === 'customers' && <Customers />}
           {page === 'vehicles' && <Vehicles />}
           {page === 'parts' && <Parts />}
