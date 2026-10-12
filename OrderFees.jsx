@@ -10,7 +10,7 @@ const money = value => number(value).toLocaleString('sv-SE', { style: 'currency'
 
 export default function OrderFees({ order }) {
   const key = 'bildiagnos-order-fees-' + String(order.id);
-  const [fees, setFees] = useState({ environmental: '', consumables: '', oilLiters: '' });
+  const [fees, setFees] = useState({ environmental: '', consumables: 32, oilLiters: '' });
   const [revision, setRevision] = useState(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -21,7 +21,7 @@ export default function OrderFees({ order }) {
       .then(({ data, error }) => {
         if (!active) return;
         if (error) throw error;
-        setFees({ environmental: data?.value?.environmental ?? '', consumables: data?.value?.consumables ?? '', oilLiters: data?.value?.oilLiters ?? '' });
+        setFees({ environmental: data?.value?.environmental ?? '', consumables: data?.value?.consumables ?? 32, oilLiters: data?.value?.oilLiters ?? '' });
         setRevision(data?.updated_at ?? null);
         setMessage('');
       })
