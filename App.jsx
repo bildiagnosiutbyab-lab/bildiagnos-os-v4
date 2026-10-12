@@ -6,7 +6,7 @@ import WorkOrders from './WorkOrders.jsx';
 import Customers from './Customers.jsx';
 import Vehicles from './Vehicles.jsx';
 import Parts from './Parts.jsx';
-import Calendar from './Calendar.jsx';
+import WorkshopCalendar from './WorkshopCalendar.jsx';
 import AuthGate from './AuthGate.jsx';
 import Lager from './Lager.jsx';
 import WorkshopTimer from './WorkshopTimer.jsx';
@@ -45,7 +45,7 @@ export default function App() {
           {page === 'parts' && <Parts />}
           {page === 'lager' && <Lager />}
           {page === 'workshop' && <WorkshopTimer language={language} />}
-          {page === 'calendar' && <Calendar />}
+          {page === 'calendar' && <WorkshopCalendar language={language} onOpenOrders={() => setPage('orders')} />}
         </main>
       </div>
     </AuthGate>
