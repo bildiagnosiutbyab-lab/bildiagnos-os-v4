@@ -365,3 +365,5 @@ html,body,#root{width:100%;max-width:100%;overflow-x:clip}
  .segmented{max-width:100%;overflow-x:auto}
 }
 @media(max-width:520px){.card{padding:16px}.page-header h1{font-size:26px}}
+
+.workshop-timer{display:grid;gap:14px;max-width:760px}.workshop-timer h1,.workshop-timer h2,.workshop-timer p{margin:0}.workshop-timer label{display:grid;gap:7px;font-weight:700}.workshop-timer select,.workshop-timer input{font:inherit;width:100%;min-width:0;padding:12px;border:1px solid #cbd5e1;border-radius:9px}.workshop-clock{font-size:clamp(32px,8vw,58px);font-weight:800;font-variant-numeric:tabular-nums}.workshop-timer .primary-button{justify-self:start}.workshop-history{display:grid;gap:10px}.workshop-history>div{padding:12px;border:1px solid #e2e8f0;border-radius:9px}.workshop-history small{display:block;margin-top:4px;color:#64748b}
