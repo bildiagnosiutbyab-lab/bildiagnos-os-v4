@@ -27,6 +27,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: preview-site
+      - name: Checkout isolated calendar test
+        uses: actions/checkout@v4
+        with:
+          ref: feature/workshop-calendar-safe-20261012
+          path: calendar-test-site
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -34,15 +39,19 @@ jobs:
           cache-dependency-path: |
             public-site/package-lock.json
             preview-site/package-lock.json
+            calendar-test-site/package-lock.json
       - run: npm ci --prefix public-site
       - run: npm run build --prefix public-site
       - run: npm ci --prefix preview-site
       - run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build --prefix preview-site
+      - run: npm ci --prefix calendar-test-site
+      - run: VITE_BASE=/bildiagnos-os-v4/calendar-test/ npm run build --prefix calendar-test-site
       - name: Assemble public site and preview
         run: |
-          mkdir -p site/commercial-preview
+          mkdir -p site/commercial-preview site/calendar-test
           cp -R public-site/dist/. site/
           cp -R preview-site/dist/. site/commercial-preview/
+          cp -R calendar-test-site/dist/. site/calendar-test/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
