@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ExternalLink, Link2, Plus, RefreshCw, RotateCw } from 'lucide-react';
 import PageHeader from './PageHeader.jsx';
 import { supabase } from './supabaseClient.js';
@@ -50,6 +50,9 @@ export default function Calendar() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [selectedDay, setSelectedDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [draftLane, setDraftLane] = useState('ranulfo-1');
+  const dragRef = useRef(null);
+  const [dragPreview, setDragPreview] = useState(null);
   const [clockNow, setClockNow] = useState(Date.now());
   const [workBusy, setWorkBusy] = useState(false);
   useEffect(() => { const id = window.setInterval(() => setClockNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
@@ -176,7 +179,7 @@ export default function Calendar() {
       ends_at: form.endsAt ? new Date(form.endsAt).toISOString() : null,
       reason: form.reason || null,
       plate_snapshot: plate || null,
-      notes: form.notes || null,
+      notes: [form.notes, '[BILDIAGNOS_LANE:' + draftLane + ']'].filter(Boolean).join('\n'),
       status: 'scheduled',
       google_sync_status: googleToken ? 'pending' : null
     }).select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status,work_started_at,work_finished_at,work_paused_at,work_paused_seconds,work_planned_extra_minutes,work_waiting_reason').single();
@@ -187,6 +190,9 @@ export default function Calendar() {
     else await load();
   }
 
+  const LANES = [{id:'ranulfo-1',name:'Ranulfo 1',detail:'Lift 1'},{id:'ranulfo-2',name:'Ranulfo 2',detail:'Lift 2'},{id:'extra',name:'Extra',detail:'Trabajo rápido'}];
+  function laneOf(a) { return String(a.notes||'').match(/\[BILDIAGNOS_LANE:(ranulfo-1|ranulfo-2|extra)\]/)?.[1] || 'ranulfo-1'; }
+  function setLane(notes,lane) { return String(notes||'').replace(/\[BILDIAGNOS_LANE:(ranulfo-1|ranulfo-2|extra)\]/g,'').trim() + '\n[BILDIAGNOS_LANE:' + lane + ']'; }
   const dayAppointments = [...appointments, ...GOOGLE_PREVIEW].filter(a => new Date(a.starts_at).toLocaleDateString('sv-SE') === selectedDay).sort((a,b) => new Date(a.starts_at)-new Date(b.starts_at));
   function shiftDay(n) { const d = new Date(selectedDay + 'T12:00:00'); d.setDate(d.getDate()+n); setSelectedDay(d.toLocaleDateString('sv-SE')); setSelectedAppointment(null); }
   const beginHour=7, endHour=19, hourSpan=12;
@@ -196,6 +202,44 @@ export default function Calendar() {
     const finish=Math.min(endHour,hourOf(a.ends_at || new Date(new Date(a.starts_at).getTime()+3600000)) + Number(a.work_planned_extra_minutes||0)/60);
     return {left:(start-beginHour)/hourSpan*100+'%', width:Math.max(1,(finish-start)/hourSpan*100)+'%'};
   }
+  function pointerStart(e,a,mode) {
+    if (a.google_preview) { setMånadsage('Esta cita es una copia de Google de solo lectura. Crea una reserva en Bildiagnos para moverla.'); return; }
+    if (e.button !== 0 || workBusy) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const track=e.currentTarget.closest('[data-calendar-track]');
+    const rect=track.getBoundingClientRect();
+    dragRef.current={id:a.id,mode,x:e.clientX,rect,start:new Date(a.starts_at).getTime(),end:new Date(a.ends_at||new Date(new Date(a.starts_at).getTime()+3600000)).getTime()+Number(a.work_planned_extra_minutes||0)*60000,lane:laneOf(a),a};
+  }
+  function pointerMove(e) {
+    const d=dragRef.current;
+    if (!d) return;
+    const delta=Math.round(((e.clientX-d.x)/d.rect.width*hourSpan*60)/15)*15*60000;
+    let start=d.start,end=d.end;
+    if(d.mode==='move'){start+=delta;end+=delta;}
+    if(d.mode==='left')start=Math.min(end-15*60000,start+delta);
+    if(d.mode==='right')end=Math.max(start+15*60000,end+delta);
+    const laneElement=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-lane]');
+    const lane=laneElement?.dataset.lane||d.lane;
+    setDragPreview({id:d.id,start,end,lane});
+  }
+  async function pointerEnd(e) {
+    const d=dragRef.current;
+    if(!d)return;
+    dragRef.current=null;
+    const preview=dragPreview;
+    setDragPreview(null);
+    if(!preview || (preview.start===d.start&&preview.end===d.end&&preview.lane===d.lane))return;
+    const start=new Date(preview.start),end=new Date(preview.end);
+    if(start.toLocaleDateString('sv-SE')!==selectedDay || end.toLocaleDateString('sv-SE')!==selectedDay){setMånadsage('Mueve la cita dentro del día seleccionado.');return;}
+    setWorkBusy(true);
+    const updates={starts_at:start.toISOString(),ends_at:end.toISOString(),work_planned_extra_minutes:0,notes:setLane(d.a.notes,preview.lane)};
+    const {error}=await supabase.from('appointments').update(updates).eq('id',d.id).eq('workshop_id',WORKSHOP_ID);
+    if(error)setMånadsage('No se pudo mover la cita: '+error.message);
+    else {setAppointments(prev=>prev.map(a=>a.id===d.id?{...a,...updates}:a));setSelectedAppointment(prev=>prev?.id===d.id?{...prev,...updates}:prev);}
+    setWorkBusy(false);
+  }
+  function displayAppointment(a) { return dragPreview?.id===a.id ? {...a,starts_at:new Date(dragPreview.start).toISOString(),ends_at:new Date(dragPreview.end).toISOString(),work_planned_extra_minutes:0} : a; }
   function status(a) {
     const started=a.work_started_at ? new Date(a.work_started_at).getTime() : 0;
     const finished=a.work_finished_at ? new Date(a.work_finished_at).getTime() : 0;
@@ -263,6 +307,7 @@ export default function Calendar() {
             <label>Inicio<input type="datetime-local" required value={form.startsAt} onChange={e => setForm({...form, startsAt:e.target.value})} /></label>
             <label>Fin<input type="datetime-local" value={form.endsAt} onChange={e => setForm({...form, endsAt:e.target.value})} /></label>
           </div>
+          <label>Ubicación<select value={draftLane} onChange={e=>setDraftLane(e.target.value)}><option value="ranulfo-1">Ranulfo 1 · Lift 1</option><option value="ranulfo-2">Ranulfo 2 · Lift 2</option><option value="extra">Extra · sin lift</option></select></label>
           <label>Notas<textarea value={form.notes} onChange={e => setForm({...form, notes:e.target.value})} /></label>
           <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Avbryt</button><button className="primary-button"><Plus size={17}/> Spara reserva</button></div>
         </form>
@@ -284,16 +329,20 @@ export default function Calendar() {
                 {Array.from({length:12},(_,i)=><div key={i} style={{borderLeft:'1px solid #b7c7db',textAlign:'center',padding:'10px 0',fontSize:12}}>{String(i+7).padStart(2,'0')}:00</div>)}
               </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'115px 1fr',minHeight:90}}>
-              <div style={{padding:12,borderRight:'1px solid #b7c7db'}}><strong>Trabajos</strong><div style={{fontSize:12}}>{dayAppointments.length} citas</div></div>
-              <div style={{position:'relative',minHeight:Math.max(90,dayAppointments.length*46+10),backgroundImage:'linear-gradient(to right,#d5dce5 1px,transparent 1px)',backgroundSize:'8.333333% 100%'}}>
-                {dayAppointments.map((a,i)=>{const p=position(a),st=status(a);return <button type="button" key={a.id} onClick={()=>setSelectedAppointment(a)} title={a.reason||'Reserva'} style={{position:'absolute',top:8+i*46,left:p.left,width:p.width,minWidth:68,height:38,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:'pointer',overflow:'hidden',fontSize:12,padding:2}}>
-                  <strong>{a.plate_snapshot||a.reason||'Reserva'}</strong>
-                  <div style={{fontSize:10,whiteSpace:'nowrap'}}>{st.label}</div>
-                </button>;})}
-                {selectedDay===new Date(clockNow).toLocaleDateString('sv-SE')&&hourOf(clockNow)>=beginHour&&hourOf(clockNow)<=endHour&&<div aria-label="Hora actual" style={{position:'absolute',left:((hourOf(clockNow)-beginHour)/hourSpan*100)+'%',top:0,bottom:0,width:2,background:'#e11d48',zIndex:4,pointerEvents:'none'}}><span style={{position:'absolute',top:-17,left:-18,fontSize:10,color:'#e11d48',fontWeight:700}}>Ahora</span></div>}
-              </div>
-            </div>
+            {LANES.map(lane=>{
+              const items=dayAppointments.filter(a=> (dragPreview?.id===a.id ? dragPreview.lane : laneOf(a))===lane.id);
+              return <div key={lane.id} style={{display:'grid',gridTemplateColumns:'115px 1fr',minHeight:80,borderBottom:'1px solid #ccd5df'}}>
+                <div style={{padding:10,borderRight:'1px solid #b7c7db'}}><strong>{lane.name}</strong><div style={{fontSize:11,color:'#64748b'}}>{lane.detail}</div></div>
+                <div data-lane={lane.id} data-calendar-track="true" style={{position:'relative',minHeight:Math.max(80,items.length*44+8),backgroundImage:'linear-gradient(to right,#d5dce5 1px,transparent 1px)',backgroundSize:'8.333333% 100%'}}>
+                  {items.map((a,i)=>{const shown=displayAppointment(a),p=position(shown),st=status(a);return <div key={a.id} onPointerDown={e=>pointerStart(e,a,'move')} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={()=>{dragRef.current=null;setDragPreview(null);}} onClick={()=>{if(!dragPreview)setSelectedAppointment(a);}} title={a.google_preview?'Google: solo lectura':a.reason||'Arrastra para mover'} style={{position:'absolute',top:6+i*44,left:p.left,width:p.width,minWidth:68,height:36,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:a.google_preview?'pointer':'grab',overflow:'hidden',fontSize:12,padding:'2px 9px',touchAction:'none',userSelect:'none'}}>
+                    {!a.google_preview&&<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'left');}} style={{position:'absolute',left:0,top:0,bottom:0,width:8,background:'#ffffff70',cursor:'ew-resize'}}/>}
+                    <strong>{a.plate_snapshot||a.reason||'Reserva'}</strong><div style={{fontSize:10,whiteSpace:'nowrap'}}>{st.label}</div>
+                    {!a.google_preview&&<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'right');}} style={{position:'absolute',right:0,top:0,bottom:0,width:9,background:'#ffffff70',cursor:'ew-resize'}}/>}
+                  </div>;})}
+                  {selectedDay===new Date(clockNow).toLocaleDateString('sv-SE')&&hourOf(clockNow)>=beginHour&&hourOf(clockNow)<=endHour&&<div aria-label="Hora actual" style={{position:'absolute',left:((hourOf(clockNow)-beginHour)/hourSpan*100)+'%',top:0,bottom:0,width:2,background:'#e11d48',zIndex:4,pointerEvents:'none'}}/>}
+                </div>
+              </div>;
+            })}
           </div>
         </div>
         {loading&&<p>Cargando citas…</p>}
