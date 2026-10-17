@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { translateUi } from './uiTranslations.js';
+import { Component, useEffect, useState } from 'react';
 import Sidebar from './Sidebar.jsx';
 import Dashboard from './Dashboard.jsx';
 import WorkOrders from './WorkOrders.jsx';
@@ -11,31 +10,37 @@ import AuthGate from './AuthGate.jsx';
 import Lager from './Lager.jsx';
 import WorkshopTimer from './WorkshopTimer.jsx';
 
+class ScreenErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error, info) { console.error('Bildiagnos screen error', error, info); }
+  componentDidUpdate(prevProps) {
+    if (prevProps.page !== this.props.page && this.state.failed) this.setState({ failed: false });
+  }
+  render() {
+    if (this.state.failed) return <section className="card" role="alert">
+      <h2>No se pudo abrir esta pantalla</h2>
+      <p>Los datos guardados no se han eliminado. Puedes volver a intentar o entrar a otra sección.</p>
+      <button type="button" className="primary-button" onClick={() => this.setState({ failed: false })}>Reintentar</button>
+    </section>;
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [page, setPage] = useState('dashboard');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [language, setLanguage] = useState(() => localStorage.getItem('bildiagnos-language') || 'sv');
   const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
 
-  useEffect(() => {
-    document.documentElement.lang = language === 'es' ? 'es' : 'sv';
-    const apply = () => translateUi(document.body, language);
-    apply();
-    const observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) => mutation.addedNodes?.length)) {
-        window.requestAnimationFrame(apply);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [language]);
+  useEffect(() => { document.documentElement.lang = language === 'es' ? 'es' : 'sv'; }, [language]);
 
   return (
     <AuthGate>
       <div className="app-shell">
         <Sidebar active={page} onChange={setPage} language={language} onLanguageChange={changeLanguage} />
 
-        <main className="main-content">
+        <main className="main-content"><ScreenErrorBoundary page={page}>
           {page === 'dashboard' && (
             <Dashboard onNewOrder={() => setPage('orders')} />
           )}
@@ -47,7 +52,7 @@ export default function App() {
           {page === 'lager' && <Lager />}
           {page === 'workshop' && <WorkshopTimer language={language} />}
           {page === 'calendar' && <Calendar />}
-        </main>
+        </ScreenErrorBoundary></main>
       </div>
     </AuthGate>
   );
