@@ -46,6 +46,7 @@ export default function App() {
           )}
 
           {page === 'orders' && <WorkOrders initialPlate={vehiclePlate} onPlateConsumed={() => setVehiclePlate('')} />}
+          {page === 'reports' && <WorkOrders initialView="report" />}
           {page === 'customers' && <Customers />}
           {page === 'vehicles' && <Vehicles onOpenPlate={plate => { setVehiclePlate(plate); setPage('orders'); }} />}
           {page === 'parts' && <Parts />}
