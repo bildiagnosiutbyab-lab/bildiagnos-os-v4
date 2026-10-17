@@ -88,3 +88,5 @@ jobs:
 # Publish plate search across vehicles and historical orders in isolated test.
 
 # Publish private delivery note photo archive in isolated orders test.
+
+# Publish sidebar repeat-click navigation fix to isolated orders test.
