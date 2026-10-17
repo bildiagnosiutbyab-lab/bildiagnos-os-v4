@@ -54,7 +54,7 @@ export default function App() {
           {page === 'parts' && <Parts />}
           {page === 'lager' && <Lager />}
           {page === 'workshop' && <WorkshopTimer language={language} />}
-          {page === 'calendar' && <Calendar />}
+          {page === 'calendar' && <Calendar onOpenOrder={plate => { setVehiclePlate(plate); navigate('orders'); }} />}
         </ScreenErrorBoundary></main>
       </div>
     </AuthGate>
