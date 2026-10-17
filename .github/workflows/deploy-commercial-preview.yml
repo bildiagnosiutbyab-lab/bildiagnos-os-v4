@@ -86,3 +86,5 @@ jobs:
 # Publish reports navigation and debug source maps for isolated crash investigation.
 
 # Publish plate search across vehicles and historical orders in isolated test.
+
+# Publish private delivery note photo archive in isolated orders test.
