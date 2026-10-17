@@ -10,6 +10,7 @@ import {
 import CommercialOrderFlow from './CommercialOrderFlow.jsx';
 import CatalogOrderImport from './CatalogOrderImport.jsx';
 import OrderInventory from './OrderInventory.jsx';
+import OrderDocuments from './OrderDocuments.jsx';
 import { listVehicles } from './workshopRepository.js';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
@@ -509,6 +510,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
             setOrders(latest);
             setInventoryRevision((n) => n + 1);
           }} />
+          <OrderDocuments order={selectedOrder} />
           <OrderInventory order={selectedOrder} onSaved={() => setInventoryRevision((n) => n + 1)} />
           <CommercialOrderFlow
             key={`${selectedOrder.relationalId}-${inventoryRevision}`}
