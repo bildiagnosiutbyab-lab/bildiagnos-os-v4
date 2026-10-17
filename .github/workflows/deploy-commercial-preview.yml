@@ -84,3 +84,5 @@ jobs:
 # Deploy isolated root error diagnostics for grey-screen investigation.
 
 # Publish reports navigation and debug source maps for isolated crash investigation.
+
+# Publish plate search across vehicles and historical orders in isolated test.
