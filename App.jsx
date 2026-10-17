@@ -29,6 +29,8 @@ class ScreenErrorBoundary extends Component {
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
+  const [navigationRevision, setNavigationRevision] = useState(0);
+  const navigate = (nextPage) => { setPage(nextPage); setNavigationRevision(value => value + 1); };
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [language, setLanguage] = useState(() => localStorage.getItem('bildiagnos-language') || 'sv');
   const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
@@ -38,9 +40,9 @@ export default function App() {
   return (
     <AuthGate>
       <div className="app-shell">
-        <Sidebar active={page} onChange={setPage} language={language} onLanguageChange={changeLanguage} />
+        <Sidebar active={page} onChange={navigate} language={language} onLanguageChange={changeLanguage} />
 
-        <main className="main-content"><ScreenErrorBoundary key={page} page={page}>
+        <main className="main-content"><ScreenErrorBoundary key={`${page}-${navigationRevision}`} page={page}>
           {page === 'dashboard' && (
             <Dashboard onNewOrder={() => setPage('orders')} />
           )}
