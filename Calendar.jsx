@@ -41,7 +41,7 @@ function googlePayload(a) {
   };
 }
 
-export default function Calendar() {
+export default function Calendar({ onOpenOrder }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -51,6 +51,7 @@ export default function Calendar() {
   const [selectedDay, setSelectedDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [draftLane, setDraftLane] = useState('ranulfo-1');
+  const [menuAppointment, setMenuAppointment] = useState(null);
   const [googleEdits, setGoogleEdits] = useState(() => { try { return JSON.parse(localStorage.getItem('bildiagnos-calendar-preview-edits') || '{}'); } catch { return {}; } });
   const previewRef = useRef(null);
   const dragRef = useRef(null);
@@ -252,6 +253,27 @@ export default function Calendar() {
     setWorkBusy(false);
   }
   function displayAppointment(a) { return dragPreview?.id===a.id ? {...a,starts_at:new Date(dragPreview.start).toISOString(),ends_at:new Date(dragPreview.end).toISOString(),work_planned_extra_minutes:0} : a; }
+  async function saveManualTime(a, field, value) {
+    if (!value) return;
+    const [h,m]=value.split(':').map(Number);
+    const d=new Date(field==='starts_at'?a.starts_at:(a.ends_at||new Date(new Date(a.starts_at).getTime()+3600000)));
+    d.setHours(h,m,0,0);
+    const start=field==='starts_at'?d.getTime():new Date(a.starts_at).getTime();
+    const end=field==='ends_at'?d.getTime():new Date(a.ends_at||new Date(new Date(a.starts_at).getTime()+3600000)).getTime();
+    if(end<=start){setMånadsage('La hora de fin debe ser posterior al inicio.');return;}
+    const updates={[field]:d.toISOString(),work_planned_extra_minutes:0};
+    if(a.google_preview) {
+      const next={...googleEdits,[a.id]:{...(googleEdits[a.id]||{}),...updates}};
+      localStorage.setItem('bildiagnos-calendar-preview-edits',JSON.stringify(next));
+      setGoogleEdits(next);
+    } else {
+      const {error}=await supabase.from('appointments').update(updates).eq('id',a.id).eq('workshop_id',WORKSHOP_ID);
+      if(error){setMånadsage('No se pudo guardar: '+error.message);return;}
+      setAppointments(prev=>prev.map(item=>item.id===a.id?{...item,...updates}:item));
+    }
+    setSelectedAppointment(prev=>prev?.id===a.id?{...prev,...updates}:prev);
+    setMenuAppointment(prev=>prev?.id===a.id?{...prev,...updates}:prev);
+  }
   function status(a) {
     const started=a.work_started_at ? new Date(a.work_started_at).getTime() : 0;
     const finished=a.work_finished_at ? new Date(a.work_finished_at).getTime() : 0;
@@ -346,7 +368,7 @@ export default function Calendar() {
               return <div key={lane.id} style={{display:'grid',gridTemplateColumns:'115px 1fr',minHeight:80,borderBottom:'1px solid #ccd5df'}}>
                 <div style={{padding:10,borderRight:'1px solid #b7c7db'}}><strong>{lane.name}</strong><div style={{fontSize:11,color:'#64748b'}}>{lane.detail}</div></div>
                 <div data-lane={lane.id} data-calendar-track="true" style={{position:'relative',minHeight:Math.max(80,items.length*44+8),backgroundImage:'linear-gradient(to right,#d5dce5 1px,transparent 1px)',backgroundSize:'8.333333% 100%'}}>
-                  {items.map((a,i)=>{const shown=displayAppointment(a),p=position(shown),st=status(a);return <div key={a.id} onPointerDown={e=>pointerStart(e,a,'move')} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={()=>{dragRef.current=null;previewRef.current=null;setDragPreview(null);}} onClick={()=>{if(!dragPreview)setSelectedAppointment(a);}} title={a.google_preview?'Copia de Google: mueve solo en esta prueba':a.reason||'Arrastra para mover'} style={{position:'absolute',top:6+i*44,left:p.left,width:p.width,minWidth:68,height:36,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:'grab',overflow:'hidden',fontSize:12,padding:'2px 9px',touchAction:'none',userSelect:'none'}}>
+                  {items.map((a,i)=>{const shown=displayAppointment(a),p=position(shown),st=status(a);return <div key={a.id} onPointerDown={e=>pointerStart(e,a,'move')} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={()=>{dragRef.current=null;previewRef.current=null;setDragPreview(null);}} onContextMenu={e=>{e.preventDefault();setMenuAppointment(a);setSelectedAppointment(a);}} onClick={()=>{if(!dragPreview)setSelectedAppointment(a);}} title={a.google_preview?'Copia de Google: mueve solo en esta prueba':a.reason||'Arrastra para mover'} style={{position:'absolute',top:6+i*44,left:p.left,width:p.width,minWidth:68,height:36,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:'grab',overflow:'hidden',fontSize:12,padding:'2px 9px',touchAction:'none',userSelect:'none'}}>
                     {<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'left');}} style={{position:'absolute',left:0,top:0,bottom:0,width:8,background:'#ffffff70',cursor:'ew-resize'}}/>}
                     <strong>{a.plate_snapshot||a.reason||'Reserva'}</strong><div style={{fontSize:10,whiteSpace:'nowrap'}}>{st.label}</div>
                     {<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'right');}} style={{position:'absolute',right:0,top:0,bottom:0,width:9,background:'#ffffff70',cursor:'ew-resize'}}/>}
@@ -359,10 +381,27 @@ export default function Calendar() {
         </div>
         {loading&&<p>Cargando citas…</p>}
         {!loading&&dayAppointments.length===0&&<p>Sin reservas para este día.</p>}
+        {menuAppointment&&<div role="menu" style={{border:'1px solid #9ba9bc',borderRadius:8,padding:12,marginTop:12,background:'#f3f6fa'}}>
+          <strong>Opciones · {menuAppointment.plate_snapshot||menuAppointment.reason}</strong>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:8}}>
+            {!menuAppointment.google_preview&&!menuAppointment.work_started_at&&<button type="button" className="primary-button" disabled={workBusy} onClick={()=>workAction(menuAppointment,'start')}>▶ Play</button>}
+            {!menuAppointment.google_preview&&menuAppointment.work_started_at&&!menuAppointment.work_finished_at&&!menuAppointment.work_paused_at&&<button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(menuAppointment,'pause')}>⏸ Pausa</button>}
+            {!menuAppointment.google_preview&&menuAppointment.work_paused_at&&!menuAppointment.work_finished_at&&<button type="button" className="primary-button" disabled={workBusy} onClick={()=>workAction(menuAppointment,'resume')}>▶ Continuar</button>}
+            {!menuAppointment.google_preview&&menuAppointment.work_started_at&&!menuAppointment.work_finished_at&&<button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(menuAppointment,'finish')}>■ Stop</button>}
+            {menuAppointment.plate_snapshot&&<button type="button" className="secondary-button" onClick={()=>onOpenOrder?.(menuAppointment.plate_snapshot)}>Orden</button>}
+            <button type="button" className="secondary-button" onClick={()=>setMenuAppointment(null)}>Cerrar</button>
+          </div>
+          {menuAppointment.google_preview&&<small>Google: horario editable solo en esta prueba. Para usar el cronómetro, crea una cita propia de Bildiagnos.</small>}
+        </div>}
         {selectedAppointment&&<div style={{borderTop:'1px solid #ccd5df',marginTop:14,paddingTop:14}}>
           <h3>{selectedAppointment.plate_snapshot||'Cita'} · {selectedAppointment.reason||'Trabajo'}</h3>
           <p>{new Date(selectedAppointment.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})}–{new Date(selectedAppointment.ends_at||selectedAppointment.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})} · {status(selectedAppointment).label} {status(selectedAppointment).remaining}</p>
-          {selectedAppointment.notes&&<p>{selectedAppointment.notes}</p>}
+          {selectedAppointment.notes&&<p>{selectedAppointment.notes.replace(/\\[BILDIAGNOS_LANE:[^\\]]+\\]/g,'')}</p>}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12}}>
+            <label>Inicio <input type="time" value={new Date(selectedAppointment.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})} onChange={e=>saveManualTime(selectedAppointment,'starts_at',e.target.value)}/></label>
+            <label>Fin <input type="time" value={new Date(selectedAppointment.ends_at||new Date(new Date(selectedAppointment.starts_at).getTime()+3600000)).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})} onChange={e=>saveManualTime(selectedAppointment,'ends_at',e.target.value)}/></label>
+            <button type="button" className="secondary-button" onClick={()=>setMenuAppointment(selectedAppointment)}>Opciones · ▶ ⏸ ■</button>
+          </div>
           {!selectedAppointment.google_preview&&<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             {!selectedAppointment.work_started_at&&<button type="button" className="primary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'start')}>Iniciar</button>}
             {selectedAppointment.work_started_at&&!selectedAppointment.work_finished_at&&!selectedAppointment.work_paused_at&&<button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'pause')}>Pausar · esperar piezas</button>}
