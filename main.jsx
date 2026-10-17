@@ -16,7 +16,7 @@ class RootRecovery extends React.Component {
         <section className="card auth-card" role="alert">
           <h1>Bildiagnos: error detectado</h1>
           <p>La aplicación encontró un error. Tus órdenes guardadas no se han borrado.</p>
-          <pre style={{whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontSize:12}}>{String(this.state.error?.message || this.state.error)}</pre>
+          <pre style={{whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontSize:12}}>{String(this.state.error?.stack || this.state.error?.message || this.state.error)}</pre>
           <button className="primary-button" onClick={() => window.location.reload()}>Volver a abrir</button>
         </section>
       </main>
