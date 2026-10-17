@@ -13,6 +13,7 @@ import WorkshopTimer from './WorkshopTimer.jsx';
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [language, setLanguage] = useState(() => localStorage.getItem('bildiagnos-language') || 'sv');
   const changeLanguage = (next) => { localStorage.setItem('bildiagnos-language', next); setLanguage(next); };
 
@@ -39,9 +40,9 @@ export default function App() {
             <Dashboard onNewOrder={() => setPage('orders')} />
           )}
 
-          {page === 'orders' && <WorkOrders />}
+          {page === 'orders' && <WorkOrders initialPlate={vehiclePlate} onPlateConsumed={() => setVehiclePlate('')} />}
           {page === 'customers' && <Customers />}
-          {page === 'vehicles' && <Vehicles />}
+          {page === 'vehicles' && <Vehicles onOpenPlate={plate => { setVehiclePlate(plate); setPage('orders'); }} />}
           {page === 'parts' && <Parts />}
           {page === 'lager' && <Lager />}
           {page === 'workshop' && <WorkshopTimer language={language} />}
