@@ -98,3 +98,5 @@ jobs:
 # Publish drag-resize calendar and three workshop lanes in isolated test.
 
 # Deploy local drag-resize support for Google calendar preview snapshots.
+
+# Deploy right click menu and mobile time edit controls in calendar test.
