@@ -94,3 +94,5 @@ jobs:
 # Publish direct calendar URL entry in isolated test.
 
 # Publish daily workshop timeline and pause controls to isolated test.
+
+# Publish drag-resize calendar and three workshop lanes in isolated test.
