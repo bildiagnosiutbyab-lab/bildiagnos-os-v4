@@ -78,3 +78,5 @@ jobs:
 # Restore working preview publication without touching stored orders.
 
 # Rebuild isolated orders-test after screen crash protection update.
+
+# Publish read-only Google appointment preview in isolated orders-test calendar.
