@@ -127,7 +127,7 @@ function formatTime(totalSeconds = 0) {
     .join(':');
 }
 
-export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
+export default function WorkOrders({ initialPlate = '', onPlateConsumed, initialView = 'active' }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
@@ -140,7 +140,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
   const [vehicleLookup, setVehicleLookup] = useState('');
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
-  const [orderView, setOrderView] = useState('active');
+  const [orderView, setOrderView] = useState(initialView);
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
@@ -694,18 +694,18 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
 
       <section className="card" style={{marginBottom: '14px'}}><strong>Ficha del vehículo / Fordonskort</strong><div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}}><input aria-label="Matrícula" placeholder="ABC123" value={vehicleLookup} onChange={e=>setVehicleLookup(e.target.value.toUpperCase())}/><button type="button" className="secondary-button" onClick={()=>setPlateHistorySearch(vehicleLookup)}>Historial / Historik</button><button type="button" className="primary-button" disabled={!normalizePlate(vehicleLookup)} onClick={()=>startNewOrder(vehicleLookup)}>Nueva orden / Ny arbetsorder</button></div><small>Si el vehículo ya existe, se recuperan cliente y vehículo de la última orden. Los trabajos anteriores se conservan sin copiarse.</small></section>
 
-      {!normalizedPlateSearch && <div className="segmented">
+      <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
         <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik ({historyOrders.length})</button>
         <button type="button" className={orderView === 'report' ? 'selected' : ''} onClick={() => setOrderView('report')}>Reportes / Rapporter</button>
         <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
-      </div>}
+      </div>
 
       {!normalizedPlateSearch && orderView === 'report' && <section className="card" style={{marginBottom:'14px'}}><h2>Reporte de vehículos trabajados / Rapport</h2><div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}><label>Desde / Från <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>Hasta / Till <input type="date" value={reportTo} min={reportFrom||undefined} onChange={e=>setReportTo(e.target.value)}/></label></div><p>{reportOrders.length} órdenes cerradas · Pulsa la matrícula para abrir la orden.</p><small>Se usa la última fecha de actualización disponible si no existe fecha de cierre registrada.</small></section>}
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>{normalizedPlateSearch ? 'Ingen historik för detta registreringsnummer' : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : 'Inga öppna eller väntande arbetsorder'}</h2>
+          <h2>{normalizedPlateSearch ? 'Ingen historik för detta registreringsnummer' : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : orderView === 'report' ? 'Inga avslutade arbetsorder i perioden' : 'Inga öppna eller väntande arbetsorder'}</h2>
           <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : orderView === 'report' && !normalizedPlateSearch ? (
