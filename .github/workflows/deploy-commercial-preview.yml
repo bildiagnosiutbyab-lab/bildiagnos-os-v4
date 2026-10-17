@@ -76,3 +76,5 @@ jobs:
 # redeploy commercial preview after legacy overwrite
 
 # Restore working preview publication without touching stored orders.
+
+# Rebuild isolated orders-test after screen crash protection update.
