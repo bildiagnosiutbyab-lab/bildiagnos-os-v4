@@ -4,6 +4,17 @@ import PageHeader from './PageHeader.jsx';
 import { supabase } from './supabaseClient.js';
 
 const WORKSHOP_ID = 'e2ff2d9c-4e4f-475d-88b5-bbfca33240a5';
+
+// Snapshot de citas reales consultadas el 17/10/2026; solo lectura, sin escritura en Supabase.
+const GOOGLE_PREVIEW = [
+  { id:'google-preview-s5ds6l6rcsqrtn6bulo9ue69oc', starts_at:'2026-10-14T09:00:00+02:00', ends_at:'2026-10-14T10:00:00+02:00', reason:'Lena cambio de alarma', plate_snapshot:'', google_preview:true },
+  { id:'google-preview-iepjtohc5h713525qqn2gt8ens', starts_at:'2026-10-14T10:00:00+02:00', ends_at:'2026-10-14T11:00:00+02:00', reason:'Renanhus', plate_snapshot:'', google_preview:true },
+  { id:'google-preview-hvsc809ik4gl42ja7dq0cptqc0', starts_at:'2026-10-16T08:00:00+02:00', ends_at:'2026-10-16T09:00:00+02:00', reason:'Jonny cambio de frenos traseros', plate_snapshot:'', google_preview:true },
+  { id:'google-preview-7pnuvdhvbrpqod7c0b0pgpnhu0', starts_at:'2026-10-20T08:00:00+02:00', ends_at:'2026-10-20T09:00:00+02:00', reason:'Service renanhus', plate_snapshot:'', google_preview:true },
+  { id:'google-preview-ol0tgvtj76i65ammi2cssc02v0', starts_at:'2026-10-21T08:00:00+02:00', ends_at:'2026-10-21T09:00:00+02:00', reason:'Renanhus', plate_snapshot:'', google_preview:true },
+  { id:'google-preview-nbglo2a8qf3k9vs0ulu7mpbomk', starts_at:'2026-10-27T08:00:00+01:00', ends_at:'2026-10-27T09:00:00+01:00', reason:'Camara', plate_snapshot:'', google_preview:true }
+];
+
 const GOOGLE_TOKEN_KEY = 'bildiagnos-google-calendar-token';
 
 function localInputValue(date = new Date()) {
@@ -173,12 +184,12 @@ export default function Calendar() {
 
   const grouped = useMemo(() => {
     const out = new Map();
-    for (const a of appointments) {
+    for (const a of [...appointments, ...GOOGLE_PREVIEW]) {
       const key = new Date(a.starts_at).toLocaleDateString('sv-SE');
       if (!out.has(key)) out.set(key, []);
       out.get(key).push(a);
     }
-    return [...out.entries()];
+    return [...out.entries()].sort(([a],[b]) => a.localeCompare(b));
   }, [appointments]);
 
   return (
@@ -194,6 +205,7 @@ export default function Calendar() {
         <button className="secondary-button" onClick={load}><RefreshCw size={17}/> Actualizar</button>
       </div>
 
+      <div className="calendar-message">Vista de prueba: 6 citas reales de Google Calendar (14–27 octubre), copiadas solo para visualización. No se sincronizan automáticamente ni crean órdenes.</div>
       {message && <div className="calendar-message">{message}</div>}
 
       {showForm && (
@@ -223,12 +235,13 @@ export default function Calendar() {
                   <strong>{a.plate_snapshot || 'Utan registreringsnummer'}</strong>
                   <span>{a.reason || 'Reserva'}</span>
                   {a.notes && <small>{a.notes}</small>}
+                  {a.google_preview && <small className="sync-ok">Google Calendar · vista de prueba</small>}
                   {a.google_event_id && <small className="sync-ok">✓ Google sincronizado</small>}
                   {a.google_sync_status === 'error' && <small className="sync-error">Error de sincronización</small>}
                 </div>
                 <div className="appointment-actions">
-                  {googleToken && <button className="secondary-button" disabled={googleBusy} onClick={() => pushToGoogle(a)}><RotateCw size={15}/>{a.google_event_id ? 'Actualizar Google' : 'Sincronizar'}</button>}
-                  {!googleToken && <a className="secondary-button calendar-link" href={googleEventUrl(a)} target="_blank" rel="noreferrer">Añadir a Google</a>}
+                  {!a.google_preview && googleToken && <button className="secondary-button" disabled={googleBusy} onClick={() => pushToGoogle(a)}><RotateCw size={15}/>{a.google_event_id ? 'Actualizar Google' : 'Sincronizar'}</button>}
+                  {!a.google_preview && !googleToken && <a className="secondary-button calendar-link" href={googleEventUrl(a)} target="_blank" rel="noreferrer">Añadir a Google</a>}
                 </div>
               </div>
             ))}
