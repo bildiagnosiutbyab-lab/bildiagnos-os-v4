@@ -10,6 +10,7 @@ import {
 import CommercialOrderFlow from './CommercialOrderFlow.jsx';
 import CatalogOrderImport from './CatalogOrderImport.jsx';
 import OrderInventory from './OrderInventory.jsx';
+import { listVehicles } from './workshopRepository.js';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
 const CENTRAL_STATE_KEY = 'central_state';
@@ -126,7 +127,7 @@ function formatTime(totalSeconds = 0) {
     .join(':');
 }
 
-export default function WorkOrders() {
+export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
@@ -135,11 +136,14 @@ export default function WorkOrders() {
   const [inventoryRevision, setInventoryRevision] = useState(0);
 
   const [orders, setOrders] = useState(loadOrders);
+  const [registeredVehicles, setRegisteredVehicles] = useState([]);
+  const [vehicleLookup, setVehicleLookup] = useState('');
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
   const [orderView, setOrderView] = useState('active');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
 
+  const normalizePlate = value => String(value || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '');
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
   const closedStatuses = new Set(['Pagada', 'Terminada']);
   const historyOrders = orders.filter((order) => closedStatuses.has(order.status));
@@ -158,6 +162,16 @@ export default function WorkOrders() {
     const parsed = new Date(String(raw).replace(' ', 'T'));
     return Number.isNaN(parsed.getTime()) ? String(raw).slice(0, 10) : new Intl.DateTimeFormat('sv-SE').format(parsed);
   };
+
+  useEffect(() => { listVehicles().then(setRegisteredVehicles).catch(error => console.warn('Vehicle lookup unavailable', error)); }, []);
+  useEffect(() => {
+    if (!initialPlate) return;
+    setVehicleLookup(initialPlate);
+    setPlateHistorySearch(initialPlate);
+    setSelectedOrderId(null);
+    setShowForm(false);
+    onPlateConsumed?.();
+  }, [initialPlate]);
 
   useEffect(() => {
     saveOrders(orders);
@@ -238,10 +252,13 @@ export default function WorkOrders() {
     }));
   }
 
-  function startNewOrder() {
+  function startNewOrder(plate = '') {
+    const normalized = normalizePlate(typeof plate === 'string' ? plate : '');
+    const previous = orders.filter(o => normalizePlate(o.plate) === normalized).sort((a,b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+    const registered = registeredVehicles.find(v => normalizePlate(v.registration_plate) === normalized);
     setEditingOrderId(null);
     setSelectedOrderId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, plate: registered?.registration_plate || previous?.plate || normalized, customer: previous?.customer || '', vehicle: previous?.vehicle || [registered?.make, registered?.model, registered?.model_year].filter(Boolean).join(' ') || registered?.raw_description || '' });
     setShowForm(true);
   }
 
@@ -554,7 +571,14 @@ export default function WorkOrders() {
               type="text"
               placeholder="ABC 123"
               value={form.plate}
-              onChange={handleChange}
+              onChange={event => {
+                handleChange(event);
+                if (!editingOrderId) {
+                  const match = orders.filter(o => normalizePlate(o.plate) === normalizePlate(event.target.value)).sort((a,b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+                  const registered = registeredVehicles.find(v => normalizePlate(v.registration_plate) === normalizePlate(event.target.value));
+                  if (match || registered) setForm(current => ({...current, plate:event.target.value, customer:match?.customer || current.customer, vehicle:match?.vehicle || [registered?.make,registered?.model,registered?.model_year].filter(Boolean).join(' ') || registered?.raw_description || current.vehicle}));
+                }
+              }}
             />
           </label>
 
@@ -642,7 +666,7 @@ export default function WorkOrders() {
         title="Arbetsorder"
         subtitle="Diagnos, reparation, tid och reservdelar"
         action="Crear orden"
-        onAction={startNewOrder}
+        onAction={() => startNewOrder()}
       />
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
@@ -664,6 +688,8 @@ export default function WorkOrders() {
             : 'Ingen historik för detta registreringsnummer.'}
         </p>}
       </section>
+
+      <section className="card" style={{marginBottom: '14px'}}><strong>Ficha del vehículo / Fordonskort</strong><div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}}><input aria-label="Matrícula" placeholder="ABC123" value={vehicleLookup} onChange={e=>setVehicleLookup(e.target.value.toUpperCase())}/><button type="button" className="secondary-button" onClick={()=>setPlateHistorySearch(vehicleLookup)}>Historial / Historik</button><button type="button" className="primary-button" disabled={!normalizePlate(vehicleLookup)} onClick={()=>startNewOrder(vehicleLookup)}>Nueva orden / Ny arbetsorder</button></div><small>Si el vehículo ya existe, se recuperan cliente y vehículo de la última orden. Los trabajos anteriores se conservan sin copiarse.</small></section>
 
       {!normalizedPlateSearch && <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
