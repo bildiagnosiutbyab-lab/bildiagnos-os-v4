@@ -96,3 +96,5 @@ jobs:
 # Publish daily workshop timeline and pause controls to isolated test.
 
 # Publish drag-resize calendar and three workshop lanes in isolated test.
+
+# Deploy local drag-resize support for Google calendar preview snapshots.
