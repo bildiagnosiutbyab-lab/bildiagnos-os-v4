@@ -40,7 +40,7 @@ export default function App() {
       <div className="app-shell">
         <Sidebar active={page} onChange={setPage} language={language} onLanguageChange={changeLanguage} />
 
-        <main className="main-content"><ScreenErrorBoundary page={page}>
+        <main className="main-content"><ScreenErrorBoundary key={page} page={page}>
           {page === 'dashboard' && (
             <Dashboard onNewOrder={() => setPage('orders')} />
           )}
