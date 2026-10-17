@@ -28,7 +28,7 @@ class ScreenErrorBoundary extends Component {
 }
 
 export default function App() {
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState(() => new URLSearchParams(window.location.search).get('view') === 'calendar' ? 'calendar' : 'dashboard');
   const [navigationRevision, setNavigationRevision] = useState(0);
   const navigate = (nextPage) => { setPage(nextPage); setNavigationRevision(value => value + 1); };
   const [vehiclePlate, setVehiclePlate] = useState('');
