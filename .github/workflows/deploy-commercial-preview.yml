@@ -80,3 +80,5 @@ jobs:
 # Rebuild isolated orders-test after screen crash protection update.
 
 # Publish read-only Google appointment preview in isolated orders-test calendar.
+
+# Deploy isolated root error diagnostics for grey-screen investigation.
