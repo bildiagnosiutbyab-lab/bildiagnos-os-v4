@@ -51,6 +51,8 @@ export default function Calendar() {
   const [selectedDay, setSelectedDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [draftLane, setDraftLane] = useState('ranulfo-1');
+  const [googleEdits, setGoogleEdits] = useState(() => { try { return JSON.parse(localStorage.getItem('bildiagnos-calendar-preview-edits') || '{}'); } catch { return {}; } });
+  const previewRef = useRef(null);
   const dragRef = useRef(null);
   const [dragPreview, setDragPreview] = useState(null);
   const [clockNow, setClockNow] = useState(Date.now());
@@ -193,7 +195,7 @@ export default function Calendar() {
   const LANES = [{id:'ranulfo-1',name:'Ranulfo 1',detail:'Lift 1'},{id:'ranulfo-2',name:'Ranulfo 2',detail:'Lift 2'},{id:'extra',name:'Extra',detail:'Trabajo rápido'}];
   function laneOf(a) { return String(a.notes||'').match(/\[BILDIAGNOS_LANE:(ranulfo-1|ranulfo-2|extra)\]/)?.[1] || 'ranulfo-1'; }
   function setLane(notes,lane) { return String(notes||'').replace(/\[BILDIAGNOS_LANE:(ranulfo-1|ranulfo-2|extra)\]/g,'').trim() + '\n[BILDIAGNOS_LANE:' + lane + ']'; }
-  const dayAppointments = [...appointments, ...GOOGLE_PREVIEW].filter(a => new Date(a.starts_at).toLocaleDateString('sv-SE') === selectedDay).sort((a,b) => new Date(a.starts_at)-new Date(b.starts_at));
+  const dayAppointments = [...appointments, ...GOOGLE_PREVIEW.map(a => ({...a,...(googleEdits[a.id] || {})}))].filter(a => new Date(a.starts_at).toLocaleDateString('sv-SE') === selectedDay).sort((a,b) => new Date(a.starts_at)-new Date(b.starts_at));
   function shiftDay(n) { const d = new Date(selectedDay + 'T12:00:00'); d.setDate(d.getDate()+n); setSelectedDay(d.toLocaleDateString('sv-SE')); setSelectedAppointment(null); }
   const beginHour=7, endHour=19, hourSpan=12;
   function hourOf(v) { const d=new Date(v); return d.getHours()+d.getMinutes()/60; }
@@ -203,7 +205,6 @@ export default function Calendar() {
     return {left:(start-beginHour)/hourSpan*100+'%', width:Math.max(1,(finish-start)/hourSpan*100)+'%'};
   }
   function pointerStart(e,a,mode) {
-    if (a.google_preview) { setMånadsage('Esta cita es una copia de Google de solo lectura. Crea una reserva en Bildiagnos para moverla.'); return; }
     if (e.button !== 0 || workBusy) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -221,19 +222,30 @@ export default function Calendar() {
     if(d.mode==='right')end=Math.max(start+15*60000,end+delta);
     const laneElement=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-lane]');
     const lane=laneElement?.dataset.lane||d.lane;
-    setDragPreview({id:d.id,start,end,lane});
+    const next={id:d.id,start,end,lane};
+    previewRef.current=next;
+    setDragPreview(next);
   }
   async function pointerEnd(e) {
     const d=dragRef.current;
     if(!d)return;
     dragRef.current=null;
-    const preview=dragPreview;
+    const preview=previewRef.current;
+    previewRef.current=null;
     setDragPreview(null);
     if(!preview || (preview.start===d.start&&preview.end===d.end&&preview.lane===d.lane))return;
     const start=new Date(preview.start),end=new Date(preview.end);
     if(start.toLocaleDateString('sv-SE')!==selectedDay || end.toLocaleDateString('sv-SE')!==selectedDay){setMånadsage('Mueve la cita dentro del día seleccionado.');return;}
-    setWorkBusy(true);
     const updates={starts_at:start.toISOString(),ends_at:end.toISOString(),work_planned_extra_minutes:0,notes:setLane(d.a.notes,preview.lane)};
+    if(d.a.google_preview) {
+      const next={...googleEdits,[d.id]:updates};
+      localStorage.setItem('bildiagnos-calendar-preview-edits',JSON.stringify(next));
+      setGoogleEdits(next);
+      setSelectedAppointment(prev=>prev?.id===d.id?{...prev,...updates}:prev);
+      setMånadsage('Cita de Google ajustada en esta prueba y este navegador. El calendario original no cambió.');
+      return;
+    }
+    setWorkBusy(true);
     const {error}=await supabase.from('appointments').update(updates).eq('id',d.id).eq('workshop_id',WORKSHOP_ID);
     if(error)setMånadsage('No se pudo mover la cita: '+error.message);
     else {setAppointments(prev=>prev.map(a=>a.id===d.id?{...a,...updates}:a));setSelectedAppointment(prev=>prev?.id===d.id?{...prev,...updates}:prev);}
@@ -334,10 +346,10 @@ export default function Calendar() {
               return <div key={lane.id} style={{display:'grid',gridTemplateColumns:'115px 1fr',minHeight:80,borderBottom:'1px solid #ccd5df'}}>
                 <div style={{padding:10,borderRight:'1px solid #b7c7db'}}><strong>{lane.name}</strong><div style={{fontSize:11,color:'#64748b'}}>{lane.detail}</div></div>
                 <div data-lane={lane.id} data-calendar-track="true" style={{position:'relative',minHeight:Math.max(80,items.length*44+8),backgroundImage:'linear-gradient(to right,#d5dce5 1px,transparent 1px)',backgroundSize:'8.333333% 100%'}}>
-                  {items.map((a,i)=>{const shown=displayAppointment(a),p=position(shown),st=status(a);return <div key={a.id} onPointerDown={e=>pointerStart(e,a,'move')} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={()=>{dragRef.current=null;setDragPreview(null);}} onClick={()=>{if(!dragPreview)setSelectedAppointment(a);}} title={a.google_preview?'Google: solo lectura':a.reason||'Arrastra para mover'} style={{position:'absolute',top:6+i*44,left:p.left,width:p.width,minWidth:68,height:36,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:a.google_preview?'pointer':'grab',overflow:'hidden',fontSize:12,padding:'2px 9px',touchAction:'none',userSelect:'none'}}>
-                    {!a.google_preview&&<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'left');}} style={{position:'absolute',left:0,top:0,bottom:0,width:8,background:'#ffffff70',cursor:'ew-resize'}}/>}
+                  {items.map((a,i)=>{const shown=displayAppointment(a),p=position(shown),st=status(a);return <div key={a.id} onPointerDown={e=>pointerStart(e,a,'move')} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={()=>{dragRef.current=null;previewRef.current=null;setDragPreview(null);}} onClick={()=>{if(!dragPreview)setSelectedAppointment(a);}} title={a.google_preview?'Copia de Google: mueve solo en esta prueba':a.reason||'Arrastra para mover'} style={{position:'absolute',top:6+i*44,left:p.left,width:p.width,minWidth:68,height:36,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:'grab',overflow:'hidden',fontSize:12,padding:'2px 9px',touchAction:'none',userSelect:'none'}}>
+                    {<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'left');}} style={{position:'absolute',left:0,top:0,bottom:0,width:8,background:'#ffffff70',cursor:'ew-resize'}}/>}
                     <strong>{a.plate_snapshot||a.reason||'Reserva'}</strong><div style={{fontSize:10,whiteSpace:'nowrap'}}>{st.label}</div>
-                    {!a.google_preview&&<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'right');}} style={{position:'absolute',right:0,top:0,bottom:0,width:9,background:'#ffffff70',cursor:'ew-resize'}}/>}
+                    {<span onPointerDown={e=>{e.stopPropagation();pointerStart(e,a,'right');}} style={{position:'absolute',right:0,top:0,bottom:0,width:9,background:'#ffffff70',cursor:'ew-resize'}}/>}
                   </div>;})}
                   {selectedDay===new Date(clockNow).toLocaleDateString('sv-SE')&&hourOf(clockNow)>=beginHour&&hourOf(clockNow)<=endHour&&<div aria-label="Hora actual" style={{position:'absolute',left:((hourOf(clockNow)-beginHour)/hourSpan*100)+'%',top:0,bottom:0,width:2,background:'#e11d48',zIndex:4,pointerEvents:'none'}}/>}
                 </div>
