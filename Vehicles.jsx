@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import { createVehicle, listVehicles } from './workshopRepository.js';
 
-export default function Vehicles() {
+export default function Vehicles({ onOpenPlate }) {
   const [items, setItems] = useState([]);
   const [plate, setPlate] = useState('');
+  const [search, setSearch] = useState('');
   const [description, setDescription] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -46,14 +47,16 @@ export default function Vehicles() {
       <label>Fordon<input value={description} onChange={(e) => setDescription(e.target.value)} /></label>
       <button type="button" className="primary-button" onClick={add}>Añadir vehículo</button>
     </section>
+    <section className="card"><label>Buscar matrícula / Sök registreringsnummer<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="ABC123" /></label></section>
     <section className="card">
-      {loading ? <p>Cargando vehículos…</p> : items.length === 0 ? <p>No hay vehículos registrados.</p> : items.map((item) => (
+      {loading ? <p>Cargando vehículos…</p> : items.length === 0 ? <p>No hay vehículos registrados.</p> : items.filter(item => String(item.registration_plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g,'').includes(search.toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g,''))).map((item) => (
         <div className="vehicle-row" key={item?.id || item?.registration_plate}>
-          <button type="button" className="plate">{item?.registration_plate || '—'}</button>
+          <button type="button" className="plate" onClick={() => onOpenPlate?.(item.registration_plate)}>{item?.registration_plate || '—'}</button>
           <div>
             <strong>{[item?.make, item?.model, item?.model_year].filter(Boolean).join(' ') || item?.raw_description || 'Ingen beskrivning'}</strong>
             <span>{item?.vin ? `VIN ${item.vin}` : 'VIN saknas'}{item?.engine ? ` · Motor ${item.engine}` : ''}{item?.fuel_type ? ` · ${item.fuel_type}` : ''}</span>
           </div>
+          <button type="button" className="secondary-button" onClick={() => onOpenPlate?.(item.registration_plate)}>Historial / Nueva orden</button>
         </div>
       ))}
     </section>
