@@ -141,6 +141,8 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
   const [syncMessage, setSyncMessage] = useState('');
   const [timerBusy, setTimerBusy] = useState(false);
   const [orderView, setOrderView] = useState('active');
+  const [reportFrom, setReportFrom] = useState('');
+  const [reportTo, setReportTo] = useState('');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
 
   const normalizePlate = value => String(value || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '');
@@ -153,9 +155,10 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
   const plateHistoryOrders = normalizedPlateSearch
     ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '').includes(normalizedPlateSearch))
     : [];
+  const reportOrders = historyOrders.filter(order => { const raw = order.closedAt || order.completedAt || order.updatedAt || order.createdAt || ''; const date = String(raw).slice(0,10); return (!reportFrom || date >= reportFrom) && (!reportTo || date <= reportTo); }).sort((a,b)=>String(b.closedAt || b.completedAt || b.updatedAt || b.createdAt || '').localeCompare(String(a.closedAt || a.completedAt || a.updatedAt || a.createdAt || '')));
   const visibleOrders = normalizedPlateSearch
     ? plateHistoryOrders
-    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
+    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : orderView === 'report' ? reportOrders : activeOrders;
   const orderDate = (order) => {
     const raw = order.createdAt || order.updatedAt;
     if (!raw) return 'Utan datum';
@@ -694,14 +697,19 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed }) {
       {!normalizedPlateSearch && <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
         <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik ({historyOrders.length})</button>
+        <button type="button" className={orderView === 'report' ? 'selected' : ''} onClick={() => setOrderView('report')}>Reportes / Rapporter</button>
         <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
       </div>}
+
+      {!normalizedPlateSearch && orderView === 'report' && <section className="card" style={{marginBottom:'14px'}}><h2>Reporte de vehículos trabajados / Rapport</h2><div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}><label>Desde / Från <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>Hasta / Till <input type="date" value={reportTo} min={reportFrom||undefined} onChange={e=>setReportTo(e.target.value)}/></label></div><p>{reportOrders.length} órdenes cerradas · Pulsa la matrícula para abrir la orden.</p><small>Se usa la última fecha de actualización disponible si no existe fecha de cierre registrada.</small></section>}
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
           <h2>{normalizedPlateSearch ? 'Ingen historik för detta registreringsnummer' : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : 'Inga öppna eller väntande arbetsorder'}</h2>
           <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
+      ) : orderView === 'report' && !normalizedPlateSearch ? (
+        <section className="card"><div style={{display:'grid',gap:'10px'}}>{reportOrders.map(order=><div key={order.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',borderBottom:'1px solid #ddd',paddingBottom:'8px'}}><button className="plate" onClick={()=>setSelectedOrderId(order.id)}>{order.plate}</button><span>{orderDate(order)}</span><button className="secondary-button" onClick={()=>setSelectedOrderId(order.id)}>Abrir orden</button></div>)}</div></section>
       ) : (
         <section className="orders-list">
           {visibleOrders.map((order) => (
