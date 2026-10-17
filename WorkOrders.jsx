@@ -153,7 +153,10 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   const activeOrders = orders.filter((order) => !closedStatuses.has(order.status) && order.status !== 'Cancelada');
   const normalizedPlateSearch = plateHistorySearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const plateHistoryOrders = normalizedPlateSearch
-    ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '').includes(normalizedPlateSearch))
+    ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '').includes(normalizedPlateSearch))
+    : [];
+  const matchedVehicles = normalizedPlateSearch
+    ? registeredVehicles.filter(vehicle => String(vehicle.registration_plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '').includes(normalizedPlateSearch))
     : [];
   const reportOrders = historyOrders.filter(order => { const raw = order.closedAt || order.completedAt || order.updatedAt || order.createdAt || ''; const date = String(raw).slice(0,10); return (!reportFrom || date >= reportFrom) && (!reportTo || date <= reportTo); }).sort((a,b)=>String(b.closedAt || b.completedAt || b.updatedAt || b.createdAt || '').localeCompare(String(a.closedAt || a.completedAt || a.updatedAt || a.createdAt || '')));
   const visibleOrders = normalizedPlateSearch
@@ -686,14 +689,22 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
           />
         </label>
         {normalizedPlateSearch && <p style={{ margin: '8px 0 0' }}>
-          {plateHistoryOrders.length
-            ? `${plateHistoryOrders.length} orden(es) encontradas para esta matrícula.`
-            : 'Ingen historik för detta registreringsnummer.'}
+          {plateHistoryOrders.length || matchedVehicles.length
+            ? `${matchedVehicles.length} vehículo(s) · ${plateHistoryOrders.length} orden(es) encontradas.`
+            : 'No se encontró esta matrícula en vehículos ni órdenes.'}
         </p>}
       </section>
 
       <section className="card" style={{marginBottom: '14px'}}><strong>Ficha del vehículo / Fordonskort</strong><div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}}><input aria-label="Matrícula" placeholder="ABC123" value={vehicleLookup} onChange={e=>setVehicleLookup(e.target.value.toUpperCase())}/><button type="button" className="secondary-button" onClick={()=>setPlateHistorySearch(vehicleLookup)}>Historial / Historik</button><button type="button" className="primary-button" disabled={!normalizePlate(vehicleLookup)} onClick={()=>startNewOrder(vehicleLookup)}>Nueva orden / Ny arbetsorder</button></div><small>Si el vehículo ya existe, se recuperan cliente y vehículo de la última orden. Los trabajos anteriores se conservan sin copiarse.</small></section>
 
+      {normalizedPlateSearch && matchedVehicles.length > 0 && <section className="card" style={{marginBottom:'14px'}}>
+        <h2>Vehículos encontrados / Hittade fordon</h2>
+        {matchedVehicles.map(vehicle => <div className="vehicle-row" key={vehicle.id || vehicle.registration_plate}>
+          <button type="button" className="plate" onClick={() => setPlateHistorySearch(vehicle.registration_plate)}>{vehicle.registration_plate}</button>
+          <div><strong>{[vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || 'Vehículo registrado'}</strong></div>
+          <button type="button" className="primary-button" onClick={() => startNewOrder(vehicle.registration_plate)}>Nueva orden</button>
+        </div>)}
+      </section>}
       <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
         <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik ({historyOrders.length})</button>
@@ -705,7 +716,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
 
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>{normalizedPlateSearch ? 'Ingen historik för detta registreringsnummer' : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : orderView === 'report' ? 'Inga avslutade arbetsorder i perioden' : 'Inga öppna eller väntande arbetsorder'}</h2>
+          <h2>{normalizedPlateSearch ? (matchedVehicles.length ? 'Vehículo encontrado sin órdenes anteriores' : 'Ingen historik för detta registreringsnummer') : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : orderView === 'report' ? 'Inga avslutade arbetsorder i perioden' : 'Inga öppna eller väntande arbetsorder'}</h2>
           <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : orderView === 'report' && !normalizedPlateSearch ? (
