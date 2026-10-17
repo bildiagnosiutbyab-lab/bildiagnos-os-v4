@@ -48,6 +48,11 @@ export default function Calendar() {
   const [message, setMånadsage] = useState('');
   const [googleToken, setGoogleToken] = useState(() => sessionStorage.getItem(GOOGLE_TOKEN_KEY) || '');
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [workBusy, setWorkBusy] = useState(false);
+  useEffect(() => { const id = window.setInterval(() => setClockNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
   const now = new Date();
   const [form, setForm] = useState({
     plate: '', reason: '', startsAt: localInputValue(now),
@@ -58,7 +63,7 @@ export default function Calendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from('appointments')
-      .select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status')
+      .select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status,work_started_at,work_finished_at,work_paused_at,work_paused_seconds,work_planned_extra_minutes,work_waiting_reason')
       .eq('workshop_id', WORKSHOP_ID)
       .order('starts_at', { ascending: true });
     if (error) setMånadsage('No se pudo cargar el calendario: ' + error.message);
@@ -174,12 +179,53 @@ export default function Calendar() {
       notes: form.notes || null,
       status: 'scheduled',
       google_sync_status: googleToken ? 'pending' : null
-    }).select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status').single();
+    }).select('id,starts_at,ends_at,reason,status,plate_snapshot,notes,work_order_id,google_calendar_id,google_event_id,google_synced_at,google_sync_status,work_started_at,work_finished_at,work_paused_at,work_paused_seconds,work_planned_extra_minutes,work_waiting_reason').single();
     if (error) { setMånadsage('No se pudo guardar: ' + error.message); return; }
     setShowForm(false);
     setMånadsage('Reserva guardada en Bildiagnos.');
     if (googleToken && data) await pushToGoogle(data);
     else await load();
+  }
+
+  const dayAppointments = [...appointments, ...GOOGLE_PREVIEW].filter(a => new Date(a.starts_at).toLocaleDateString('sv-SE') === selectedDay).sort((a,b) => new Date(a.starts_at)-new Date(b.starts_at));
+  function shiftDay(n) { const d = new Date(selectedDay + 'T12:00:00'); d.setDate(d.getDate()+n); setSelectedDay(d.toLocaleDateString('sv-SE')); setSelectedAppointment(null); }
+  const beginHour=7, endHour=19, hourSpan=12;
+  function hourOf(v) { const d=new Date(v); return d.getHours()+d.getMinutes()/60; }
+  function position(a) {
+    const start=Math.max(beginHour,Math.min(endHour,hourOf(a.starts_at)));
+    const finish=Math.min(endHour,hourOf(a.ends_at || new Date(new Date(a.starts_at).getTime()+3600000)) + Number(a.work_planned_extra_minutes||0)/60);
+    return {left:(start-beginHour)/hourSpan*100+'%', width:Math.max(1,(finish-start)/hourSpan*100)+'%'};
+  }
+  function status(a) {
+    const started=a.work_started_at ? new Date(a.work_started_at).getTime() : 0;
+    const finished=a.work_finished_at ? new Date(a.work_finished_at).getTime() : 0;
+    const paused=a.work_paused_at ? new Date(a.work_paused_at).getTime() : 0;
+    const planned=Math.max(60000,new Date(a.ends_at||new Date(new Date(a.starts_at).getTime()+3600000)).getTime()-new Date(a.starts_at).getTime()+Number(a.work_planned_extra_minutes||0)*60000);
+    const elapsed=started?Math.max(0,(finished||paused||clockNow)-started-Number(a.work_paused_seconds||0)*1000):0;
+    if(finished) return {color:'#e58a27',label:'Terminado',remaining:''};
+    if(paused) return {color:'#aeb6c2',label:'Pausado · esperando piezas',remaining:''};
+    if(!started) return {color:'#aeb6c2',label:'Sin comenzar',remaining:''};
+    if(elapsed>=planned) return {color:'#dc4545',label:'Tiempo excedido',remaining:Math.ceil((elapsed-planned)/60000)+' min extra'};
+    return {color:'#24a66b',label:'Trabajando',remaining:Math.ceil((planned-elapsed)/60000)+' min restantes'};
+  }
+  async function workAction(a,action) {
+    if(a.google_preview || workBusy) return;
+    setWorkBusy(true);
+    try {
+      const now=new Date().toISOString();
+      let change={};
+      if(action==='start') change={work_started_at:now,work_finished_at:null,work_paused_at:null,work_paused_seconds:0,work_waiting_reason:null};
+      if(action==='pause') change={work_paused_at:now,work_waiting_reason:'Väntar på reservdelar'};
+      if(action==='resume') change={work_paused_at:null,work_paused_seconds:Number(a.work_paused_seconds||0)+Math.floor((Date.now()-new Date(a.work_paused_at).getTime())/1000),work_waiting_reason:null};
+      if(action==='finish') change={work_finished_at:now,work_paused_seconds:Number(a.work_paused_seconds||0)+(a.work_paused_at?Math.floor((Date.now()-new Date(a.work_paused_at).getTime())/1000):0),work_paused_at:null};
+      if(action==='extend') change={work_planned_extra_minutes:Number(a.work_planned_extra_minutes||0)+30};
+      if(action==='shorten') change={work_planned_extra_minutes:Math.max(-Math.floor((new Date(a.ends_at||new Date(new Date(a.starts_at).getTime()+3600000)).getTime()-new Date(a.starts_at).getTime())/60000)+15,Number(a.work_planned_extra_minutes||0)-30)};
+      const {error}=await supabase.from('appointments').update(change).eq('id',a.id).eq('workshop_id',WORKSHOP_ID);
+      if(error) throw error;
+      setSelectedAppointment({...a,...change});
+      await load();
+    } catch(error) { setMånadsage('No se pudo guardar: '+error.message); }
+    finally {setWorkBusy(false);}
   }
 
   const grouped = useMemo(() => {
@@ -222,31 +268,51 @@ export default function Calendar() {
         </form>
       )}
 
-      <section className="calendar-list">
-        {loading ? <div className="card">Cargando calendario…</div> :
-         grouped.length === 0 ? <div className="card empty-state"><h2>Sin reservas</h2><p>Crea la primera reserva. Si Google está conectado, se sincronizará al guardarla.</p></div> :
-         grouped.map(([day, list]) => (
-          <div className="card calendar-day" key={day}>
-            <h2>{new Date(day + 'T12:00:00').toLocaleDateString('es-SE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</h2>
-            {list.map(a => (
-              <div className="appointment-row" key={a.id}>
-                <div className="appointment-time">{new Date(a.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})}{a.ends_at ? '–' + new Date(a.ends_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
-                <div className="appointment-main">
-                  <strong>{a.plate_snapshot || 'Utan registreringsnummer'}</strong>
-                  <span>{a.reason || 'Reserva'}</span>
-                  {a.notes && <small>{a.notes}</small>}
-                  {a.google_preview && <small className="sync-ok">Google Calendar · vista de prueba</small>}
-                  {a.google_event_id && <small className="sync-ok">✓ Google sincronizado</small>}
-                  {a.google_sync_status === 'error' && <small className="sync-error">Error de sincronización</small>}
-                </div>
-                <div className="appointment-actions">
-                  {!a.google_preview && googleToken && <button className="secondary-button" disabled={googleBusy} onClick={() => pushToGoogle(a)}><RotateCw size={15}/>{a.google_event_id ? 'Actualizar Google' : 'Sincronizar'}</button>}
-                  {!a.google_preview && !googleToken && <a className="secondary-button calendar-link" href={googleEventUrl(a)} target="_blank" rel="noreferrer">Añadir a Google</a>}
-                </div>
+      <section className="card" style={{marginTop:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,flexWrap:'wrap',marginBottom:14}}>
+          <button type="button" className="secondary-button" onClick={()=>shiftDay(-1)}>◀</button>
+          <strong>{new Date(selectedDay+'T12:00:00').toLocaleDateString('sv-SE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</strong>
+          <button type="button" className="secondary-button" onClick={()=>shiftDay(1)}>▶</button>
+          <button type="button" className="secondary-button" onClick={()=>setSelectedDay(new Date().toLocaleDateString('sv-SE'))}>Hoy</button>
+          <input type="date" aria-label="Fecha" value={selectedDay} onChange={e=>{setSelectedDay(e.target.value);setSelectedAppointment(null);}}/>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <div style={{minWidth:850}}>
+            <div style={{display:'grid',gridTemplateColumns:'115px 1fr',borderBottom:'2px solid #b7c7db'}}>
+              <strong style={{padding:10}}>Taller</strong>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(12,minmax(0,1fr))',background:'#dce7f5'}}>
+                {Array.from({length:12},(_,i)=><div key={i} style={{borderLeft:'1px solid #b7c7db',textAlign:'center',padding:'10px 0',fontSize:12}}>{String(i+7).padStart(2,'0')}:00</div>)}
               </div>
-            ))}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'115px 1fr',minHeight:90}}>
+              <div style={{padding:12,borderRight:'1px solid #b7c7db'}}><strong>Trabajos</strong><div style={{fontSize:12}}>{dayAppointments.length} citas</div></div>
+              <div style={{position:'relative',minHeight:Math.max(90,dayAppointments.length*46+10),backgroundImage:'linear-gradient(to right,#d5dce5 1px,transparent 1px)',backgroundSize:'8.333333% 100%'}}>
+                {dayAppointments.map((a,i)=>{const p=position(a),st=status(a);return <button type="button" key={a.id} onClick={()=>setSelectedAppointment(a)} title={a.reason||'Reserva'} style={{position:'absolute',top:8+i*46,left:p.left,width:p.width,minWidth:68,height:38,background:st.color,border:'1px solid #64748b',borderRadius:4,color:'#172b3a',cursor:'pointer',overflow:'hidden',fontSize:12,padding:2}}>
+                  <strong>{a.plate_snapshot||a.reason||'Reserva'}</strong>
+                  <div style={{fontSize:10,whiteSpace:'nowrap'}}>{st.label}</div>
+                </button>;})}
+                {selectedDay===new Date(clockNow).toLocaleDateString('sv-SE')&&hourOf(clockNow)>=beginHour&&hourOf(clockNow)<=endHour&&<div aria-label="Hora actual" style={{position:'absolute',left:((hourOf(clockNow)-beginHour)/hourSpan*100)+'%',top:0,bottom:0,width:2,background:'#e11d48',zIndex:4,pointerEvents:'none'}}><span style={{position:'absolute',top:-17,left:-18,fontSize:10,color:'#e11d48',fontWeight:700}}>Ahora</span></div>}
+              </div>
+            </div>
           </div>
-         ))}
+        </div>
+        {loading&&<p>Cargando citas…</p>}
+        {!loading&&dayAppointments.length===0&&<p>Sin reservas para este día.</p>}
+        {selectedAppointment&&<div style={{borderTop:'1px solid #ccd5df',marginTop:14,paddingTop:14}}>
+          <h3>{selectedAppointment.plate_snapshot||'Cita'} · {selectedAppointment.reason||'Trabajo'}</h3>
+          <p>{new Date(selectedAppointment.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})}–{new Date(selectedAppointment.ends_at||selectedAppointment.starts_at).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})} · {status(selectedAppointment).label} {status(selectedAppointment).remaining}</p>
+          {selectedAppointment.notes&&<p>{selectedAppointment.notes}</p>}
+          {!selectedAppointment.google_preview&&<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {!selectedAppointment.work_started_at&&<button type="button" className="primary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'start')}>Iniciar</button>}
+            {selectedAppointment.work_started_at&&!selectedAppointment.work_finished_at&&!selectedAppointment.work_paused_at&&<button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'pause')}>Pausar · esperar piezas</button>}
+            {selectedAppointment.work_paused_at&&!selectedAppointment.work_finished_at&&<button type="button" className="primary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'resume')}>Continuar</button>}
+            {selectedAppointment.work_started_at&&!selectedAppointment.work_finished_at&&<button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'finish')}>Terminar</button>}
+            <button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'shorten')}>−30 min</button>
+            <button type="button" className="secondary-button" disabled={workBusy} onClick={()=>workAction(selectedAppointment,'extend')}>+30 min</button>
+          </div>}
+          {selectedAppointment.google_preview&&<small>Google Calendar: vista de prueba, solo lectura</small>}
+          <button type="button" className="secondary-button" style={{marginTop:8}} onClick={()=>setSelectedAppointment(null)}>Cerrar detalles</button>
+        </div>}
       </section>
     </>
   );
