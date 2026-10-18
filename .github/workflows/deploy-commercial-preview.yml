@@ -104,3 +104,5 @@ jobs:
 # Deploy warranty activity in workshop timer test.
 
 # Deploy simplified single vehicle search in test.
+
+# Publish Fortnox real read-only verification UI to isolated test.
