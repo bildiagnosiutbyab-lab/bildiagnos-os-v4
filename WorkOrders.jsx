@@ -1,3 +1,4 @@
+import { supabase } from './supabaseClient.js';
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import {
@@ -133,6 +134,10 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [reserveAppointment, setReserveAppointment] = useState(false);
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState('09:00');
+  const [appointmentHours, setAppointmentHours] = useState('2');
   const [, setClockTick] = useState(0);
   const [inventoryRevision, setInventoryRevision] = useState(0);
 
@@ -269,6 +274,8 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
     const previous = orders.filter(o => normalizePlate(o.plate) === normalized).sort((a,b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     const registered = registeredVehicles.find(v => normalizePlate(v.registration_plate) === normalized);
     setEditingOrderId(null);
+    setReserveAppointment(false);
+    setAppointmentDate('');
     setSelectedOrderId(null);
     setForm({ ...emptyForm, plate: registered?.registration_plate || previous?.plate || normalized, customer: previous?.customer || '', vehicle: previous?.vehicle || [registered?.make, registered?.model, registered?.model_year].filter(Boolean).join(' ') || registered?.raw_description || '' });
     setShowForm(true);
@@ -276,6 +283,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
 
   function startEditOrder(order) {
     setEditingOrderId(order.id);
+    setReserveAppointment(false);
 
     setForm({
       customer: order.customer || '',
@@ -298,6 +306,11 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       return;
     }
 
+    if (!editingOrderId && reserveAppointment && (!appointmentDate || !appointmentTime || !(Number(appointmentHours)>0))) {
+      alert('Selecciona fecha, hora y duración de la cita.');
+      return;
+    }
+
     if (editingOrderId) {
       await updateOrder(editingOrderId, {
         ...form,
@@ -317,7 +330,31 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       try {
         const saved = await saveRelationalOrder(newOrder, null);
         setOrders((currentOrders) => [saved, ...currentOrders]);
-        setSyncMessage('Guardado en Supabase');
+        if (reserveAppointment) {
+          const start = new Date(appointmentDate + 'T' + appointmentTime);
+          const duration = Number(appointmentHours);
+          if (!appointmentDate || Number.isNaN(start.getTime()) || !(duration > 0)) {
+            setSyncMessage('Orden guardada. Reserva pendiente: comprueba fecha y duración.');
+            return;
+          }
+          const relationalId = saved.relationalId || saved.relational_id;
+          if (!relationalId) {
+            setSyncMessage('Orden guardada. No se pudo vincular la cita: falta identificador de orden.');
+            return;
+          }
+          const { error: bookingError } = await supabase.from('appointments').insert({
+            workshop_id: 'e2ff2d9c-4e4f-475d-88b5-bbfca33240a5',
+            work_order_id: relationalId,
+            starts_at: start.toISOString(),
+            ends_at: new Date(start.getTime() + duration * 3600000).toISOString(),
+            reason: form.requestedWork.trim() || 'Arbetsorder · ' + form.customer.trim(),
+            plate_snapshot: form.plate.trim().toUpperCase(),
+            status: 'scheduled'
+          });
+          setSyncMessage(bookingError ? 'Orden guardada, pero no se pudo reservar: ' + bookingError.message : 'Orden y cita guardadas en calendario interno.');
+        } else {
+          setSyncMessage('Guardado en Supabase');
+        }
       } catch (error) {
         console.error('No se pudo crear la orden:', error);
         setSyncMessage('No se pudo guardar la orden');
@@ -659,6 +696,14 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
             />
           </label>
 
+          {!editingOrderId && <section className="card" style={{margin:'12px 0'}}>
+            <label><input type="checkbox" checked={reserveAppointment} onChange={e=>setReserveAppointment(e.target.checked)}/> Añadir al calendario interno / Boka tid</label>
+            {reserveAppointment && <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:12}}>
+              <label>Fecha<input type="date" required value={appointmentDate} onChange={e=>setAppointmentDate(e.target.value)}/></label>
+              <label>Hora<input type="time" required value={appointmentTime} onChange={e=>setAppointmentTime(e.target.value)}/></label>
+              <label>Duración (horas)<input type="number" min="0.25" step="0.25" value={appointmentHours} onChange={e=>setAppointmentHours(e.target.value)}/></label>
+            </div>}
+          </section>}
           <div className="form-actions">
             <button className="secondary-button" onClick={cancelForm}>
               Cancelar
