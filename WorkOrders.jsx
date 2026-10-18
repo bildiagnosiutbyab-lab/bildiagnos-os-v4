@@ -145,6 +145,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
+  const [referenceSearch, setReferenceSearch] = useState('');
 
   const normalizePlate = value => String(value || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '');
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
@@ -160,9 +161,13 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
     ? registeredVehicles.filter(vehicle => String(vehicle.registration_plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '').includes(normalizedPlateSearch))
     : [];
   const reportOrders = historyOrders.filter(order => { const raw = order.closedAt || order.completedAt || order.updatedAt || order.createdAt || ''; const date = String(raw).slice(0,10); return (!reportFrom || date >= reportFrom) && (!reportTo || date <= reportTo); }).sort((a,b)=>String(b.closedAt || b.completedAt || b.updatedAt || b.createdAt || '').localeCompare(String(a.closedAt || a.completedAt || a.updatedAt || a.createdAt || '')));
-  const visibleOrders = normalizedPlateSearch
+  const referenceQuery=referenceSearch.trim().toLowerCase();
+  const referenceMatches=referenceQuery
+    ? orders.filter(order=>[order.order_number,order.orderNumber,order.invoice_number,order.invoiceNumber,order.payment_reference,order.paymentReference,order.receipt_number,order.receiptNumber,order.plate,order.id].some(value=>String(value||'').toLowerCase().includes(referenceQuery)))
+    : null;
+  const visibleOrders = referenceMatches || (normalizedPlateSearch
     ? plateHistoryOrders
-    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : orderView === 'report' ? reportOrders : activeOrders;
+    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : orderView === 'report' ? reportOrders : activeOrders);
   const orderDate = (order) => {
     const raw = order.createdAt || order.updatedAt;
     if (!raw) return 'Utan datum';
@@ -678,6 +683,11 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       />
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
+      <section className="card" style={{marginBottom:14}}>
+        <label htmlFor="order-reference-search"><strong>Buscar número de orden, factura, pago o recibo</strong></label>
+        <input id="order-reference-search" type="search" value={referenceSearch} onChange={e=>setReferenceSearch(e.target.value)} placeholder="Número de orden / Faktura / Betalning / Kvitto" style={{width:'100%',marginTop:7}}/>
+        {referenceQuery&&<small>{referenceMatches.length} orden(es) encontradas en los datos de Bildiagnos.</small>}
+      </section>
 
       <section className="card" style={{ marginBottom: '14px' }}>
         <label style={{ display: 'grid', gap: '7px' }}>
