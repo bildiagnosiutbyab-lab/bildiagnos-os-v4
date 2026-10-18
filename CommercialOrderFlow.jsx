@@ -115,6 +115,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [service, setService] = useState(emptyService);
   const [part, setPart] = useState(emptyPart);
+  const [consumablesAmount, setConsumablesAmount] = useState('32');
+  const [wasteOilLitres, setWasteOilLitres] = useState('0');
+  const [wasteOilRate, setWasteOilRate] = useState('15');
   const [quoteSettings, setQuoteSettings] = useState({ notes: '', variablePrice: false, warrantyEnabled: false, warrantyMonths: '3', warrantyKm: '1000', documentLanguage: 'sv' });
   const [invoiceForm, setInvoiceForm] = useState({ email: '', paymentTermsDays: '15', reference: '', ocr: '', notes: '' });
   const [paymentForm, setPaymentForm] = useState({ method: 'Swish', amount: '', reference: '', invoiceId: '' });
@@ -360,6 +363,20 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </section>
     </div>
 
+    <section className="commercial-card" style={{marginBottom:16}}>
+      <h3>Förbrukningsmaterial och miljöavgift (exkl. moms)</h3>
+      <div className="commercial-inline-form">
+        <label>Förbrukningsmaterial (kr)<input type="number" min="0" step="0.01" value={consumablesAmount} onChange={e=>setConsumablesAmount(e.target.value)}/></label>
+        <button type="button" disabled={busy || !Number.isFinite(Number(consumablesAmount)) || Number(consumablesAmount)<0} onClick={()=>run(()=>addCommercialPart(context,{description:'Förbrukningsmaterial',partNumber:'',quantity:'1',cost:'0',salePrice:consumablesAmount}),'Förbrukningsmaterial añadido a la orden.')}>Añadir material</button>
+      </div>
+      <div className="commercial-inline-form">
+        <label>Spillolja (liter)<input type="number" min="0" step="0.01" value={wasteOilLitres} onChange={e=>setWasteOilLitres(e.target.value)}/></label>
+        <label>Miljöavgift (kr/liter)<input type="number" min="0" step="0.01" value={wasteOilRate} onChange={e=>setWasteOilRate(e.target.value)}/></label>
+        <strong>{money(Number(wasteOilLitres||0)*Number(wasteOilRate||0))} exkl. moms</strong>
+        <button type="button" disabled={busy || Number(wasteOilLitres)<=0 || Number(wasteOilRate)<0 || !Number.isFinite(Number(wasteOilLitres)*Number(wasteOilRate))} onClick={()=>run(()=>addCommercialPart(context,{description:'Miljöavgift – spillolja',partNumber:'',quantity:wasteOilLitres,cost:'0',salePrice:wasteOilRate}),'Miljöavgift añadida a la orden.')}>Añadir miljöavgift</button>
+      </div>
+      <small>Estos cargos se añaden como líneas de la orden. Puedes corregirlos o eliminarlos en Reservdelar antes de facturar. No pulses Añadir dos veces para el mismo cargo.</small>
+    </section>
     <ProfitabilityPanel context={context} />
     <DeliveryNoteReader orderId={orderId} parts={context.parts} onSaved={async () => { await refresh(); await onSaved?.(); }} />
 
