@@ -9,6 +9,7 @@ import Calendar from './Calendar.jsx';
 import AuthGate from './AuthGate.jsx';
 import Lager from './Lager.jsx';
 import WorkshopTimer from './WorkshopTimer.jsx';
+import FortnoxConnection from './FortnoxConnection.jsx';
 
 class ScreenErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { failed: false }; }
@@ -54,6 +55,7 @@ export default function App() {
           {page === 'parts' && <Parts />}
           {page === 'lager' && <Lager />}
           {page === 'workshop' && <WorkshopTimer language={language} />}
+          {page === 'fortnox' && <FortnoxConnection />}
           {page === 'calendar' && <Calendar onOpenOrder={plate => { setVehiclePlate(plate); navigate('orders'); }} />}
         </ScreenErrorBoundary></main>
       </div>
