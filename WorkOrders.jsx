@@ -139,6 +139,7 @@ export default function WorkOrders() {
   const [timerBusy, setTimerBusy] = useState(false);
   const [orderView, setOrderView] = useState('active');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
+  const [referenceSearch, setReferenceSearch] = useState('');
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
   const closedStatuses = new Set(['Pagada', 'Terminada']);
@@ -149,9 +150,11 @@ export default function WorkOrders() {
   const plateHistoryOrders = normalizedPlateSearch
     ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '').includes(normalizedPlateSearch))
     : [];
-  const visibleOrders = normalizedPlateSearch
+  const referenceQuery = referenceSearch.trim().toLowerCase();
+  const referenceMatches = referenceQuery ? orders.filter(order => [order.order_number,order.orderNumber,order.invoice_number,order.invoiceNumber,order.payment_reference,order.paymentReference,order.receipt_number,order.receiptNumber,order.plate].some(value => String(value ?? '').toLowerCase().includes(referenceQuery))) : null;
+  const visibleOrders = referenceMatches || (normalizedPlateSearch
     ? plateHistoryOrders
-    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders;
+    : orderView === 'history' ? historyOrders : orderView === 'cancelled' ? cancelledOrders : activeOrders);
   const orderDate = (order) => {
     const raw = order.createdAt || order.updatedAt;
     if (!raw) return 'Utan datum';
@@ -646,6 +649,11 @@ export default function WorkOrders() {
       />
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
+      <section className="card" style={{marginBottom:14}}>
+        <label htmlFor="order-reference-search"><strong>Buscar número de orden, factura, pago o recibo</strong></label>
+        <input id="order-reference-search" type="search" value={referenceSearch} onChange={e=>setReferenceSearch(e.target.value)} placeholder="Número de orden / Faktura / Betalning / Kvitto" style={{width:'100%',marginTop:7}}/>
+        {referenceQuery && <small>{referenceMatches.length} orden(es) encontradas.</small>}
+      </section>
 
       <section className="card" style={{ marginBottom: '14px' }}>
         <label style={{ display: 'grid', gap: '7px' }}>
@@ -693,6 +701,7 @@ export default function WorkOrders() {
                 </span>
               </div>
 
+              <p><strong>Orden:</strong> {order.order_number ?? order.orderNumber ?? 'Sin número'}</p>
               <h2>{order.customer}</h2>
 
               <p>
