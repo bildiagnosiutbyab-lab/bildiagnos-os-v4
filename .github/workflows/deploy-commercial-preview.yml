@@ -106,3 +106,5 @@ jobs:
 # Deploy simplified single vehicle search in test.
 
 # Publish Fortnox real read-only verification UI to isolated test.
+
+# Deploy isolated test reference search update.
