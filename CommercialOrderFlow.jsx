@@ -116,6 +116,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [service, setService] = useState(emptyService);
   const [part, setPart] = useState(emptyPart);
   const [consumablesAmount, setConsumablesAmount] = useState('32');
+  const [consumablesQuantity, setConsumablesQuantity] = useState('');
   const [wasteOilLitres, setWasteOilLitres] = useState('0');
   const [wasteOilRate, setWasteOilRate] = useState('15');
   const [quoteSettings, setQuoteSettings] = useState({ notes: '', variablePrice: false, warrantyEnabled: false, warrantyMonths: '3', warrantyKm: '1000', documentLanguage: 'sv' });
@@ -366,8 +367,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     <section className="commercial-card" style={{marginBottom:16}}>
       <h3>Förbrukningsmaterial och miljöavgift (exkl. moms)</h3>
       <div className="commercial-inline-form">
-        <label>Förbrukningsmaterial (kr)<input type="number" min="0" step="0.01" value={consumablesAmount} onChange={e=>setConsumablesAmount(e.target.value)}/></label>
-        <button type="button" disabled={busy || !Number.isFinite(Number(consumablesAmount)) || Number(consumablesAmount)<0} onClick={()=>run(()=>addCommercialPart(context,{description:'Förbrukningsmaterial',partNumber:'',quantity:'1',cost:'0',salePrice:consumablesAmount}),'Förbrukningsmaterial añadido a la orden.')}>Añadir material</button>
+        <label>Förbrukningsmaterial (antal)<input type="number" min="0.01" step="0.01" placeholder="Ange antal" value={consumablesQuantity} onChange={e=>setConsumablesQuantity(e.target.value)}/></label>
+        <label>Pris per enhet (kr)<input type="number" min="0" step="0.01" value={consumablesAmount} onChange={e=>setConsumablesAmount(e.target.value)}/></label>
+        <strong>{money(Number(consumablesQuantity||0)*Number(consumablesAmount||0))} exkl. moms</strong>
+        <button type="button" disabled={busy || !(Number(consumablesQuantity)>0) || !Number.isFinite(Number(consumablesQuantity)*Number(consumablesAmount)) || Number(consumablesAmount)<0} onClick={()=>run(()=>addCommercialPart(context,{description:'Förbrukningsmaterial',partNumber:'',quantity:consumablesQuantity,cost:'0',salePrice:consumablesAmount}),'Förbrukningsmaterial añadido a la orden.')}>Bekräfta och lägg till material</button>
       </div>
       <div className="commercial-inline-form">
         <label>Spillolja (liter)<input type="number" min="0" step="0.01" value={wasteOilLitres} onChange={e=>setWasteOilLitres(e.target.value)}/></label>
