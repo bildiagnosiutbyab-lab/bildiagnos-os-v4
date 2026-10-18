@@ -1,10 +1,10 @@
-import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, CalendarDays, Boxes, Wrench, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Users, Car, PackageSearch, CalendarDays, Boxes, Wrench, FileBarChart, Link2 } from 'lucide-react';
 
 const labels = {
-  sv: { dashboard: 'Översikt', orders: 'Arbetsorder', customers: 'Kunder', vehicles: 'Fordon', parts: 'Reservdelar', lager: 'Lager', calendar: 'Kalender', reports: 'Rapporter', workshop: 'Verkstad', subtitle: 'Verkstadsystem' },
-  es: { dashboard: 'Inicio', orders: 'Órdenes', customers: 'Clientes', vehicles: 'Vehículos', parts: 'Piezas', lager: 'Inventario', calendar: 'Calendario', reports: 'Reportes', workshop: 'Taller', subtitle: 'Sistema del taller' },
+  sv: { dashboard: 'Översikt', orders: 'Arbetsorder', customers: 'Kunder', vehicles: 'Fordon', parts: 'Reservdelar', lager: 'Lager', calendar: 'Kalender', reports: 'Rapporter', workshop: 'Verkstad', fortnox:'Fortnox', subtitle: 'Verkstadsystem' },
+  es: { dashboard: 'Inicio', orders: 'Órdenes', customers: 'Clientes', vehicles: 'Vehículos', parts: 'Piezas', lager: 'Inventario', calendar: 'Calendario', reports: 'Reportes', workshop: 'Taller', fortnox:'Fortnox', subtitle: 'Sistema del taller' },
 };
-const items = [['dashboard', LayoutDashboard], ['orders', ClipboardList], ['customers', Users], ['vehicles', Car], ['parts', PackageSearch], ['lager', Boxes], ['calendar', CalendarDays], ['reports', FileBarChart], ['workshop', Wrench]];
+const items = [['dashboard', LayoutDashboard], ['orders', ClipboardList], ['customers', Users], ['vehicles', Car], ['parts', PackageSearch], ['lager', Boxes], ['calendar', CalendarDays], ['reports', FileBarChart], ['workshop', Wrench], ['fortnox', Link2]];
 
 export default function Sidebar({ active, onChange, language = 'sv', onLanguageChange }) {
   const t = labels[language] || labels.sv;
