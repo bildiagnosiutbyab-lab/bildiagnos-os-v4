@@ -9,6 +9,7 @@ export default function Vehicles({ onOpenPlate }) {
   const [description, setDescription] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -32,6 +33,7 @@ export default function Vehicles({ onOpenPlate }) {
       await createVehicle(plate.trim(), description.trim());
       setPlate('');
       setDescription('');
+      setShowAdd(false);
       setMessage('Vehículo guardado.');
       await refresh();
     } catch (error) {
@@ -42,12 +44,18 @@ export default function Vehicles({ onOpenPlate }) {
   return <>
     <PageHeader title="Fordon" subtitle="Historial individual por matrícula" />
     {message && <p className="lager-message" role="status">{message}</p>}
-    <section className="card order-form">
-      <label>Registreringsnummer<input value={plate} onChange={(e) => setPlate(e.target.value)} /></label>
-      <label>Fordon<input value={description} onChange={(e) => setDescription(e.target.value)} /></label>
-      <button type="button" className="primary-button" onClick={add}>Añadir vehículo</button>
+    <section className="card">
+      <label htmlFor="vehicle-search">Buscar matrícula / Sök registreringsnummer</label>
+      <input id="vehicle-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="ABC123" autoComplete="off" style={{width:'100%',maxWidth:480}} />
+      <div style={{marginTop:12}}>
+        <button type="button" className="secondary-button" onClick={()=>setShowAdd(value=>!value)} aria-expanded={showAdd}>{showAdd?'Cancelar':'＋ Añadir vehículo nuevo'}</button>
+      </div>
+      {showAdd&&<div className="order-form" style={{marginTop:16}}>
+        <label>Registreringsnummer<input value={plate} onChange={e=>setPlate(e.target.value.toUpperCase())} /></label>
+        <label>Fordon<input value={description} onChange={e=>setDescription(e.target.value)} /></label>
+        <button type="button" className="primary-button" onClick={add}>Guardar vehículo</button>
+      </div>}
     </section>
-    <section className="card"><label>Buscar matrícula / Sök registreringsnummer<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="ABC123" /></label></section>
     <section className="card">
       {loading ? <p>Cargando vehículos…</p> : items.length === 0 ? <p>No hay vehículos registrados.</p> : items.filter(item => String(item.registration_plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g,'').includes(search.toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g,''))).map((item) => (
         <div className="vehicle-row" key={item?.id || item?.registration_plate}>
