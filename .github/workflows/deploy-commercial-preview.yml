@@ -100,3 +100,5 @@ jobs:
 # Deploy local drag-resize support for Google calendar preview snapshots.
 
 # Deploy right click menu and mobile time edit controls in calendar test.
+
+# Deploy warranty activity in workshop timer test.
