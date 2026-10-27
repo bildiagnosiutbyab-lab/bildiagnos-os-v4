@@ -40,7 +40,7 @@ function dueDateFromDays(days) {
 }
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
-function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
+function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0) * 100)} perioder` : line.quantity; }
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
 function DocumentLinesTable({ lines, language, kind, showPrice, hideHourlyRate = false }) {
@@ -49,13 +49,13 @@ function DocumentLinesTable({ lines, language, kind, showPrice, hideHourlyRate =
   return <table className="print-lines">
     <thead><tr>
       <th>{isSpanish ? 'Beskrivning' : 'Beskrivning'}</th>
-      <th>{kind === 'service' ? (isSpanish ? 'Horas' : 'Timmar') : (isSpanish ? 'Cant.' : 'Antal')}</th>
-      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <th>{kind === 'service' ? (isSpanish ? 'Precio/h' : 'Pris/h') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th>}<th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
+      <th>{kind === 'service' ? (isSpanish ? 'Periodos' : 'Perioder') : (isSpanish ? 'Cant.' : 'Antal')}</th>
+      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <th>{kind === 'service' ? (isSpanish ? 'Precio/periodo' : 'Pris/period') : (isSpanish ? 'Precio unit.' : 'Pris/st')}</th>}<th>{isSpanish ? 'Importe' : 'Belopp'}</th></>}
     </tr></thead>
     <tbody>{lines.map((line) => <tr key={line.id}>
       <td>{line.description}</td>
       <td>{quoteQuantity(line)}</td>
-      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <td>{Number(line.unit_price) > 0 ? money(line.unit_price) : '—'}</td>}<td>{Number(line.unit_price) > 0 ? money(Number(line.quantity) * Number(line.unit_price)) : '—'}</td></>}
+      {showPrice && <>{!(hideHourlyRate && kind === 'service') && <td>{Number(line.unit_price) > 0 ? money(kind === 'service' ? Number(line.unit_price) / 100 : line.unit_price) : '—'}</td>}<td>{Number(line.unit_price) > 0 ? money(Number(line.quantity) * Number(line.unit_price)) : '—'}</td></>}
     </tr>)}</tbody>
   </table>;
 }
@@ -73,9 +73,9 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
     <label>Arbete<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Timmar<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
+    <label>Perioder (100 = 1 h)<input type="number" min="0" step="1" value={Number(draft.hours || 0) * 100} onChange={(e) => setDraft({ ...draft, hours: String(Number(e.target.value || 0) / 100) })} /></label>
     <label>Pris/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} h × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
+    <small>{statusLabel(item.status)} · {SEK.format(Number(draft.hours || 0) * 100)} perioder × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Spara</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Ta bort</button></div>
   </li>;
 }
@@ -343,7 +343,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <h3>Arbeten i arbetsordern</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Arbete tillagt.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Beskrivning av arbete" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
-          <input required type="number" min="0.01" step="0.01" placeholder="Timmar" value={service.hours} onChange={(e) => setService({ ...service, hours: e.target.value })} />
+          <input required type="number" min="0.01" step="0.01" placeholder="Perioder (100 = 1 h)" value={service.hours === '' ? '' : Number(service.hours) * 100} onChange={(e) => setService({ ...service, hours: String(Number(e.target.value || 0) / 100) })} />
           <input required type="number" min="0" placeholder="Pris/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
@@ -563,7 +563,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <span><small>Mätarställning</small><b>{lastReceipt.order.mileage ? `${lastReceipt.order.mileage} km` : '—'}</b></span>
         <span><small>VIN</small><b>{vehicle.vin || '—'}</b></span>
       </div>
-      {receiptLines.length > 0 && <div className="print-section"><h2>{lastReceipt.payment.preview ? 'Varor och tjänster (ej betalda)' : 'Betalda varor och tjänster'}</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody>{receiptLines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.item_type === 'service' ? `${Number(line.quantity || 0).toLocaleString('sv-SE',{minimumFractionDigits:2,maximumFractionDigits:2})} h` : Number(line.quantity || 0).toLocaleString('sv-SE',{maximumFractionDigits:2})}</td><td>{line.item_type === 'service' ? '—' : money(line.unit_price)}</td><td>{money(Number(line.quantity || 0) * Number(line.unit_price || 0))}</td></tr>)}</tbody></table></div>}
+      {receiptLines.length > 0 && <div className="print-section"><h2>{lastReceipt.payment.preview ? 'Varor och tjänster (ej betalda)' : 'Betalda varor och tjänster'}</h2><table className="print-lines"><thead><tr><th>Benämning</th><th>Antal</th><th>Pris</th><th>Summa</th></tr></thead><tbody>{receiptLines.map((line) => <tr key={line.id}><td>{line.description}</td><td>{line.item_type === 'service' ? `${(Number(line.quantity || 0) * 100).toLocaleString('sv-SE',{maximumFractionDigits:2})} perioder` : Number(line.quantity || 0).toLocaleString('sv-SE',{maximumFractionDigits:2})}</td><td>{line.item_type === 'service' ? '—' : money(line.unit_price)}</td><td>{money(Number(line.quantity || 0) * Number(line.unit_price || 0))}</td></tr>)}</tbody></table></div>}
       <div className="receipt-bottom">
         <div className="receipt-payment">
           <p><strong>Betalsätt:</strong> {lastReceipt.payment.method}</p>
