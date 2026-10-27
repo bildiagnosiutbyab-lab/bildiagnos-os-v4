@@ -110,3 +110,5 @@ jobs:
 # Deploy isolated test reference search update.
 
 # Rebuild isolated orders-test with optional internal calendar booking.
+
+# Trigger build of isolated Fortnox real authorization view.
