@@ -554,8 +554,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><small>Fakturanr</small><br/><b>{receiptInvoice?.invoice_number || '—'}</b></p>
       </div>
       <div className="invoice-address">
-        <small>Kund</small>
-        <strong>{lastReceipt.order.customer_name_snapshot || '—'}</strong>
+        <small>Kunduppgifter / Faktureringsadress</small>
+        <strong>{lastReceipt.invoice?.fortnox_test ? 'TESTKUND BILDIAGNOS' : customer.display_name || lastReceipt.order.customer_name_snapshot || '—'}</strong>
+        <div className="invoice-vehicle invoice-vehicle-strip">
+          <span><small>Kundnr</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : lastReceipt.invoice?.customer_number || lastReceipt.order.customer_number || '—'}</b></span>
+          <span><small>Org.nr / Personnr</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : customer.personal_or_org_number || '—'}</b></span>
+          <span><small>Adress</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : customer.address_line || '—'}</b></span>
+          <span><small>Postnr / Ort</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : [customer.postal_code, customer.city].filter(Boolean).join(' ') || '—'}</b></span>
+          <span><small>Telefon</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : customer.phone || '—'}</b></span>
+          <span><small>E-post</small><b>{lastReceipt.invoice?.fortnox_test ? '—' : customer.email || '—'}</b></span>
+        </div>
       </div>
       <div className="invoice-vehicle invoice-vehicle-strip">
         <span><small>Reg nr</small><b>{lastReceipt.order.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
