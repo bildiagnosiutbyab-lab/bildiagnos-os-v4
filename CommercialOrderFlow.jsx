@@ -591,7 +591,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-title"><h1>FAKTURA</h1><b>Nr: {invoicePreview.invoice_number || '—'}</b></div>
       </div>
       <div className="invoice-meta">
-        <p><small>Ordernr</small><br/><b>{invoicePreview.fortnox_test ? 'TEST' : workOrder.order_number || '—'}</b></p>
+        <p><small>Ordernr</small><br/><b>{workOrder.order_number || '—'}</b></p>
         <p><small>Fakturadatum</small><br/><b>{date(invoicePreview.created_at)}</b></p>
         <p><small>Förfallodatum</small><br/><b>{date(invoicePreview.due_at)}</b></p>
       </div>
