@@ -73,9 +73,9 @@ function ServiceLineEditor({ item, busy, onSave, onDelete }) {
   }), [item.description, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
     <label>Arbete<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Perioder (100 = 1 h)<input type="number" min="0" step="1" value={Number(draft.hours || 0) * 100} onChange={(e) => setDraft({ ...draft, hours: String(Number(e.target.value || 0) / 100) })} /></label>
+    <label>Perioder (100 = 1 h)<input type="number" min="0" step="1" value={Math.round(Number(draft.hours || 0) * 10000) / 100} onChange={(e) => setDraft({ ...draft, hours: String(Number(e.target.value || 0) / 100) })} /></label>
     <label>Pris/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {SEK.format(Number(draft.hours || 0) * 100)} perioder × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
+    <small>{statusLabel(item.status)} · {SEK.format(Number(draft.hours || 0) * 100)} perioder × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice) / 100) + '/period = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Spara</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Ta bort</button></div>
   </li>;
 }
@@ -343,7 +343,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <h3>Arbeten i arbetsordern</h3>
         <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => addCommercialService(context, service), 'Arbete tillagt.').then((ok) => ok && setService(emptyService)); }}>
           <input required placeholder="Beskrivning av arbete" value={service.description} onChange={(e) => setService({ ...service, description: e.target.value })} />
-          <input required type="number" min="0.01" step="0.01" placeholder="Perioder (100 = 1 h)" value={service.hours === '' ? '' : Number(service.hours) * 100} onChange={(e) => setService({ ...service, hours: String(Number(e.target.value || 0) / 100) })} />
+          <input required type="number" min="0.01" step="0.01" placeholder="Perioder (100 = 1 h)" value={service.hours === '' ? '' : Math.round(Number(service.hours) * 10000) / 100} onChange={(e) => setService({ ...service, hours: String(Number(e.target.value || 0) / 100) })} />
           <input required type="number" min="0" placeholder="Pris/h" value={service.unitPrice} onChange={(e) => setService({ ...service, unitPrice: e.target.value })} />
           <button disabled={busy}>Añadir</button>
         </form>
