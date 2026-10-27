@@ -320,6 +320,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Registreringsnummer', work: 'Trabajos', parts: 'Piezas', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Imprimir orden' }
     : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
   const vehicle = context.vehicle || {};
+  const customer = context.customer || {};
+  const invoiceCustomer = invoicePreview.fortnox_test ? {} : customer;
   const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
   const vehicleInfo = <div className="print-info print-info-list">
     <span>{labels.customer}: <b>{workOrder.customer_name_snapshot || '—'}</b></span>
@@ -593,7 +595,18 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><small>Fakturadatum</small><br/><b>{date(invoicePreview.created_at)}</b></p>
         <p><small>Förfallodatum</small><br/><b>{date(invoicePreview.due_at)}</b></p>
       </div>
-      <div className="invoice-address"><small>Faktureringsadress</small><strong>{invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : workOrder.customer_name_snapshot || '—'}</strong></div>
+      <div className="invoice-address">
+        <small>Faktureringsadress / Kunduppgifter</small>
+        <strong>{invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : customer.display_name || workOrder.customer_name_snapshot || '—'}</strong>
+        <div className="invoice-vehicle invoice-vehicle-strip">
+          <span><small>Kundnr</small><b>{invoicePreview.fortnox_test ? '—' : invoicePreview.customer_number || workOrder.customer_number || '—'}</b></span>
+          <span><small>Org.nr / Personnr</small><b>{invoiceCustomer.personal_or_org_number || '—'}</b></span>
+          <span><small>Adress</small><b>{invoiceCustomer.address_line || '—'}</b></span>
+          <span><small>Postnr / Ort</small><b>{[invoiceCustomer.postal_code, invoiceCustomer.city].filter(Boolean).join(' ') || '—'}</b></span>
+          <span><small>Telefon</small><b>{invoiceCustomer.phone || '—'}</b></span>
+          <span><small>E-post</small><b>{invoiceCustomer.email || '—'}</b></span>
+        </div>
+      </div>
       <div className="invoice-vehicle invoice-vehicle-strip">
         <span><small>Reg nr</small><b>{workOrder.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
         <span><small>Fabrikat</small><b>{vehicle.make || '—'}</b></span>
