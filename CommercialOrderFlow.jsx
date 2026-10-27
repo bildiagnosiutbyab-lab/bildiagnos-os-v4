@@ -594,14 +594,14 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><small>Förfallodatum</small><br/><b>{date(invoicePreview.due_at)}</b></p>
       </div>
       <div className="invoice-address"><small>Faktureringsadress</small><strong>{invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : workOrder.customer_name_snapshot || '—'}</strong></div>
-      {!invoicePreview.fortnox_test && <div className="invoice-vehicle invoice-vehicle-strip">
+      <div className="invoice-vehicle invoice-vehicle-strip">
         <span><small>Reg nr</small><b>{workOrder.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
         <span><small>Fabrikat</small><b>{vehicle.make || '—'}</b></span>
         <span><small>Modell</small><b>{vehicle.model || vehicle.raw_description || '—'}</b></span>
         <span><small>Årsmodell</small><b>{vehicle.model_year || '—'}</b></span>
         <span><small>Mätarställning</small><b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
         <span><small>Chassinummer</small><b>{vehicle.vin || '—'}</b></span>
-      </div>}
+      </div>
       <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice hideHourlyRate /></div>
       <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={printedPartLines} language="sv" kind="part" showPrice /></div>
       {testPrintMismatch && <p style={{ color: '#b00020', fontWeight: 'bold' }}>FEL: Fakturans rader stämmer inte med Fortnox total. Kontrollera originalfakturan. ANVÄND INTE DETTA DOKUMENT.</p>}
