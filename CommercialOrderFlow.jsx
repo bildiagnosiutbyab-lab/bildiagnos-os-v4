@@ -302,8 +302,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   // Fortnox sandbox prints the actual order lines, never the old 100 kr placeholder.
   const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.estimated_minutes || 0) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: Number(item.estimated_minutes || 0) / 60, unit_price: Number(item.unit_price || 0) }));
   const testPartLines = (context?.parts || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.quantity || 0) > 0).map((item) => ({ id: item.id, item_type: 'part', description: item.description_snapshot, quantity: Number(item.quantity || 0), unit_price: Number(item.sale_price || 0) }));
-  const printedServiceLines = invoicePreview.fortnox_test ? testServiceLines : serviceLines;
-  const printedPartLines = invoicePreview.fortnox_test ? testPartLines : partLines;
+  // An invoice preview without a prepared quote must still print the actual
+  // order services and parts. Do not depend on quoteItems existing.
+  const printedServiceLines = invoicePreview.fortnox_test || !serviceLines.length ? testServiceLines : serviceLines;
+  const printedPartLines = invoicePreview.fortnox_test || !partLines.length ? testPartLines : partLines;
   const printedWork = printedServiceLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
   const printedParts = printedPartLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
   const printedSubtotal = printedWork + printedParts;
