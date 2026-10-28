@@ -129,6 +129,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [productionPreview, setProductionPreview] = useState(null);
   const [productionBusy, setProductionBusy] = useState(false);
   const [productionInvoice, setProductionInvoice] = useState(null);
+  const [productionJob, setProductionJob] = useState({status:'loading'});
   const [productionSending, setProductionSending] = useState(false);
   const invokeProduction = async (body) => {
     const { data, error } = await supabase.functions.invoke('fortnox-production-invoice', { body });
@@ -136,12 +137,13 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     return data;
   };
   const createProductionInvoice = async () => {
-    if (productionBusy || !productionPreview || !orderId) return;
+    if (productionBusy || productionJob || !productionPreview || !orderId) return;
     if (!window.confirm('Skapa en VERKLIG faktura i Fortnox? Fakturan skickas INTE till kunden ännu.')) return;
     setProductionBusy(true);
     try {
       const result = await invokeProduction({action:'create',workOrderId:orderId,confirmReference:productionPreview.reference});
       setProductionInvoice(result);
+      setProductionJob({status:'submitted',documentNumber:result.documentNumber});
       setProductionPreview(null);
       setMessage('Faktura skapad i Fortnox: ' + result.documentNumber + '. Ej skickad.');
     } catch (error) { setMessage(error.message || 'Fortnox faktura misslyckades. Kontrollera Fortnox innan du försöker igen.'); }
@@ -154,6 +156,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     try {
       const result = await invokeProduction({action:'send',workOrderId:orderId,confirmDocumentNumber:productionInvoice.documentNumber});
       setProductionInvoice({...productionInvoice,...result});
+      setProductionJob(current=>({...current,sentAt:new Date().toISOString()}));
       setMessage('Faktura skickad: ' + result.documentNumber);
     } catch (error) { setMessage(error.message || 'Kontrollera fakturan i Fortnox innan nytt försök.'); }
     finally {setProductionSending(false);}
@@ -182,6 +185,13 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     if (!orderId) return;
     const data = await loadCommercialOrder(orderId);
     setContext(data);
+    try {
+      const {data:statusData,error:statusError}=await supabase.functions.invoke('fortnox-production-invoice',{body:{action:'status',workOrderId:orderId}});
+      if(statusError||!statusData?.ok) throw new Error(statusData?.error||statusError?.message||'Cannot verify invoice status');
+      setProductionInvoice(statusData.job?.documentNumber ? {documentNumber:statusData.job.documentNumber,ocr:statusData.job.ocr,invoiceStatus:statusData.job.invoiceStatus,sent:Boolean(statusData.job.sentAt)} : null);
+      setProductionJob(statusData.job||null);
+    } catch(error){setProductionJob({status:'unknown'});setMessage('Fortnox-status kan inte verifieras: '+error.message);}
+
     // Use the stored customer email by default, but preserve an address explicitly edited for this order.
     setInvoiceForm((current) => ({ ...current, email: current.email || data.customer?.email || '' }));
     if (data.customer) setCompanyForm({
@@ -556,15 +566,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending || productionBusy}>Skapa faktura – förhandsgranska i Fortnox</button>
+          <button disabled={busy || pricePending || productionBusy || Boolean(productionJob)}>Skapa faktura – förhandsgranska i Fortnox</button>
         </form>
+        {productionJob && !productionJob.documentNumber && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
         {productionPreview && <div role="status" className="fortnox-test-result">
           <strong>Fortnox produktion – INGEN FAKTURA SKAPAD</strong>
           <p>Order {productionPreview.orderNumber} · Kund {productionPreview.customerName} · {money(productionPreview.total)} inkl. moms</p>
           <p>Referens: {productionPreview.reference} · {productionPreview.rows.length} fakturarader</p>
           <p>Utställning och utskick är spärrade under testningen.</p>
         </div>}
-        {productionPreview && !productionInvoice && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
+        {productionPreview && !productionInvoice && !productionJob && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
         {productionInvoice && <div role="status" className="fortnox-test-result">
           <strong>Fortnox faktura {productionInvoice.documentNumber}</strong>
           <p>OCR: {productionInvoice.ocr || 'Hämta i Fortnox'} · Status: {productionInvoice.invoiceStatus || 'Skapad'} · {productionInvoice.sent ? 'Skickad' : 'Inte skickad'}</p>
