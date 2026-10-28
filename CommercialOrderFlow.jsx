@@ -111,6 +111,7 @@ function PartLineEditor({ item, busy, onSave, onDelete }) {
 
 export default function CommercialOrderFlow({ order, onSaved }) {
   const [context, setContext] = useState(null);
+  const [companyForm, setCompanyForm] = useState({ customer_type: 'company', display_name: '', personal_or_org_number: '', email: '', phone: '', address_line: '', postal_code: '', city: '' });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [service, setService] = useState(emptyService);
@@ -132,6 +133,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     if (!orderId) return;
     const data = await loadCommercialOrder(orderId);
     setContext(data);
+    if (data.customer) setCompanyForm({
+      customer_type: data.customer.customer_type || 'company',
+      display_name: data.customer.display_name || data.workOrder.customer_name_snapshot || '',
+      personal_or_org_number: data.customer.personal_or_org_number || '',
+      email: data.customer.email || '',
+      phone: data.customer.phone || '',
+      address_line: data.customer.address_line || '',
+      postal_code: data.customer.postal_code || '',
+      city: data.customer.city || '',
+    });
     const quote = data.quotes[0];
     if (quote) setQuoteSettings({
       notes: quote.notes || '', variablePrice: Boolean(quote.variable_price), warrantyEnabled: Boolean(quote.warranty_enabled),
@@ -339,6 +350,35 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       {quote && <span className={`commercial-status commercial-status-${quote.status}`}>{statusLabel(quote.status)}</span>}
     </header>
     {message && <p className={message.includes('No se pudo') ? 'commercial-error' : 'commercial-message'}>{message}</p>}
+
+    <section className="commercial-card" style={{ marginBottom: 16 }}>
+      <details>
+        <summary style={{ cursor: 'pointer', fontWeight: 700, padding: '8px 0' }}>Företagsuppgifter / Datos de empresa — {customer.display_name || workOrder.customer_name_snapshot}</summary>
+        <form className="commercial-settings" onSubmit={async (event) => {
+          event.preventDefault();
+          if (!workOrder.customer_id) { setMessage('Den här arbetsordern saknar en kopplad kund.'); return; }
+          setBusy(true); setMessage('');
+          try {
+            const { error } = await supabase.from('customers').update({
+              ...companyForm, customer_type: 'company'
+            }).eq('id', workOrder.customer_id).eq('workshop_id', workOrder.workshop_id);
+            if (error) throw error;
+            await refresh();
+            setMessage('Företagsuppgifter sparade / Datos de empresa guardados.');
+          } catch (error) { setMessage(error.message || 'Kunde inte spara företagsuppgifterna.'); }
+          finally { setBusy(false); }
+        }}>
+          <label>Företagsnamn<input required value={companyForm.display_name} onChange={(e) => setCompanyForm({ ...companyForm, display_name: e.target.value })} /></label>
+          <label>Organisationsnummer<input value={companyForm.personal_or_org_number} onChange={(e) => setCompanyForm({ ...companyForm, personal_or_org_number: e.target.value })} /></label>
+          <label>E-post<input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} /></label>
+          <label>Telefon<input value={companyForm.phone} onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })} /></label>
+          <label>Adress<input value={companyForm.address_line} onChange={(e) => setCompanyForm({ ...companyForm, address_line: e.target.value })} /></label>
+          <label>Postnummer<input value={companyForm.postal_code} onChange={(e) => setCompanyForm({ ...companyForm, postal_code: e.target.value })} /></label>
+          <label>Ort<input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} /></label>
+          <button type="submit" disabled={busy}>Spara företagsuppgifter</button>
+        </form>
+      </details>
+    </section>
 
     <div className="commercial-grid">
       <section className="commercial-card commercial-work-card">
