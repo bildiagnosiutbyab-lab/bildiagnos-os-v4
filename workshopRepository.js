@@ -18,10 +18,23 @@ export const listCustomers = () => list('customers', 'display_name');
 export const listVehicles = () => list('vehicles', 'registration_plate');
 export const listParts = () => list('parts', 'description');
 
+const customerFields = ['customer_type', 'display_name', 'personal_or_org_number', 'email', 'phone', 'address_line', 'postal_code', 'city'];
+
+export async function saveCustomerDetails(details, customerId = null) {
+  const workshop = await workshopId();
+  const payload = Object.fromEntries(customerFields.map((key) => [key, (details[key] || '').trim() || null]));
+  if (!payload.display_name) throw new Error('Ange kundens namn.');
+  payload.customer_type = payload.customer_type || 'private';
+  const query = customerId
+    ? supabase.from('customers').update(payload).eq('workshop_id', workshop).eq('id', customerId)
+    : supabase.from('customers').insert({ ...payload, workshop_id: workshop });
+  const { data, error } = await query.select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function createCustomer(displayName) {
-  const id = await workshopId();
-  const { data, error } = await supabase.from('customers').insert({ workshop_id: id, display_name: displayName }).select().single();
-  if (error) throw error; return data;
+  return saveCustomerDetails({ display_name: displayName, customer_type: 'private' });
 }
 export async function createVehicle(plate, description) {
   const id = await workshopId();
