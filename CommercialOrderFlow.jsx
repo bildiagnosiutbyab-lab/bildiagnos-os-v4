@@ -126,6 +126,25 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
   const [fortnoxInvoiceTest, setFortnoxInvoiceTest] = useState({ state: 'idle', message: '', result: null });
+  const [productionPreview, setProductionPreview] = useState(null);
+  const [productionBusy, setProductionBusy] = useState(false);
+  const previewProductionInvoice = async () => {
+    if (productionBusy || !orderId) return;
+    setProductionBusy(true);
+    setProductionPreview(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('fortnox-production-invoice', {
+        body: { action: 'preview', workOrderId: orderId },
+      });
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || 'Fortnox preview failed');
+      setProductionPreview(data.preview);
+      setMessage('Fortnox produktion: säker förhandsgranskning klar. Ingen faktura skapad eller skickad.');
+    } catch (error) {
+      setMessage(error?.message || 'Fortnox kunde inte verifieras.');
+    } finally {
+      setProductionBusy(false);
+    }
+  };
   const [printMode, setPrintMode] = useState(null);
 
   const orderId = order.relationalId;
@@ -495,7 +514,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
-        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Faktura skapad.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
+        <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); previewProductionInvoice(); }}>
           <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor
             <select value={invoiceForm.paymentTermsDays} onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentTermsDays: e.target.value })}>
@@ -507,8 +526,14 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending}>Skapa faktura</button>
+          <button disabled={busy || pricePending || productionBusy}>Skapa faktura – förhandsgranska i Fortnox</button>
         </form>
+        {productionPreview && <div role="status" className="fortnox-test-result">
+          <strong>Fortnox produktion – INGEN FAKTURA SKAPAD</strong>
+          <p>Order {productionPreview.orderNumber} · Kund {productionPreview.customerName} · {money(productionPreview.total)} inkl. moms</p>
+          <p>Referens: {productionPreview.reference} · {productionPreview.rows.length} fakturarader</p>
+          <p>Utställning och utskick är spärrade under testningen.</p>
+        </div>}
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
           <strong>Fortnox Test</strong>
