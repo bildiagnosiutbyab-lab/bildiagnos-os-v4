@@ -454,58 +454,65 @@ export async function createCommercialInvoice(context, form) {
 export async function confirmCommercialPayment(context, form) {
   const { workOrder } = context;
   const invoice = form.invoiceId ? context.invoices.find((item) => item.id === form.invoiceId) : null;
-  if (!invoice) throw new Error('Välj en faktura innan betalningen registreras.');
-  if (invoice.status === 'paid') throw new Error('Fakturan är redan betald.');
-  const existingPayment = context.payments.find((item) => item.invoice_id === invoice.id && item.status === 'accepted');
-  if (existingPayment) throw new Error('Det finns redan en registrerad betalning för fakturan.');
-  const expectedAmount = Math.round(Number(invoice.total || 0));
+  if (form.invoiceId && !invoice) throw new Error('Den valda fakturan hittades inte.');
+  if (invoice?.status === 'paid') throw new Error('Fakturan är redan betald.');
+  // Swish/card cash sales may have a receipt without generating an invoice.
+  // Refuse a second accepted payment for this order (or invoice).
+  const existingPayment = context.payments.find((item) => item.status === 'accepted' &&
+    (item.work_order_id === workOrder.id || (invoice && item.invoice_id === invoice.id)));
+  if (existingPayment) throw new Error('Betalning finns redan registrerad för denna arbetsorder.');
+  const services = context.services.filter((item) => !['rejected', 'removed'].includes(item.status));
+  const parts = context.parts.filter((item) => !['rejected', 'removed'].includes(item.status));
+  if ([...services].some((item) => item.unit_price === null || item.unit_price === undefined) ||
+      [...parts].some((item) => item.sale_price === null || item.sale_price === undefined)) {
+    throw new Error('Ange pris på alla rader före betalning.');
+  }
+  const subtotal = services.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0) +
+    parts.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.sale_price || 0), 0);
+  const expectedAmount = Math.round(Number(invoice?.total ?? (subtotal * 1.25)));
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) throw new Error('Arbetsordern saknar ett giltigt belopp.');
   const enteredAmount = Number(form.amount);
   if (!Number.isFinite(enteredAmount) || Math.abs(enteredAmount - expectedAmount) > 0.005) {
-    throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive öresutjämning.`);
+    throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive moms.`);
   }
-  const receiptReference = `KV-${invoice.invoice_number || workOrder.order_number || invoice.id.slice(0, 8)}`;
+  // Recheck immediately before insert to avoid stale order state.
+  const { data: latestPayments, error: checkError } = await supabase.from('payments')
+    .select('id').eq('work_order_id', workOrder.id).eq('status', 'accepted').limit(1);
+  throwIfError(checkError);
+  if (latestPayments?.length) throw new Error('Betalningen är redan registrerad. Uppdatera sidan.');
+  const receiptReference = `KV-${invoice?.invoice_number || workOrder.order_number || workOrder.id.slice(0, 8)}`;
   const acceptedAt = new Date().toISOString();
-  const { data: payment, error } = await supabase
-    .from('payments')
-    .insert({
-      workshop_id: workOrder.workshop_id,
-      invoice_id: invoice.id,
-      work_order_id: workOrder.id,
-      customer_id: workOrder.customer_id,
-      vehicle_id: workOrder.vehicle_id,
-      method: form.method,
-      amount: enteredAmount,
-      status: 'accepted',
-      external_reference: form.reference || null,
-      receipt_reference: receiptReference,
-      accepted_at: acceptedAt,
-    })
-    .select()
-    .single();
+  const { data: payment, error } = await supabase.from('payments').insert({
+    workshop_id: workOrder.workshop_id,
+    invoice_id: invoice?.id || null,
+    work_order_id: workOrder.id,
+    customer_id: workOrder.customer_id,
+    vehicle_id: workOrder.vehicle_id,
+    method: form.method,
+    amount: enteredAmount,
+    status: 'accepted',
+    external_reference: form.reference || null,
+    receipt_reference: receiptReference,
+    accepted_at: acceptedAt,
+  }).select().single();
   throwIfError(error);
-
-  const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
-  throwIfError(invoiceError);
-
+  if (invoice) {
+    const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
+    throwIfError(invoiceError);
+  }
   const nextVersion = Number(workOrder.version || 0) + 1;
-  const { error: orderError } = await supabase
-    .from('work_orders')
+  const { error: orderError } = await supabase.from('work_orders')
     .update({ status_code: 'paid', updated_at: acceptedAt, version: nextVersion })
     .eq('id', workOrder.id);
   throwIfError(orderError);
-
   if (workOrder.status_code !== 'paid') {
     const { error: historyError } = await supabase.from('order_status_history').insert({
-      workshop_id: workOrder.workshop_id,
-      work_order_id: workOrder.id,
-      from_status: workOrder.status_code || null,
-      to_status: 'paid',
-      reason: 'Betalning registrerad',
-      source: 'commercial_payment',
+      workshop_id: workOrder.workshop_id, work_order_id: workOrder.id,
+      from_status: workOrder.status_code || null, to_status: 'paid',
+      reason: 'Betalning registrerad', source: 'commercial_payment',
     });
     throwIfError(historyError);
   }
-
   return payment;
 }
 
