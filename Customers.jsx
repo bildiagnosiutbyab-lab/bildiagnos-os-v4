@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import { listCustomers, saveCustomerDetails } from './workshopRepository.js';
 
-const blank = { customer_type: 'private', display_name: '', personal_or_org_number: '', email: '', phone: '', address_line: '', postal_code: '', city: '' };
+const blank = { customer_type: 'person', display_name: '', personal_or_org_number: '', email: '', phone: '', address_line: '', postal_code: '', city: '' };
 
 export default function Customers() {
   const [items, setItems] = useState([]);
@@ -15,7 +15,7 @@ export default function Customers() {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const edit = (item) => {
     setEditingId(item.id);
-    setForm(Object.fromEntries(Object.keys(blank).map((key) => [key, item[key] || (key === 'customer_type' ? 'private' : '')])));
+    setForm(Object.fromEntries(Object.keys(blank).map((key) => [key, item[key] || (key === 'customer_type' ? 'person' : '')])));
     setMessage('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -37,7 +37,7 @@ export default function Customers() {
       <h3>{editingId ? 'Redigera kund' : 'Ny kund'}</h3>
       <label>Kundtyp
         <select value={form.customer_type} onChange={(e) => update('customer_type', e.target.value)}>
-          <option value="private">Privatperson</option>
+          <option value="person">Privatperson</option>
           <option value="company">Företag</option>
         </select>
       </label>
