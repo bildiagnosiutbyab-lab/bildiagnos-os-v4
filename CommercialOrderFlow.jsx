@@ -133,6 +133,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     if (!orderId) return;
     const data = await loadCommercialOrder(orderId);
     setContext(data);
+    // Use the stored customer email by default, but preserve an address explicitly edited for this order.
+    setInvoiceForm((current) => ({ ...current, email: current.email || data.customer?.email || '' }));
     if (data.customer) setCompanyForm({
       customer_type: data.customer.customer_type || 'company',
       display_name: data.customer.display_name || data.workOrder.customer_name_snapshot || '',
