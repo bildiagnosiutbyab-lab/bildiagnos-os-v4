@@ -130,6 +130,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [productionBusy, setProductionBusy] = useState(false);
   const [productionInvoice, setProductionInvoice] = useState(null);
   const [productionJob, setProductionJob] = useState({status:'loading'});
+  const [productionStatusError, setProductionStatusError] = useState('');
   const [productionSending, setProductionSending] = useState(false);
   const invokeProduction = async (body) => {
     const { data, error } = await supabase.functions.invoke('fortnox-production-invoice', { body });
@@ -162,7 +163,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     finally {setProductionSending(false);}
   };
   const previewProductionInvoice = async () => {
-    if (productionBusy || !orderId) return;
+    if (productionBusy || productionJob || !orderId) return;
     setProductionBusy(true);
     setProductionPreview(null);
     try {
@@ -183,6 +184,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const orderId = order.relationalId;
   const refresh = async () => {
     if (!orderId) return;
+    setProductionJob({status:'loading'});
+    setProductionStatusError('');
+    setProductionPreview(null);
+    setProductionInvoice(null);
     const data = await loadCommercialOrder(orderId);
     setContext(data);
     try {
@@ -190,7 +195,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       if(statusError||!statusData?.ok) throw new Error(statusData?.error||statusError?.message||'Cannot verify invoice status');
       setProductionInvoice(statusData.job?.documentNumber ? {documentNumber:statusData.job.documentNumber,ocr:statusData.job.ocr,invoiceStatus:statusData.job.invoiceStatus,sent:Boolean(statusData.job.sentAt)} : null);
       setProductionJob(statusData.job||null);
-    } catch(error){setProductionJob({status:'unknown'});setMessage('Fortnox-status kan inte verifieras: '+error.message);}
+      setProductionStatusError('');
+    } catch(error){setProductionJob({status:'unknown'});setProductionStatusError(error.message || 'Okänt fel');setMessage('Fortnox-status kan inte verifieras: '+error.message);}
 
     // Use the stored customer email by default, but preserve an address explicitly edited for this order.
     setInvoiceForm((current) => ({ ...current, email: current.email || data.customer?.email || '' }));
@@ -568,7 +574,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy || pricePending || productionBusy || Boolean(productionJob)}>Skapa faktura – förhandsgranska i Fortnox</button>
         </form>
-        {productionJob && !productionJob.documentNumber && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
+        {!productionJob && <p role="status">Ingen faktura skapad</p>}
+        {productionJob?.status === 'loading' && <p role="status">Kontrollerar fakturastatus…</p>}
+        {productionJob && !productionJob.documentNumber && productionJob.status !== 'loading' && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
+        {productionStatusError && <p role="alert">Kunde inte kontrollera Fortnox: {productionStatusError}. Fakturering blockerad.</p>}
         {productionPreview && <div role="status" className="fortnox-test-result">
           <strong>Fortnox produktion – INGEN FAKTURA SKAPAD</strong>
           <p>Order {productionPreview.orderNumber} · Kund {productionPreview.customerName} · {money(productionPreview.total)} inkl. moms</p>
@@ -578,7 +587,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         {productionPreview && !productionInvoice && !productionJob && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
         {productionInvoice && <div role="status" className="fortnox-test-result">
           <strong>Fortnox faktura {productionInvoice.documentNumber}</strong>
-          <p>OCR: {productionInvoice.ocr || 'Hämta i Fortnox'} · Status: {productionInvoice.invoiceStatus || 'Skapad'} · {productionInvoice.sent ? 'Skickad' : 'Inte skickad'}</p>
+          <p>OCR: {productionInvoice.ocr || 'Ej tillgängligt'} · Skapande: {productionInvoice.invoiceStatus || productionJob?.status || 'Okänt'} · Utskick: {productionInvoice.sent ? 'Skickad' : 'Inte skickad'}</p>
           {!productionInvoice.sent && <button type="button" disabled={productionSending} onClick={sendProductionInvoice}>Skicka fakturan via Fortnox – separat bekräftelse</button>}
         </div>}
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
