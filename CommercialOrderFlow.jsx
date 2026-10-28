@@ -128,6 +128,36 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [fortnoxInvoiceTest, setFortnoxInvoiceTest] = useState({ state: 'idle', message: '', result: null });
   const [productionPreview, setProductionPreview] = useState(null);
   const [productionBusy, setProductionBusy] = useState(false);
+  const [productionInvoice, setProductionInvoice] = useState(null);
+  const [productionSending, setProductionSending] = useState(false);
+  const invokeProduction = async (body) => {
+    const { data, error } = await supabase.functions.invoke('fortnox-production-invoice', { body });
+    if (error || !data?.ok) throw new Error(data?.error || error?.message || 'Fortnox connection failed');
+    return data;
+  };
+  const createProductionInvoice = async () => {
+    if (productionBusy || !productionPreview || !orderId) return;
+    if (!window.confirm('Skapa en VERKLIG faktura i Fortnox? Fakturan skickas INTE till kunden ännu.')) return;
+    setProductionBusy(true);
+    try {
+      const result = await invokeProduction({action:'create',workOrderId:orderId,confirmReference:productionPreview.reference});
+      setProductionInvoice(result);
+      setProductionPreview(null);
+      setMessage('Faktura skapad i Fortnox: ' + result.documentNumber + '. Ej skickad.');
+    } catch (error) { setMessage(error.message || 'Fortnox faktura misslyckades. Kontrollera Fortnox innan du försöker igen.'); }
+    finally { setProductionBusy(false); }
+  };
+  const sendProductionInvoice = async () => {
+    if (productionSending || !productionInvoice?.documentNumber) return;
+    if (!window.confirm('Skicka faktura ' + productionInvoice.documentNumber + ' via Fortnox till kunden?')) return;
+    setProductionSending(true);
+    try {
+      const result = await invokeProduction({action:'send',workOrderId:orderId,confirmDocumentNumber:productionInvoice.documentNumber});
+      setProductionInvoice({...productionInvoice,...result});
+      setMessage('Faktura skickad: ' + result.documentNumber);
+    } catch (error) { setMessage(error.message || 'Kontrollera fakturan i Fortnox innan nytt försök.'); }
+    finally {setProductionSending(false);}
+  };
   const previewProductionInvoice = async () => {
     if (productionBusy || !orderId) return;
     setProductionBusy(true);
@@ -533,6 +563,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <p>Order {productionPreview.orderNumber} · Kund {productionPreview.customerName} · {money(productionPreview.total)} inkl. moms</p>
           <p>Referens: {productionPreview.reference} · {productionPreview.rows.length} fakturarader</p>
           <p>Utställning och utskick är spärrade under testningen.</p>
+        </div>}
+        {productionPreview && !productionInvoice && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
+        {productionInvoice && <div role="status" className="fortnox-test-result">
+          <strong>Fortnox faktura {productionInvoice.documentNumber}</strong>
+          <p>OCR: {productionInvoice.ocr || 'Hämta i Fortnox'} · Status: {productionInvoice.invoiceStatus || 'Skapad'} · {productionInvoice.sent ? 'Skickad' : 'Inte skickad'}</p>
+          {!productionInvoice.sent && <button type="button" disabled={productionSending} onClick={sendProductionInvoice}>Skicka fakturan via Fortnox – separat bekräftelse</button>}
         </div>}
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
