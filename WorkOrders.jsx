@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
+import { supabase } from './supabaseClient.js';
 import {
   controlOrderTimer,
   deleteRelationalOrder,
@@ -104,6 +105,8 @@ const STATUS_OPTIONS = [
   'Garantía',
 ];
 
+const emptyCompany = { customer_type: 'person', display_name: '', personal_or_org_number: '', email: '', phone: '', address_line: '', postal_code: '', city: '' };
+
 const emptyForm = {
   customer: '',
   plate: '',
@@ -131,6 +134,8 @@ export default function WorkOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [companyForm, setCompanyForm] = useState(emptyCompany);
+  const [linkedCustomerId, setLinkedCustomerId] = useState(null);
   const [, setClockTick] = useState(0);
   const [inventoryRevision, setInventoryRevision] = useState(0);
 
@@ -245,10 +250,12 @@ export default function WorkOrders() {
     setEditingOrderId(null);
     setSelectedOrderId(null);
     setForm(emptyForm);
+    setCompanyForm(emptyCompany);
+    setLinkedCustomerId(null);
     setShowForm(true);
   }
 
-  function startEditOrder(order) {
+  async function startEditOrder(order) {
     setEditingOrderId(order.id);
 
     setForm({
@@ -264,6 +271,18 @@ export default function WorkOrders() {
 
     setSelectedOrderId(null);
     setShowForm(true);
+    setCompanyForm({ ...emptyCompany, display_name: order.customer || '' });
+    setLinkedCustomerId(null);
+    if (order.relationalId) {
+      const { data: linked, error: linkError } = await supabase.from('work_orders').select('customer_id').eq('id', order.relationalId).single();
+      if (linkError) { setSyncMessage('No se pudieron cargar los datos del cliente'); return; }
+      if (linked?.customer_id) {
+        setLinkedCustomerId(linked.customer_id);
+        const { data: company, error: companyError } = await supabase.from('customers').select('customer_type,display_name,personal_or_org_number,email,phone,address_line,postal_code,city').eq('id', linked.customer_id).single();
+        if (companyError) setSyncMessage('No se pudieron cargar los datos de empresa');
+        else if (company) setCompanyForm(Object.fromEntries(Object.keys(emptyCompany).map((key) => [key, company[key] || (key === 'customer_type' ? 'person' : '')])));
+      }
+    }
   }
 
   async function saveOrder() {
@@ -273,6 +292,11 @@ export default function WorkOrders() {
     }
 
     if (editingOrderId) {
+      if (linkedCustomerId) {
+        const payload = { ...companyForm, customer_type: companyForm.customer_type || 'person', display_name: form.customer.trim() };
+        const { error } = await supabase.from('customers').update(payload).eq('id', linkedCustomerId);
+        if (error) { setSyncMessage('Error al guardar datos de empresa: ' + error.message); return; }
+      }
       await updateOrder(editingOrderId, {
         ...form,
         plate: form.plate.toUpperCase(),
@@ -549,6 +573,25 @@ export default function WorkOrders() {
               onChange={handleChange}
             />
           </label>
+
+          {editingOrderId && <fieldset style={{ border: '1px solid #aaa', borderRadius: 8, padding: 12, display: 'grid', gap: 12 }}>
+            <legend><strong>Ficha del cliente / Företagsuppgifter</strong></legend>
+            <label>Tipo de cliente
+              <select value={companyForm.customer_type} onChange={(e) => setCompanyForm({ ...companyForm, customer_type: e.target.value })}>
+                <option value="person">Particular / Privatperson</option>
+                <option value="company">Empresa / Företag</option>
+              </select>
+            </label>
+            <label>{companyForm.customer_type === 'company' ? 'Organisationsnummer' : 'Personnummer'}
+              <input value={companyForm.personal_or_org_number} onChange={(e) => setCompanyForm({ ...companyForm, personal_or_org_number: e.target.value })} />
+            </label>
+            <label>Correo / E-post<input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} /></label>
+            <label>Teléfono / Telefon<input value={companyForm.phone} onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })} /></label>
+            <label>Dirección / Adress<input value={companyForm.address_line} onChange={(e) => setCompanyForm({ ...companyForm, address_line: e.target.value })} /></label>
+            <label>Código postal / Postnummer<input value={companyForm.postal_code} onChange={(e) => setCompanyForm({ ...companyForm, postal_code: e.target.value })} /></label>
+            <label>Ciudad / Ort<input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} /></label>
+            {!linkedCustomerId && <small>Los datos del cliente aún no se han cargado. No se guardará la ficha hasta que la orden esté vinculada.</small>}
+          </fieldset>}
 
           <label>
             Matrícula
