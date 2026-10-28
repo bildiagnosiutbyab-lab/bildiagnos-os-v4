@@ -2,6 +2,12 @@ import { supabase } from './supabaseClient.js';
 
 const VAT_RATE = 0.25;
 
+export function normalizeVatRate(value) {
+  const rate = Number(value ?? VAT_RATE);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('Invalid VAT rate');
+  return rate > 1 ? rate / 100 : rate;
+}
+
 function throwIfError(error) {
   if (error) throw error;
 }
@@ -12,7 +18,7 @@ function quoteTotals(items) {
     0
   );
   const vatTotal = items.reduce(
-    (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0) * Number(item.vat_rate ?? VAT_RATE),
+    (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0) * normalizeVatRate(item.vat_rate),
     0
   );
   return { subtotal, vatTotal, total: subtotal + vatTotal };
@@ -28,7 +34,7 @@ async function refreshQuoteTotals(quoteIds) {
     throwIfError(itemsError);
     const totals = (items || []).reduce((result, item) => {
       const net = Number(item.quantity || 0) * Number(item.unit_price || 0);
-      const vatRate = Number(item.vat_rate ?? VAT_RATE);
+      const vatRate = normalizeVatRate(item.vat_rate);
       const vat = net * vatRate;
       result.subtotal += net;
       result.vatTotal += vat;
@@ -274,7 +280,7 @@ function commercialLines(context) {
       description: item.description,
       quantity: Number(item.estimated_minutes || 0) / 60,
       unit_price: Number(item.unit_price || 0),
-      vat_rate: Number(item.vat_rate ?? VAT_RATE),
+      vat_rate: normalizeVatRate(item.vat_rate),
       service_id: item.id,
       part_line_id: null,
     }));
@@ -285,7 +291,7 @@ function commercialLines(context) {
       description: [item.part_number_snapshot, item.description_snapshot].filter(Boolean).join(' · '),
       quantity: Number(item.quantity || 1),
       unit_price: Number(item.sale_price || 0),
-      vat_rate: Number(item.vat_rate ?? VAT_RATE),
+      vat_rate: normalizeVatRate(item.vat_rate),
       service_id: null,
       part_line_id: item.id,
     }));
