@@ -138,7 +138,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [productionStatusBusy, setProductionStatusBusy] = useState(true);
   const invokeProduction = async (body) => {
     const { data, error } = await supabase.functions.invoke('fortnox-production-invoice', { body });
-    if (error || !data?.ok) throw new Error(data?.error || error?.message || 'Fortnox connection failed');
+    if (error || !data?.ok) { let detail = data?.error; if (!detail && error?.context?.json) { try { detail = (await error.context.json())?.error; } catch (_) {} } throw new Error(detail || error?.message || 'Fortnox connection failed'); }
     return data;
   };
   const createProductionInvoice = async () => {
