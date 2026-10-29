@@ -198,6 +198,23 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [printMode, setPrintMode] = useState(null);
 
   const orderId = order.relationalId;
+  const reconcileProductionInvoice = async () => {
+    if (!orderId || productionAction.current || productionBusy || productionStatusBusy || productionJob?.status !== 'failed') return;
+    if (!window.confirm('Kontrollera BOS-700201 mot Fortnox produktion? Ingen faktura skapas eller skickas.')) return;
+    productionAction.current = true;
+    setProductionBusy(true);
+    setProductionStatusError('');
+    try {
+      const result = await invokeProduction({ action: 'reconcile', workOrderId: orderId });
+      setMessage(result.reconciled ? 'Fortnox kontrollerat: ingen tidigare faktura hittades. Avstämning registrerad.' : 'Fortnox-avstämning klar. Kontrollera status.');
+    } catch (error) {
+      setProductionStatusError(error.message || 'Avstämning misslyckades. Fakturering fortsatt blockerad.');
+    } finally {
+      productionAction.current = false;
+      setProductionBusy(false);
+      await refreshProductionStatus();
+    }
+  };
   const refreshProductionStatus = async () => {
     if (!orderId || productionAction.current) return null;
     const request = ++productionRequest.current;
@@ -621,6 +638,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         {productionJob && !productionJob.documentNumber && productionJob.status !== 'loading' && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
         {productionStatusError && <p role="alert">Kunde inte kontrollera Fortnox: {productionStatusError}. Fakturering blockerad.</p>}
         <button type="button" disabled={productionBusy || productionSending || productionStatusBusy} onClick={refreshProductionStatus}>Kontrollera Fortnox-status igen</button>
+        {productionJob?.status === 'failed' && <button type="button" disabled={productionBusy || productionStatusBusy || Boolean(productionStatusError)} onClick={reconcileProductionInvoice}>Kontrollera och återställ Fortnox-faktura (ingen faktura skapas)</button>}
         {productionPreview && <div role="status" className="fortnox-test-result">
           <strong>Fortnox produktion – INGEN FAKTURA SKAPAD</strong>
           <p>Order {productionPreview.orderNumber} · Kund {productionPreview.customerName} · {money(productionPreview.total)} inkl. moms</p>
