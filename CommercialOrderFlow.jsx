@@ -208,12 +208,18 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       const result = await invokeProduction({ action: 'reconcile', workOrderId: orderId, confirmReference: 'BOS-' + order.orderNumber });
       setMessage(result.reconciled ? 'Fortnox kontrollerat: ingen tidigare faktura hittades. Avstämning registrerad.' : 'Fortnox-avstämning klar. Kontrollera status.');
     } catch (error) {
-      setProductionStatusError(error.message || 'Avstämning misslyckades. Fakturering fortsatt blockerad.');
-    } finally {
+      const reason = error?.message || 'Avstämning misslyckades. Fakturering fortsatt blockerad.';
+      setMessage('Fortnox-avstämning misslyckades: ' + reason);
       productionAction.current = false;
       setProductionBusy(false);
       await refreshProductionStatus();
+      setProductionStatusError(reason);
+      return;
+    } finally {
+      productionAction.current = false;
+      setProductionBusy(false);
     }
+    await refreshProductionStatus();
   };
   const refreshProductionStatus = async () => {
     if (!orderId || productionAction.current) return null;
