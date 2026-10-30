@@ -130,6 +130,19 @@ export default function Dashboard({ onNewOrder }) {
       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
       const { data: invoices, error } = await supabase.from('invoices').select('id,subtotal,vat_total,total').gte('issued_at', monthStart).lt('issued_at', nextMonth).neq('status', 'cancelled');
       if (error || !active) return;
+      // Direct receipts (Swish/card) are sales too, even when no invoice was issued.
+      // Ignore payments linked to an invoice to avoid counting the same sale twice.
+      const { data: directPayments, error: paymentsError } = await supabase
+        .from('payments')
+        .select('id,amount,accepted_at,invoice_id,status')
+        .eq('status', 'accepted')
+        .is('invoice_id', null)
+        .gte('accepted_at', new Date(now.getFullYear(), now.getMonth(), 1).toISOString())
+        .lt('accepted_at', new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString());
+      if (!active) return;
+      if (paymentsError) console.warn('No se pudieron cargar los recibos:', paymentsError);
+      const receiptNet = (directPayments || []).reduce((sum, payment) => sum + Number(payment.amount || 0) / 1.25, 0);
+      const receiptVat = (directPayments || []).reduce((sum, payment) => sum + Number(payment.amount || 0) - Number(payment.amount || 0) / 1.25, 0);
       const ids = (invoices || []).map((item) => item.id);
       const { data: lines } = ids.length ? await supabase.from('invoice_items').select('item_type,quantity,unit_price,part_line_id').in('invoice_id', ids) : { data: [] };
       const partIds = [...new Set((lines || []).map((line) => line.part_line_id).filter(Boolean))];
@@ -139,9 +152,9 @@ export default function Dashboard({ onNewOrder }) {
       const partsSales = (lines || []).filter((line) => line.item_type === 'part').reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
       const partsCost = (lines || []).filter((line) => line.item_type === 'part').reduce((sum, line) => sum + Number(line.quantity || 0) * Number(costs.get(line.part_line_id) || 0), 0);
       if (active) setFinance({
-        revenue: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0),
-        vat: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.vat_total || 0), 0),
-        labor, partsSales, partsCost,
+        revenue: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0) + receiptNet,
+        vat: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.vat_total || 0), 0) + receiptVat,
+        labor: labor + receiptNet, partsSales, partsCost,
       });
     }
     loadFinance();
@@ -183,7 +196,7 @@ export default function Dashboard({ onNewOrder }) {
       </section>
 
       <section className="card finance-card">
-        <div className="finance-heading"><div><h2>Mål denna månad</h2><p>Försäljning exkl. moms mot målet 60 000 kr</p></div><strong>{Math.round(goalPercent)}%</strong></div>
+        <div className="finance-heading"><div><h2>Mål denna månad</h2><p>Fakturor och direkta kvitton, exkl. moms · mål 60 000 kr</p></div><strong>{Math.round(goalPercent)}%</strong></div>
         <div className="goal-track" aria-label={`${Math.round(goalPercent)} procent av målet`}><div className="goal-fill" style={{ width: `${goalPercent}%` }} /></div>
         <div className="finance-grid">
           <div><small>Försäljning exkl. moms</small><b>{money(finance.revenue)}</b></div>
@@ -194,7 +207,7 @@ export default function Dashboard({ onNewOrder }) {
           <div><small>Delar, inköpskostnad</small><b>{money(finance.partsCost)}</b></div>
           <div><small>Moms</small><b>{money(finance.vat)}</b></div>
         </div>
-        <p className="finance-note">Målet räknas exklusive moms. Moms visas separat och räknas inte som verkstadens intäkt.</p>
+        <p className="finance-note">Målet räknas exklusive moms. Godkända direktbetalningar utan faktura ingår. Moms visas separat. Fördelningen arbete/delar för direktbetalningar är en preliminär uppskattning.</p>
       </section>
 
       <section className="card">
