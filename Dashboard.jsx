@@ -154,7 +154,7 @@ export default function Dashboard({ onNewOrder }) {
       if (active) setFinance({
         revenue: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0) + receiptNet,
         vat: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.vat_total || 0), 0) + receiptVat,
-        labor, partsSales, partsCost, receipts: receiptNet, receipts: receiptNet, receipts: receiptNet,
+        labor, partsSales, partsCost, receipts: receiptNet,
       });
     }
     loadFinance();
