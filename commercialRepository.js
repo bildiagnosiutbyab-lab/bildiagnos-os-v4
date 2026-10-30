@@ -610,6 +610,19 @@ export async function loadDailyProfitability(day = new Date()) {
   const { data, error } = await supabase.rpc('daily_profitability', { p_day: localDay });
   throwIfError(error);
   const row = Array.isArray(data) ? data[0] : null;
+  // The target thermometer measures actual paid turnover, not estimated work
+  // on orders opened today. An order can be paid on another day, and its
+  // estimated labor may be different from its final receipt.
+  const start = new Date(localDay + 'T00:00:00+01:00');
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const { data: paidRows, error: paidError } = await supabase
+    .from('payments')
+    .select('amount,status,accepted_at,invoice_id')
+    .eq('status', 'accepted')
+    .gte('accepted_at', start.toISOString())
+    .lt('accepted_at', end.toISOString());
+  throwIfError(paidError);
+  const paidExVat = (paidRows || []).reduce((sum, payment) => sum + Number(payment.amount || 0) / 1.25, 0);
   const target = 4500;
   const contribution = Number(row?.contribution || 0);
   return {
@@ -623,7 +636,8 @@ export async function loadDailyProfitability(day = new Date()) {
     verifiedPartLines: Number(row?.verified_part_lines || 0),
     unverifiedPartLines: Number(row?.unverified_part_lines || 0),
     contribution,
-    remaining: Math.max(0, target - contribution),
-    progress: target > 0 ? contribution / target : 0,
+    paidExVat,
+    remaining: Math.max(0, target - paidExVat),
+    progress: target > 0 ? paidExVat / target : 0,
   };
 }
