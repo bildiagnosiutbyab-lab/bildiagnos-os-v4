@@ -613,16 +613,24 @@ export async function loadDailyProfitability(day = new Date()) {
   // The target thermometer measures actual paid turnover, not estimated work
   // on orders opened today. An order can be paid on another day, and its
   // estimated labor may be different from its final receipt.
-  const start = new Date(localDay + 'T00:00:00+01:00');
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  // Fetch around the local calendar day and filter in the workshop's timezone,
+  // including days with a summer/winter clock change.
+  const utcDay = new Date(localDay + 'T00:00:00Z');
+  const rangeStart = new Date(utcDay.getTime() - 24 * 60 * 60 * 1000);
+  const rangeEnd = new Date(utcDay.getTime() + 48 * 60 * 60 * 1000);
   const { data: paidRows, error: paidError } = await supabase
     .from('payments')
-    .select('amount,status,accepted_at,invoice_id')
+    .select('amount,status,accepted_at')
     .eq('status', 'accepted')
-    .gte('accepted_at', start.toISOString())
-    .lt('accepted_at', end.toISOString());
+    .gte('accepted_at', rangeStart.toISOString())
+    .lt('accepted_at', rangeEnd.toISOString());
   throwIfError(paidError);
-  const paidExVat = (paidRows || []).reduce((sum, payment) => sum + Number(payment.amount || 0) / 1.25, 0);
+  const swedishDay = (time) => new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(time));
+  const paidExVat = (paidRows || [])
+    .filter(payment => payment.accepted_at && swedishDay(payment.accepted_at) === localDay)
+    .reduce((sum, payment) => sum + Number(payment.amount || 0) / 1.25, 0);
   const target = 4500;
   const contribution = Number(row?.contribution || 0);
   return {
