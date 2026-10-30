@@ -34,7 +34,7 @@ export default function Dashboard({ onNewOrder }) {
     vehiclesToday: 0,
     hours: '0.0',
   });
-  const [finance, setFinance] = useState({ revenue: 0, vat: 0, partsSales: 0, partsCost: 0, labor: 0 });
+  const [finance, setFinance] = useState({ revenue: 0, vat: 0, partsSales: 0, partsCost: 0, labor: 0, receipts: 0 });
   const [fortnoxStatus, setFortnoxStatus] = useState({
     state: 'idle',
     message: '',
@@ -154,7 +154,7 @@ export default function Dashboard({ onNewOrder }) {
       if (active) setFinance({
         revenue: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0) + receiptNet,
         vat: (invoices || []).reduce((sum, invoice) => sum + Number(invoice.vat_total || 0), 0) + receiptVat,
-        labor: labor + receiptNet, partsSales, partsCost,
+        labor, partsSales, partsCost, receipts: receiptNet, receipts: receiptNet, receipts: receiptNet,
       });
     }
     loadFinance();
@@ -202,12 +202,13 @@ export default function Dashboard({ onNewOrder }) {
           <div><small>Försäljning exkl. moms</small><b>{money(finance.revenue)}</b></div>
           <div><small>Kvar till målet</small><b>{money(remaining)}</b></div>
           <div><small>Behövs per dag</small><b>{money(neededPerDay)}</b></div>
-          <div><small>Arbete</small><b>{money(finance.labor)}</b></div>
+          <div><small>Arbete (fakturor)</small><b>{money(finance.labor)}</b></div>
+          <div><small>Direkta kvitton (exkl. moms)</small><b>{money(finance.receipts)}</b></div>
           <div><small>Delar, försäljning</small><b>{money(finance.partsSales)}</b></div>
           <div><small>Delar, inköpskostnad</small><b>{money(finance.partsCost)}</b></div>
           <div><small>Moms</small><b>{money(finance.vat)}</b></div>
         </div>
-        <p className="finance-note">Målet räknas exklusive moms. Godkända direktbetalningar utan faktura ingår. Moms visas separat. Fördelningen arbete/delar för direktbetalningar är en preliminär uppskattning.</p>
+        <p className="finance-note">Målet räknas exklusive moms. Godkända direktbetalningar utan faktura ingår. Moms visas separat. Direkta kvitton visas separat från fakturornas uppdelning av arbete och delar.</p>
       </section>
 
       <section className="card">
