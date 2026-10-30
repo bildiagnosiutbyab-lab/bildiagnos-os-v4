@@ -12,7 +12,7 @@ export default function ProfitabilityPanel({ context }) {
     let active = true;
     loadDailyProfitability().then((data) => active && setDaily(data)).catch((e) => active && setError(e?.message || 'No se pudo calcular el día.'));
     return () => { active = false; };
-  }, [context?.parts, context?.services]);
+  }, [context?.parts, context?.services, context?.payments]);
 
   const order = useMemo(() => {
     const services = (context?.services || []).filter(x => !['rejected','removed'].includes(x.status));
@@ -44,16 +44,17 @@ export default function ProfitabilityPanel({ context }) {
       {order.unverified > 0 && <p className="profit-warning">⚠️ Coste no verificado en {order.unverified} línea(s) de piezas. No se cuentan como beneficio hasta confirmar el följesedel.</p>}
     </div>
     <div className="profit-block">
-      <h4>Hoy</h4>
+      <h4>Hoy · cobros confirmados</h4>
       {daily ? <>
         <div className="profit-grid">
           <span><small>Mano de obra</small><b>{money(daily.laborSales)}</b></span>
           <span><small>Margen piezas verificado</small><b>{money(daily.verifiedPartsSales-daily.verifiedPartsCost)}</b></span>
-          <span><small>Aporte conocido</small><b>{money(daily.contribution)}</b></span>
+          <span><small>Cobrado hoy (exkl. moms)</small><b>{money(daily.paidExVat)}</b></span>
           <span><small>Meta diaria</small><b>{money(daily.target)}</b></span>
-          <span className="profit-strong"><small>{daily.remaining > 0 ? 'Falta para meta' : 'Meta alcanzada'}</small><b>{daily.remaining > 0 ? money(daily.remaining) : money(daily.contribution-daily.target)}</b></span>
+          <span className="profit-strong"><small>{daily.remaining > 0 ? 'Falta para meta' : 'Meta alcanzada'}</small><b>{daily.remaining > 0 ? money(daily.remaining) : money(daily.paidExVat-daily.target)}</b></span>
         </div>
         <div className="profit-progress"><i style={{width:`${Math.min(100,Math.max(0,ratio*100))}%`}} /></div>
+        <p className="finance-note">Meta diaria calculada con pagos confirmados (exkl. moms). Las órdenes abiertas y presupuestos no cuentan como cobrados.</p>
         {daily.unverifiedPartLines > 0 && <p className="profit-warning">⚠️ Hay {daily.unverifiedPartLines} línea(s) de piezas del día con coste no verificado.</p>}
       </> : <p>{error || 'Calculando…'}</p>}
     </div>
