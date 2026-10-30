@@ -473,7 +473,7 @@ export async function confirmCommercialPayment(context, form) {
       [...parts].some((item) => item.sale_price === null || item.sale_price === undefined)) {
     throw new Error('Ange pris på alla rader före betalning.');
   }
-  const subtotal = services.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0) +
+  const subtotal = services.reduce((sum, item) => sum + (Number(item.estimated_minutes || 0) / 60) * Number(item.unit_price || 0), 0) +
     parts.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.sale_price || 0), 0);
   const expectedAmount = Math.round(Number(invoice?.total ?? (subtotal * 1.25)));
   if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) throw new Error('Arbetsordern saknar ett giltigt belopp.');
