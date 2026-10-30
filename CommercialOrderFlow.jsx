@@ -144,7 +144,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     return data;
   };
   const createProductionInvoice = async () => {
-    if (productionAction.current || productionStatusBusy || productionStatusError || productionBusy || productionJob || !productionPreview || !orderId) return;
+    if (productionAction.current || productionStatusBusy || productionStatusError || productionBusy || (productionJob && productionJob.status !== 'reconciled') || !productionPreview || !orderId) return;
     if (!window.confirm('Skapa en VERKLIG faktura i Fortnox? Fakturan skickas INTE till kunden ännu.')) return;
     productionAction.current = true;
     ++productionRequest.current;
@@ -179,7 +179,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     } finally { productionAction.current = false; setProductionSending(false); }
   };
   const previewProductionInvoice = async () => {
-    if (productionAction.current || productionStatusBusy || productionStatusError || productionBusy || productionJob || !orderId) return;
+    if (productionAction.current || productionStatusBusy || productionStatusError || productionBusy || (productionJob && productionJob.status !== 'reconciled') || !orderId) return;
     productionAction.current = true;
     setProductionBusy(true);
     setProductionPreview(null);
@@ -657,11 +657,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending || productionBusy || productionStatusBusy || Boolean(productionStatusError) || Boolean(productionJob)}>Skapa faktura – förhandsgranska i Fortnox</button>
+          <button disabled={busy || pricePending || productionBusy || productionStatusBusy || Boolean(productionStatusError) || (Boolean(productionJob) && productionJob.status !== 'reconciled')}>Skapa faktura – förhandsgranska i Fortnox</button>
         </form>
         {!productionStatusBusy && !productionStatusError && !productionJob && <p role="status">Ingen faktura skapad</p>}
         {productionJob?.status === 'loading' && <p role="status">Kontrollerar fakturastatus…</p>}
-        {productionJob && !productionJob.documentNumber && productionJob.status !== 'loading' && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
+        {productionJob && !productionJob.documentNumber && !['loading','reconciled'].includes(productionJob.status) && <p role="alert">Fortnox: {productionJob.status}. Ny faktura blockerad tills status verifierats.</p>}
+        {productionJob?.status === 'reconciled' && <p role="status">Fortnox: tidigare misslyckat försök avstämt. Förhandsgranska och bekräfta innan en riktig faktura skapas.</p>}
         {productionStatusError && <p role="alert">Kunde inte kontrollera Fortnox: {productionStatusError}. Fakturering blockerad.</p>}
         <button type="button" disabled={productionBusy || productionSending || productionStatusBusy} onClick={refreshProductionStatus}>Kontrollera Fortnox-status igen</button>
         {productionJob?.status === 'failed' && <button type="button" disabled={productionBusy || productionStatusBusy || Boolean(productionStatusError)} onClick={reconcileProductionInvoice}>Kontrollera och återställ Fortnox-faktura (ingen faktura skapas)</button>}
@@ -671,7 +672,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <p>Referens: {productionPreview.reference} · {productionPreview.rows.length} fakturarader</p>
           <p>Utställning och utskick är spärrade under testningen.</p>
         </div>}
-        {productionPreview && !productionStatusBusy && !productionStatusError && !productionInvoice && !productionJob && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
+        {productionPreview && !productionStatusBusy && !productionStatusError && !productionInvoice && (!productionJob || productionJob.status === 'reconciled') && <button type="button" disabled={productionBusy} onClick={createProductionInvoice}>Bekräfta – skapa RIKTIG faktura i Fortnox (skickas inte)</button>}
         {productionInvoice && <div role="status" className="fortnox-test-result">
           <strong>Fortnox faktura {productionInvoice.documentNumber}</strong>
           <p>OCR: {productionInvoice.ocr || 'Ej tillgängligt'} · Skapande: {productionInvoice.invoiceStatus || productionJob?.status || 'Okänt'} · Utskick: {productionInvoice.sent ? 'Skickad' : productionStatusError || productionSendUncertain.current ? 'Okänt – kontrollera Fortnox' : 'Ej bekräftat skickad'}</p>
