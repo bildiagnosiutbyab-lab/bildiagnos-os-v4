@@ -123,6 +123,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const [quoteSettings, setQuoteSettings] = useState({ notes: '', variablePrice: false, warrantyEnabled: false, warrantyMonths: '3', warrantyKm: '1000', documentLanguage: 'sv' });
   const [invoiceForm, setInvoiceForm] = useState({ email: '', paymentTermsDays: '15', reference: '', ocr: '', notes: '' });
   const [paymentForm, setPaymentForm] = useState({ method: 'Swish', amount: '', reference: '', invoiceId: '' });
+  const [paymentNotice, setPaymentNotice] = useState('');
+  const paymentSubmitting = useRef(false);
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastInvoice, setLastInvoice] = useState(null);
   const [fortnoxInvoiceTest, setFortnoxInvoiceTest] = useState({ state: 'idle', message: '', result: null });
@@ -611,12 +613,29 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           setLastReceipt({ payment: previewPayment, order: workOrder, invoice: previewInvoice });
           window.setTimeout(() => printDocument('receipt'), 0);
         }}>Vista previa Kvitto {!invoice ? '(Test)' : ''}</button>}
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
+        <form className="commercial-inline-form" onSubmit={(event) => event.preventDefault()}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Belopp" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending}>Bekräfta betalning</button>
+          <button type="button" disabled={busy || pricePending || paymentSubmitting.current} onClick={async () => {
+            if (paymentSubmitting.current || busy || pricePending) return;
+            const amount = Number(paymentForm.amount);
+            if (!Number.isFinite(amount) || amount <= 0) { setPaymentNotice('Ange ett giltigt belopp innan betalningen registreras.'); return; }
+            paymentSubmitting.current = true;
+            setPaymentNotice('Kontrollerar och registrerar betalningen…');
+            try {
+              const payment = await confirmCommercialPayment(context, paymentForm);
+              setPaymentNotice('Betalning registrerad i Bildiagnos. Kvitto kan skrivas ut. Fortnox bokföring är inte verifierad.');
+              setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null });
+              await refresh();
+              await onSaved?.();
+              window.setTimeout(() => printDocument('receipt'), 0);
+            } catch (error) {
+              setPaymentNotice('Betalningen registrerades inte: ' + (error?.message || 'Okänt fel') + '. Kontrollera orderns betalningar före nytt försök.');
+            } finally { paymentSubmitting.current = false; }
+          }}>Bekräfta betalning</button>
         </form>
+        {paymentNotice && <p role="status" className="commercial-error">{paymentNotice}</p>}
         {context.payments.length > 0 && <p role="status">Fortnox: bokföring ej verifierad. Detta kvitto och betalningen är registrerade i Bildiagnos, men ingen Fortnox-verifikation är bekräftad. Kontrollera med bokföringen innan överföring.</p>}
         <ul className="commercial-lines">{context.payments.map((item) => {
           const paymentInvoice = context.invoices.find((inv) => inv.id === item.invoice_id) || null;
