@@ -617,6 +617,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
+        {context.payments.length > 0 && <p role="status">Fortnox: bokföring ej verifierad. Detta kvitto och betalningen är registrerade i Bildiagnos, men ingen Fortnox-verifikation är bekräftad. Kontrollera med bokföringen innan överföring.</p>}
         <ul className="commercial-lines">{context.payments.map((item) => {
           const paymentInvoice = context.invoices.find((inv) => inv.id === item.invoice_id) || null;
           return <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference || 'Kvitto'} · {date(item.accepted_at)}</small><button type="button" onClick={() => { setLastReceipt({ payment: item, order: workOrder, invoice: paymentInvoice }); window.setTimeout(() => printDocument('receipt'), 0); }}>Imprimir Kvitto</button></li>;
