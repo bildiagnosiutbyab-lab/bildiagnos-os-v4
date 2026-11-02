@@ -228,10 +228,19 @@ export default function WorkOrders() {
   function handleChange(event) {
     const { name, value } = event.target;
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }));
+    setForm((currentForm) => {
+      if (name === 'plate' && !editingOrderId) {
+        const match = fillExistingVehicle(value);
+        if (match) return {
+          ...currentForm,
+          plate: value,
+          customer: match.customer || currentForm.customer,
+          vehicle: match.vehicle || currentForm.vehicle,
+          mileage: match.mileage || currentForm.mileage,
+        };
+      }
+      return { ...currentForm, [name]: value };
+    });
   }
 
   function startNewOrder() {
@@ -239,6 +248,24 @@ export default function WorkOrders() {
     setSelectedOrderId(null);
     setForm(emptyForm);
     setShowForm(true);
+  }
+
+  function startOrderForVehicle(existing) {
+    setEditingOrderId(null);
+    setSelectedOrderId(null);
+    setForm({
+      ...emptyForm,
+      customer: existing.customer || '',
+      plate: existing.plate || '',
+      vehicle: existing.vehicle || '',
+      mileage: existing.mileage || '',
+    });
+    setShowForm(true);
+  }
+
+  function fillExistingVehicle(plate) {
+    const normalized = String(plate || '').replace(/\\s+/g, '').toUpperCase();
+    return orders.find((order) => String(order.plate || '').replace(/\\s+/g, '').toUpperCase() === normalized);
   }
 
   function startEditOrder(order) {
@@ -480,6 +507,21 @@ export default function WorkOrders() {
               </section>
               )}
 
+          <div className="form-actions">
+            <button className="primary-button" onClick={() => startOrderForVehicle(selectedOrder)}>
+              Nueva orden para este vehículo
+            </button>
+          </div>
+          <section className="card">
+            <h3>Historial de este vehículo</h3>
+            {orders.filter((order) => String(order.plate || '').replace(/\\s+/g, '').toUpperCase() === String(selectedOrder.plate || '').replace(/\\s+/g, '').toUpperCase())
+              .map((order) => (
+                <div className="vehicle-row" key={order.id}>
+                  <button className="plate" onClick={() => setSelectedOrderId(order.id)}>{order.plate}</button>
+                  <span>{order.createdAt || ''} · {order.status || ''} · {order.requestedWork || 'Sin descripción'}</span>
+                </div>
+              ))}
+          </section>
           <OrderFees key={selectedOrder.id} order={selectedOrder} />
 
           <p>
@@ -669,6 +711,14 @@ export default function WorkOrders() {
       />
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
+      <section className="card order-form">
+        <label>Buscar vehículo registrado por matrícula
+          <input placeholder="Ej. MUW603" onChange={(event) => {
+            const match = fillExistingVehicle(event.target.value);
+            if (match && event.target.value.replace(/\\s+/g, '').length >= 5) startOrderForVehicle(match);
+          }} />
+        </label>
+      </section>
 
       {orders.length === 0 ? (
         <section className="card empty-state">
