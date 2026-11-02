@@ -1,0 +1,44 @@
+name: Deploy recovered Bildiagnos OS preview
+on:
+  push:
+    branches: [recovery/full-workshop-20261102]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: public-site
+      - uses: actions/checkout@v4
+        with:
+          ref: recovery/full-workshop-20261102
+          path: recovered-site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix public-site
+      - run: npm run build --prefix public-site
+      - run: npm ci --prefix recovered-site
+      - run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build --prefix recovered-site
+      - run: |
+          mkdir -p site/commercial-preview
+          cp -R public-site/dist/. site/
+          cp -R recovered-site/dist/. site/commercial-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
