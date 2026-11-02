@@ -1,4 +1,4 @@
-name: Deploy Bildiagnos OS to GitHub Pages
+name: Deploy recovered Bildiagnos OS to GitHub Pages
 on:
   push:
     branches: [main]
@@ -18,10 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: recovery/full-workshop-20261102
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+          cache: npm
+      - run: npm ci
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
