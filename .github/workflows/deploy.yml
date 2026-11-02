@@ -1,4 +1,4 @@
-name: Deploy recovered Bildiagnos OS to GitHub Pages
+name: Deploy Bildiagnos OS recovered full app and commercial preview
 on:
   push:
     branches: [main]
@@ -24,11 +24,21 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      - name: Install dependencies
+        run: npm ci
+      - name: Build recovered root application
+        run: npm run build
+      - name: Preserve root site
+        run: |
+          mkdir -p site/commercial-preview
+          cp -R dist/. site/
+      - name: Build recovered commercial preview with correct asset paths
+        run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build
+      - name: Publish preview alongside root
+        run: cp -R dist/. site/commercial-preview/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4
