@@ -26,15 +26,31 @@ function sanitizeFortnoxMessage(value:unknown,sensitive:string[]=[]){
   .replace(/[\r\n\t]+/g," ")
   .slice(0,1500);
 }
-function fortnoxFailure(status:number,payload:any,stage:string,sensitive:string[]=[]){
- const information=payload?.ErrorInformation||{};
- const rawCode=information.Code??information.Error;
+async function readFortnoxResponse(response:Response){
+ const raw=await response.text();
+ let payload:any;
+ try{payload=JSON.parse(raw);}catch{payload=raw;}
+ return {payload,contentType:(response.headers.get("content-type")||"").split(";")[0],bodyBytes:new TextEncoder().encode(raw).byteLength};
+}
+function providerError(payload:any){
+ const info=payload?.ErrorInformation||payload?.errorInformation||payload?.error||payload?.errors?.[0]||payload;
+ if(typeof info==="string"){
+  const xmlMessage=info.match(/<(?:Message|message)>([\s\S]*?)<\/(?:Message|message)>/);
+  const xmlCode=info.match(/<(?:Code|code)>(\d+)<\/(?:Code|code)>/);
+  const text=(xmlMessage?.[1]||info).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<[^>]*>/g," ").trim();
+  return {Code:xmlCode?.[1],Message:text||"Empty Fortnox error response"};
+ }
+ return {Code:info?.Code??info?.code??info?.Error??info?.errorCode,Message:info?.Message??info?.message??info?.error_description??info?.detail??info?.title??"Unrecognized Fortnox error response"};
+}
+function fortnoxFailure(status:number,payload:any,stage:string,sensitive:string[]=[],metadata:any={}){
+ const information=providerError(payload);
+ const rawCode=information.Code;
  const code=/^\d{1,10}$/.test(String(rawCode??""))?String(rawCode):"unknown";
  const message=sanitizeFortnoxMessage(information.Message,sensitive);
  const diagnosticId=globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2);
  // Never log headers, tokens, request bodies, customer records or raw responses.
  const safeStage=stage.replace(/\/(customers|invoices|articles)\/[^/\s]+/g,"/$1/:id");
- console.error(JSON.stringify({event:"fortnox_api_error",diagnosticId,stage:safeStage,httpStatus:status,code,message}));
+ console.error(JSON.stringify({event:"fortnox_api_error",diagnosticId,stage:safeStage,httpStatus:status,code,message,contentType:metadata.contentType,bodyBytes:metadata.bodyBytes}));
  return new Error(`Fortnox ${safeStage} HTTP ${status}; code ${code}; ${message}; diagnostic ${diagnosticId}`);
 }
 function buildInvoicePayload(customerNumber:unknown,reference:string,lines:any[],orderNumber:unknown){
@@ -69,9 +85,10 @@ async function api(path:string,headers:Record<string,string>,method="GET",payloa
    await new Promise(resolve=>setTimeout(resolve,ms));
    continue;
   }
-  const body=await r.json().catch(()=>({}));
-  if(!r.ok)throw fortnoxFailure(r.status,body,method+" "+path.split("?")[0],payloadValues(payload));
-  return body;
+  const parsed=await readFortnoxResponse(r);
+  if(!r.ok)throw fortnoxFailure(r.status,parsed.payload,method+" "+path.split("?")[0],payloadValues(payload),parsed);
+  if(!parsed.payload||typeof parsed.payload!=="object")throw new Error("Fortnox returned a non-JSON success response");
+  return parsed.payload;
  }
  throw new Error("Fortnox rate limit: retry attempts exhausted");
 }
@@ -105,13 +122,44 @@ async function bookkeepInvoice(admin:any,existingJob:any,h:Record<string,string>
  }
 }
 function org(v:unknown){return String(v||"").replace(/[^0-9]/g,"");}
+async function diagnose700200(admin:any,member:any,order:any,input:any){
+ if(order.id!=="d678b517-6a3c-4cab-8d55-afc92060afab"||order.plate_snapshot!=="JAK77J"||input.confirmReference!=="BOS-700200")return err("Diagnostic order confirmation mismatch",409);
+ const {data:authz}=await admin.from("fortnox_production_authorizations").select("tenant_id,company_name").eq("workshop_id",member.workshop_id).eq("status","verified").order("verified_at",{ascending:false}).limit(1).maybeSingle();
+ if(!authz?.tenant_id||authz.company_name!=="Bildiagnos i Utby AB")return err("Production authorization missing",403);
+ const h=await fortnoxAccess(authz.tenant_id);
+ if((await api("/companyinformation",h)).CompanyInformation?.CompanyName!=="Bildiagnos i Utby AB")return err("Wrong company",409);
+ const customer=(await api("/customers/10004",h)).Customer;
+ if(org(customer?.OrganisationNumber)!=="5565439030")return err("Wrong ROX customer",409);
+ const found=await findInvoiceByReference(h,"BOS-700200");
+ let predefined:any;
+ try{
+  const result=await api("/predefinedaccounts",h);
+  predefined=(result.PreDefinedAccounts||[]).filter((x:any)=>["SALES","SALES2","SALES_25_SE"].includes(x.Name)).map((x:any)=>({name:x.Name,account:x.Account}));
+ }catch(e){predefined={unavailable:e instanceof Error?e.message:"Unavailable"};}
+ const list=await api("/invoices?customernumber=10004&limit=500&page=1",h);
+ if(!Array.isArray(list.Invoices))return err("Customer invoice list unavailable",409);
+ const latest=[...list.Invoices].sort((a:any,b:any)=>Number(b.DocumentNumber)-Number(a.DocumentNumber))[0];
+ let establishedRows:any[]=[];
+ if(latest){
+  const invoice=(await api("/invoices/"+encodeURIComponent(String(latest.DocumentNumber)),h)).Invoice;
+  if(String(invoice?.CustomerNumber)!=="10004")return err("Invoice customer mismatch",409);
+  establishedRows=(invoice.InvoiceRows||[]).map((x:any)=>({account:x.AccountNumber,vat:x.VAT,vatCode:x.VATCode,quantityType:typeof x.DeliveredQuantity}));
+ }
+ // Invalid document number is a read-only response-format probe, never a create.
+ const probe=await fetch("https://api.fortnox.se/3/invoices/0",{headers:h});
+ const parsed=await readFortnoxResponse(probe);
+ const probeError=providerError(parsed.payload);
+ return reply({ok:true,diagnostic:true,invoiceCreated:false,sent:false,booked:false,existingInvoiceNumber:found,customer:{active:customer.Active,vatType:customer.VATType,currency:customer.Currency,countryCode:customer.CountryCode,salesAccount:customer.SalesAccount},predefined,establishedRows,responseProbe:{httpStatus:probe.status,contentType:parsed.contentType,bodyBytes:parsed.bodyBytes,code:probeError.Code,message:sanitizeFortnoxMessage(probeError.Message,payloadValues(customer))}});
+}
 async function recover700200(admin:any,member:any,order:any,job:any,input:any){
  const reference="BOS-700200";
  const target="d678b517-6a3c-4cab-8d55-afc92060afab";
  if(order.id!==target||Number(order.order_number)!==700200||order.plate_snapshot!=="JAK77J"||input.confirmReference!==reference||input.expectedJobId!=="f39d5a07-ebfb-41a3-96e2-67cacaa188d8")return err("Recovery is restricted to the confirmed 700200 / JAK77J attempt",409);
  if(!job||job.id!==input.expectedJobId)return err("Recovery job identity mismatch",409);
  if(job.status==="reconciled"||job.status==="submitted")return reply({ok:true,alreadyRecovered:true,status:job.status,documentNumber:job.fortnox_document_number,ocr:job.ocr,invoiceCreated:false,sent:false});
- if(job.status!=="uncertain"||job.fortnox_document_number||job.error_message!=="Fortnox returned HTTP 400; check Fortnox before retry"||job.send_attempted_at||job.sent_at||job.bookkeep_attempted_at||job.booked_at)return err("Job not eligible for this recovery",409);
+ const firstError=job.error_message==="Fortnox returned HTTP 400; check Fortnox before retry";
+ const secondError=job.error_message==="Fortnox POST /invoices HTTP 400; code unknown; Fortnox returned no error message; diagnostic 4c591658-a538-4afd-bbfd-5c76bfcd25f5" && input.expectedJobUpdatedAt==="2026-11-03T19:40:58.728+00:00" && job.updated_at===input.expectedJobUpdatedAt;
+ if(job.status!=="uncertain"||job.fortnox_document_number||!firstError&&!secondError||job.send_attempted_at||job.sent_at||job.bookkeep_attempted_at||job.booked_at)return err("Job not eligible for this recovery",409);
  if(job.request_summary?.reference!==reference||cents(job.request_summary?.total)!==556500)return err("Original attempt amount/reference mismatch",409);
  const {data:quotes,error:quoteError}=await admin.from("quotes").select("id,status,subtotal,vat_total,total").eq("work_order_id",target).eq("status","approved");
  if(quoteError||quotes?.length!==1||cents(quotes[0].subtotal)!==445200||cents(quotes[0].vat_total)!==111300||cents(quotes[0].total)!==556500)return err("Expected approved quote 4452 + 1113 = 5565 SEK not verified",409);
@@ -161,7 +209,7 @@ async function recover700200(admin:any,member:any,order:any,job:any,input:any){
  if(matches.length>1)return err("Multiple Fortnox invoices match BOS-700200; recovery blocked",409);
  const now=new Date().toISOString();
  const invoice=matches[0]||null;
- const check={method:"production_api_reference_and_customer_search",company:"Bildiagnos i Utby AB",customerNumber:"10004",reference,searches,detailCount:candidates.size,result:invoice?"existing_invoice_found":"none_found",invoice:invoice?{documentNumber:String(invoice.DocumentNumber),ocr:String(invoice.OCR||""),total:Number(invoice.Total),sent:invoice.Sent===true,booked:invoice.Booked===true}:null};
+ const check={method:"production_api_reference_and_customer_search",company:"Bildiagnos i Utby AB",customerNumber:"10004",reference,searches,detailCount:candidates.size,checked_job_status:job.status,checked_job_error:job.error_message,checked_job_updated_at:job.updated_at,checked_request_summary:job.request_summary,result:invoice?"existing_invoice_found":"none_found",invoice:invoice?{documentNumber:String(invoice.DocumentNumber),ocr:String(invoice.OCR||""),total:Number(invoice.Total),sent:invoice.Sent===true,booked:invoice.Booked===true}:null};
  const {data:prior,error:priorError}=await admin.from("fortnox_invoice_recovery_audit").select("id,reference,checked_at,check_details").eq("job_id",job.id).maybeSingle();
  if(priorError||prior&&prior.reference!==reference)return err("Recovery audit conflict",409);
  const audit={workshop_id:member.workshop_id,work_order_id:target,job_id:job.id,original_status:job.status,original_error:job.error_message,original_document_number:job.fortnox_document_number,reference,checked_at:now,check_details:check};
@@ -269,12 +317,13 @@ Deno.serve(async(req:Request)=>{
   const orderId=String(input.workOrderId||"");
   const action=String(input.action||"preview");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(orderId))return err("Valid order ID required");
-  if(!["preview","create","status","send","reconcile","bookkeep","recover700200"].includes(action))return err("Unsupported action");
+  if(!["preview","create","status","send","reconcile","bookkeep","recover700200","diagnose700200"].includes(action))return err("Unsupported action");
   const {data:order}=await admin.from("work_orders").select("*").eq("id",orderId).eq("workshop_id",member.workshop_id).maybeSingle();
   if(!order)return err("Order not found",404);
   const {data:existingJob}=await admin.from("fortnox_invoice_jobs").select("*").eq("work_order_id",orderId).maybeSingle();
   if(action==="status")return reply({ok:true,job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
   if(action==="recover700200")return await recover700200(admin,member,order,existingJob,input);
+  if(action==="diagnose700200")return await diagnose700200(admin,member,order,input);
   if(action==="reconcile"){
    if(!existingJob||existingJob.status!=="failed"||existingJob.fortnox_document_number||existingJob.error_message!=="Valid company organization number required")return err("Job not eligible for recovery",409);
    const reference="BOS-"+order.order_number;
@@ -422,8 +471,9 @@ Deno.serve(async(req:Request)=>{
    const body=buildInvoicePayload(customerNumber,reference,lines,order.order_number);
    attempted=true;
    const result=await fetch("https://api.fortnox.se/3/invoices",{method:"POST",headers:{Authorization:"Bearer "+access,Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify(body)});
-   const payload=await result.json().catch(()=>({}));
-   if(!result.ok)throw fortnoxFailure(result.status,payload,"POST /invoices",[...payloadValues(body),...payloadValues(customer),access,basic]);
+   const parsed=await readFortnoxResponse(result);
+   const payload=parsed.payload;
+   if(!result.ok)throw fortnoxFailure(result.status,payload,"POST /invoices",[...payloadValues(body),...payloadValues(customer),access,basic],parsed);
    const number=String(payload?.Invoice?.DocumentNumber||"");
    if(!number)throw new Error("Fortnox response lacks invoice number; reconcile manually");
    const {data:saved,error:saveError}=await admin.from("fortnox_invoice_jobs").update({status:"submitted",fortnox_document_number:number,ocr:String(payload?.Invoice?.OCR||""),invoice_status:String(payload?.Invoice?.Status||"created"),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","reserved").select("id").maybeSingle();

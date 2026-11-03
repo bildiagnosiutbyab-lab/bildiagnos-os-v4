@@ -47,7 +47,7 @@ async function scenario(options = {}) {
     }
     throw new Error('Unexpected API route ' + raw);
   };
-  const context = vm.createContext({ Deno: { env: { get: () => 'fake' }, serve() {} }, createClient() {}, Response, Request, URLSearchParams, fetch, btoa, setTimeout });
+  const context = vm.createContext({ Deno: { env: { get: () => 'fake' }, serve() {} }, createClient() {}, Response, Request, TextEncoder, URLSearchParams, fetch, btoa, setTimeout });
   vm.runInContext(source + '\nglobalThis.recover = recover700200;', context);
   let response;
   try { response = await context.recover(admin, { workshop_id: 'workshop' }, { id: target, order_number: 700200, plate_snapshot: 'JAK77J', customer_id: 'customer' }, job, { confirmReference: 'BOS-700200', expectedJobId: options.wrongJob ? 'other' : jobId }); }

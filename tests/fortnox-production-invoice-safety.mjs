@@ -43,7 +43,7 @@ async function run(action, options = {}) {
     if (url.endsWith('/invoices') && opts.method === 'POST') return Response.json({ Invoice: { DocumentNumber: '300082', OCR: 'fake' } });
     throw new Error('Unexpected fetch ' + url);
   };
-  vm.runInNewContext(source, { Deno: { env: { get: () => 'fake' }, serve(fn) { handler = fn; } }, createClient: () => db, Response, Request, URLSearchParams, fetch, btoa, setTimeout });
+  vm.runInNewContext(source, { Deno: { env: { get: () => 'fake' }, serve(fn) { handler = fn; } }, createClient: () => db, Response, Request, TextEncoder, URLSearchParams, fetch, btoa, setTimeout });
   const body = { action, workOrderId: orderId, ...(missingReference ? {} : { confirmReference: otherOrder ? 'BOS-700202' : 'BOS-700200' }), ...(missingTotal ? {} : { confirmTotal: confirmedTotal }) };
   const response = await handler(new Request('https://example.test', { method: 'POST', headers: { Authorization: 'Bearer fake', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
   return { status: response.status, data: await response.json(), writes, calls };

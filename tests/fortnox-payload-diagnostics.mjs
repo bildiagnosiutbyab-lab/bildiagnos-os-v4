@@ -5,7 +5,7 @@ import { stripTypeScriptTypes } from 'node:module';
 const filename = process.argv[2] || new URL('../supabase/functions/fortnox-production-invoice/index.ts', import.meta.url);
 const source = stripTypeScriptTypes(fs.readFileSync(filename, 'utf8').replace(/^import .*;\n/gm, ''));
 const logs = [];
-const context = vm.createContext({ Deno: { env: { get: key => ({ FORTNOX_CLIENT_ID: 'PRIVATE-CLIENT-ID', FORTNOX_CLIENT_SECRET: 'PRIVATE-CLIENT-SECRET' })[key] }, serve() {} }, console: { error: value => logs.push(JSON.parse(value)) }, createClient() {}, Response, Request, URLSearchParams });
+const context = vm.createContext({ Deno: { env: { get: key => ({ FORTNOX_CLIENT_ID: 'PRIVATE-CLIENT-ID', FORTNOX_CLIENT_SECRET: 'PRIVATE-CLIENT-SECRET' })[key] }, serve() {} }, console: { error: value => logs.push(JSON.parse(value)) }, createClient() {}, Response, Request, TextEncoder, URLSearchParams });
 vm.runInContext(source + '\nglobalThis.check = {buildInvoicePayload,fortnoxFailure,sanitizeFortnoxMessage,payloadValues};', context);
 const { buildInvoicePayload, fortnoxFailure, sanitizeFortnoxMessage, payloadValues } = context.check;
 const lines = [{ description: 'Byte av framfjädrar', quantity: 3, unit_price: 1000, vat_rate: .25 }, { description: 'Spiralfjäder', quantity: 2, unit_price: 726, vat_rate: 25 }];
