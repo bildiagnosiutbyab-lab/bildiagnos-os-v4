@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from 'node:module';
 const source = stripTypeScriptTypes(fs.readFileSync(process.argv[2] || new URL('../supabase/functions/fortnox-production-invoice/index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, ''));
 const orderId = 'd678b517-6a3c-4cab-8d55-afc92060afab';
 async function run(action, options = {}) {
-  const { found = false, confirmedTotal = 5565, job = null, failSearch = false, quoteTotal = 5565, wrongPlate = false, authorized = true, role = 'owner', otherOrder = false, missingReference = false, missingTotal = false } = options;
+  const { found = false, confirmedTotal = 5565, job = null, failSearch = false, quoteTotal = 5565, wrongPlate = false, authorized = true, role = 'owner', otherOrder = false, missingReference = false, missingTotal = false, rejectInvoice = false } = options;
   let handler;
   const writes = [], calls = [];
   const net = quoteTotal / 1.25;
@@ -34,11 +34,12 @@ async function run(action, options = {}) {
     },
   };
   const fetch = async (url, opts = {}) => {
-    calls.push({ url, method: opts.method || 'GET' });
+    calls.push({ url, method: opts.method || 'GET', body: opts.body && String(opts.body).startsWith('{') ? JSON.parse(opts.body) : null });
     if (url.includes('oauth-v1')) return Response.json({ access_token: 'fake' });
     if (url.includes('/invoices?')) return failSearch ? new Response('{}', { status: 500 }) : Response.json({ Invoices: found ? [{ DocumentNumber: '300081' }] : [] });
     if (url.endsWith('/invoices/300081')) return Response.json({ Invoice: { DocumentNumber: '300081', YourReference: 'BOS-700200' } });
     if (url.endsWith('/companyinformation')) return Response.json({ CompanyInformation: { CompanyName: 'Bildiagnos i Utby AB' } });
+    if (url.endsWith('/invoices') && opts.method === 'POST' && rejectInvoice) return Response.json({ErrorInformation:{Code:2004167,Message:'An account must be provided when using a custom VAT rate and EasyVat has been enabled.'}},{status:400});
     if (url.endsWith('/invoices') && opts.method === 'POST') return Response.json({ Invoice: { DocumentNumber: '300082', OCR: 'fake' } });
     throw new Error('Unexpected fetch ' + url);
   };
@@ -60,4 +61,7 @@ r = await run('create'); assert.equal(r.data.created, true); assert.equal(r.data
 for (const status of ['reserved', 'uncertain', 'submitted', 'failed']) { r = await run('create', { job: { status, fortnox_document_number: status === 'submitted' ? '300082' : null } }); assert.equal(r.status, 409); assert.equal(r.calls.length, 0); noSideEffects(r); checks++; }
 r = await run('preview', { authorized: false }); assert.equal(r.status, 401); noSideEffects(r); checks++;
 r = await run('preview', { role: 'technician' }); assert.equal(r.status, 403); noSideEffects(r); checks++;
+
+r = await run('create', {rejectInvoice:true}); assert.equal(r.status,502); const failed=r.writes.filter(x=>x.table==='fortnox_invoice_jobs'&&x.key==='update').at(-1); assert.equal(failed.value.status,'uncertain'); assert.match(failed.value.error_message,/code 2004167/); assert.match(failed.value.error_message,/An account must be provided/); assert.match(failed.value.error_message,/diagnostic/); checks++;
+r = await run('create'); const sentPayload=r.calls.find(x=>x.method==='POST'&&x.url.endsWith('/invoices')).body; assert.equal(sentPayload.Invoice.VATIncluded,false); assert.equal(sentPayload.Invoice.Currency,'SEK'); for(const row of sentPayload.Invoice.InvoiceRows){assert.equal(typeof row.DeliveredQuantity,'string');assert.equal(row.VATCode,'MP1');assert.equal('VAT' in row,false);} checks++;
 console.log(`PASS ${checks} checks: exact JAK77J amount/identity, read-only preview, unrelated order unchanged, explicit confirmations, duplicate detection before first creation, failed search closed, reservation/idempotency, auth/roles. All database writes and Fortnox calls mocked.`);

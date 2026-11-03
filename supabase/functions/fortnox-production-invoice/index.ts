@@ -7,6 +7,50 @@ const err=(message:string,status=400)=>reply({ok:false,error:message},status);
 function requireEnv(name:string){const v=Deno.env.get(name);if(!v)throw new Error("Missing server configuration: "+name);return v;}
 function cents(v:unknown){return Math.round(Number(v)*100);}
 function vatFraction(v:unknown){const n=Number(v);return Number.isFinite(n)&&n>=0&&n<=100?(n>1?n/100:n):NaN;}
+function payloadValues(value:any):string[]{
+ if(value==null)return [];
+ if(Array.isArray(value))return value.flatMap(payloadValues);
+ if(typeof value==="object")return Object.values(value).flatMap(payloadValues);
+ return typeof value==="string"||typeof value==="number"?[String(value)]:[];
+}
+function sanitizeFortnoxMessage(value:unknown,sensitive:string[]=[]){
+ let message=String(value||"Fortnox returned no error message");
+ const secrets=[...sensitive,Deno.env.get("FORTNOX_CLIENT_ID")||"",Deno.env.get("FORTNOX_CLIENT_SECRET")||""].filter(x=>x.length>=3).sort((a,b)=>b.length-a.length);
+ for(const secret of secrets)message=message.split(secret).join("[REDACTED]");
+ return message
+  .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi,"[REDACTED AUTH]")
+  .replace(/["']?(?:access_token|refresh_token|client_secret|password|authorization)["']?\s*[=:]\s*["']?[^\s,"'}]+/gi,"[REDACTED SECRET]")
+  .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,"[REDACTED TOKEN]")
+  .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,"[REDACTED EMAIL]")
+  .replace(/\b\d{6,}(?:[- ]\d+)*\b/g,"[REDACTED NUMBER]")
+  .replace(/[\r\n\t]+/g," ")
+  .slice(0,1500);
+}
+function fortnoxFailure(status:number,payload:any,stage:string,sensitive:string[]=[]){
+ const information=payload?.ErrorInformation||{};
+ const rawCode=information.Code??information.Error;
+ const code=/^\d{1,10}$/.test(String(rawCode??""))?String(rawCode):"unknown";
+ const message=sanitizeFortnoxMessage(information.Message,sensitive);
+ const diagnosticId=globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2);
+ // Never log headers, tokens, request bodies, customer records or raw responses.
+ const safeStage=stage.replace(/\/(customers|invoices|articles)\/[^/\s]+/g,"/$1/:id");
+ console.error(JSON.stringify({event:"fortnox_api_error",diagnosticId,stage:safeStage,httpStatus:status,code,message}));
+ return new Error(`Fortnox ${safeStage} HTTP ${status}; code ${code}; ${message}; diagnostic ${diagnosticId}`);
+}
+function buildInvoicePayload(customerNumber:unknown,reference:string,lines:any[],orderNumber:unknown){
+ const number=String(customerNumber??"").trim();
+ if(!number||["null","undefined"].includes(number.toLowerCase()))throw new Error("Valid Fortnox customer number required");
+ if(!/^BOS-\d+$/.test(reference)||reference.length>50)throw new Error("Valid BOS invoice reference required");
+ if(!lines.length)throw new Error("Invoice rows required");
+ const rows=lines.map(line=>{
+  const quantity=Number(line.quantity),price=Number(line.unit_price),description=String(line.description||"").trim();
+  if(!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(price)||price<0||!description||description.length>255||vatFraction(line.vat_rate)!==0.25)throw new Error("Invalid invoice row quantity, price, description or VAT");
+  // Fortnox's request schema uses a STRING quantity. MP1 uses the configured
+  // domestic 25% VAT/sales accounts; VAT:25 without an account is custom VAT.
+  return {Description:description,DeliveredQuantity:String(quantity),Price:price,Discount:0,VATCode:"MP1"};
+ });
+ return {Invoice:{CustomerNumber:number,Currency:"SEK",VATIncluded:false,AdministrationFee:0,Freight:0,YourReference:reference,ExternalInvoiceReference1:reference,InvoiceRows:rows,Remarks:"Bildiagnos arbetsorder "+orderNumber}};
+}
 
 async function fortnoxAccess(tenant:string){
  const basic=btoa(requireEnv("FORTNOX_CLIENT_ID")+":"+requireEnv("FORTNOX_CLIENT_SECRET"));
@@ -26,7 +70,7 @@ async function api(path:string,headers:Record<string,string>,method="GET",payloa
    continue;
   }
   const body=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error("Fortnox "+method+" "+path.split("?")[0]+" HTTP "+r.status);
+  if(!r.ok)throw fortnoxFailure(r.status,body,method+" "+path.split("?")[0],payloadValues(payload));
   return body;
  }
  throw new Error("Fortnox rate limit: retry attempts exhausted");
@@ -375,12 +419,11 @@ Deno.serve(async(req:Request)=>{
      await admin.from("fortnox_customer_sync_locks").update({status:"linked",fortnox_customer_number:String(customerNumber)}).eq("workshop_id",member.workshop_id).eq("organisation_number",identifier);
    }
    if(!customerNumber)throw new Error("Fortnox customer unresolved");
-   const invoiceRows=lines.map((l:any)=>({Description:String(l.description),DeliveredQuantity:Number(l.quantity),Price:Number(l.unit_price),VAT:25}));
-   const body={Invoice:{CustomerNumber:String(customerNumber),YourReference:reference,InvoiceRows:invoiceRows,Remarks:"Bildiagnos arbetsorder "+order.order_number}};
+   const body=buildInvoicePayload(customerNumber,reference,lines,order.order_number);
    attempted=true;
    const result=await fetch("https://api.fortnox.se/3/invoices",{method:"POST",headers:{Authorization:"Bearer "+access,Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify(body)});
    const payload=await result.json().catch(()=>({}));
-   if(!result.ok)throw new Error("Fortnox returned HTTP "+result.status+"; check Fortnox before retry");
+   if(!result.ok)throw fortnoxFailure(result.status,payload,"POST /invoices",[...payloadValues(body),...payloadValues(customer),access,basic]);
    const number=String(payload?.Invoice?.DocumentNumber||"");
    if(!number)throw new Error("Fortnox response lacks invoice number; reconcile manually");
    const {data:saved,error:saveError}=await admin.from("fortnox_invoice_jobs").update({status:"submitted",fortnox_document_number:number,ocr:String(payload?.Invoice?.OCR||""),invoice_status:String(payload?.Invoice?.Status||"created"),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","reserved").select("id").maybeSingle();
