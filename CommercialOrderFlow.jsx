@@ -135,13 +135,17 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       documentLanguage: quote.document_language || 'sv',
     });
     const invoice = data.invoices?.find((item) => !['cancelled', 'credited'].includes(item.status)) || null;
-    const accountingTotal = Number(invoice?.total ?? (data.services.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.estimated_minutes||0)/60*Number(x.unit_price||0):0),0)+data.parts.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.quantity||0)*Number(x.sale_price||0):0),0))*1.25);
-    const payableTotal = Math.round(accountingTotal);
+    // The payment field must reflect the CURRENT order lines, not an old
+    // invoice from a previous version of the order (e.g. 79,815 vs 5,565).
+    const liveNet = data.services.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.estimated_minutes||0)/60*Number(x.unit_price||0):0),0)
+      + data.parts.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.quantity||0)*Number(x.sale_price||0):0),0);
+    const payableTotal = Math.round(liveNet * 1.25 * 100) / 100;
+    const invoiceMatchesOrder = invoice && Math.abs(Number(invoice.total || 0) - payableTotal) < 0.01;
     setPaymentForm((current) => ({
       ...current,
-      amount: current.amount || (accountingTotal ? payableTotal.toFixed(2) : ''),
+      amount: payableTotal > 0 ? payableTotal.toFixed(2) : '',
       reference: current.reference || String(data.workOrder.order_number || ''),
-      invoiceId: current.invoiceId || invoice?.id || '',
+      invoiceId: invoiceMatchesOrder ? invoice.id : '',
     }));
   };
 
@@ -415,7 +419,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           setLastReceipt({ payment: previewPayment, order: workOrder, invoice: previewInvoice });
           window.setTimeout(() => printDocument('receipt'), 0);
         }}>Vista previa Kvitto {!invoice ? '(Test)' : ''}</button>}
-        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
+        <form className="commercial-inline-form" onSubmit={(event) => { event.preventDefault(); if (Math.abs(Number(paymentForm.amount) - displayedTotal) > 0.01) { setMessage('Beloppet stämmer inte med aktuell order. Kontrollera innan betalning.'); return; } if (invoice && Math.abs(Number(invoice.total || 0) - displayedTotal) > 0.01) { setMessage('En äldre faktura har ett annat belopp. Betalning spärrad tills fakturan har stämts av.'); return; } run(() => confirmCommercialPayment(context, paymentForm), 'Betalning bekräftad och kvitto klart.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: context.invoices.find((item) => item.id === payment.invoice_id) || invoice || null }); window.setTimeout(() => printDocument('receipt'), 0); } }); }}>
           <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}><option>Swish</option><option>Zettle / Kort</option></select>
           <input required type="number" min="0.01" step="0.01" placeholder="Belopp" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
