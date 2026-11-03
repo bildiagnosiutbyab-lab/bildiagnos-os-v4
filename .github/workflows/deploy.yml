@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 70db91f9298a131afa13459b8708d5e19ecbdfd6 # audited 700200 recovery
+          ref: 02166144a946fc5bb6835d756fbf0b89dc074877 # read-only 700200 diagnosis
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
