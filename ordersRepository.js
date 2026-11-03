@@ -7,6 +7,11 @@ export async function loadRelationalOrders() {
 }
 
 export async function saveRelationalOrder(order, expectedVersion = null) {
+  if (expectedVersion !== null && expectedVersion !== undefined) {
+    if (!order?.relationalId || String(order.id) !== String(order.relationalId)) {
+      throw new Error('ORDER_EDIT_ID_MISMATCH: no se guardó para evitar una orden duplicada');
+    }
+  }
   const { data, error } = await supabase.rpc('save_work_order_legacy', {
     p_order: order,
     p_expected_version: expectedVersion,
