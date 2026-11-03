@@ -413,7 +413,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
     const order = orders.find((item) => item.id === orderId);
     if (!order) return;
     const confirmed = window.confirm(
-      `¿Eliminar de Bildiagnos la orden ${order.plate} y sus trabajos, piezas y cotizaciones? Esta acción no cancela pedidos hechos en catálogos externos.`
+      `¿Eliminar de Bildiagnos la orden ${order.orderNumber || order.order_number || '—'} (${order.plate}) y sus trabajos, piezas y cotizaciones? Esta acción no cancela pedidos hechos en catálogos externos.`
     );
     if (!confirmed) return;
     setSyncMessage('Eliminando orden…');
@@ -424,11 +424,13 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       setSyncMessage('Orden eliminada de Bildiagnos');
     } catch (error) {
       console.error('No se pudo eliminar la orden:', error);
-      setSyncMessage(error.message?.includes('ORDER_HAS_LINKED_RECORDS')
+      setSyncMessage(error.message?.includes('ORDER_DELETE_NOT_AUTHORIZED')
+        ? 'No autorizado para eliminar. Inicia sesión con la cuenta administradora del taller.'
+        : error.message?.includes('ORDER_HAS_LINKED_RECORDS')
         ? 'No se puede eliminar: tiene factura, pago, inventario u otro registro vinculado.'
         : error.message?.includes('ORDER_VERSION_CONFLICT')
           ? 'La orden cambió en otro dispositivo. Recarga y vuelve a intentarlo.'
-          : 'No se pudo eliminar la orden. Comprueba la conexión.');
+          : `No se pudo eliminar la orden: ${error.message || 'Error desconocido'}`);
       const latest = await loadRelationalOrders().catch(() => null);
       if (latest) setOrders(latest);
     }
@@ -441,13 +443,13 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
     return (
       <>
         <PageHeader
-          title={`Arbetsorder ${selectedOrder.plate}`}
+          title={`Arbetsorder ${selectedOrder.orderNumber || selectedOrder.order_number || '—'} · ${selectedOrder.plate}`}
           subtitle={selectedOrder.customer}
         />
 
         <section className="card order-detail">
           <div className="order-card-header">
-            <button className="plate">{selectedOrder.plate}</button>
+            <div><strong>Arbetsorder nr {selectedOrder.orderNumber || selectedOrder.order_number || '—'}</strong><div className="plate">{selectedOrder.plate}</div></div>
 
             <span className="status warning">{selectedOrder.status}</span>
           </div>
@@ -777,18 +779,18 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
           <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : orderView === 'report' && !normalizedPlateSearch ? (
-        <section className="card"><div style={{display:'grid',gap:'10px'}}>{reportOrders.map(order=><div key={order.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',borderBottom:'1px solid #ddd',paddingBottom:'8px'}}><button className="plate" onClick={()=>setSelectedOrderId(order.id)}>{order.plate}</button><span>{orderDate(order)}</span><button className="secondary-button" onClick={()=>setSelectedOrderId(order.id)}>Abrir orden</button></div>)}</div></section>
+        <section className="card"><div style={{display:'grid',gap:'10px'}}>{reportOrders.map(order=><div key={order.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',borderBottom:'1px solid #ddd',paddingBottom:'8px'}}><button className="plate" onClick={()=>setSelectedOrderId(order.id)}>#{order.orderNumber || order.order_number || '—'} · {order.plate}</button><span>{orderDate(order)}</span><button className="secondary-button" onClick={()=>setSelectedOrderId(order.id)}>Abrir orden</button></div>)}</div></section>
       ) : (
         <section className="orders-list">
           {visibleOrders.map((order) => (
             <article className="card order-card" key={order.id}>
               <div className="order-card-header">
-                <button
+                <div><strong>Arbetsorder nr {order.orderNumber || order.order_number || '—'}</strong><div><button
                   className="plate"
                   onClick={() => setSelectedOrderId(order.id)}
                 >
                   {order.plate}
-                </button>
+                </button></div></div>
 
                 <span className="status warning">
                   {order.status || 'Abierta'} · {orderDate(order)}
