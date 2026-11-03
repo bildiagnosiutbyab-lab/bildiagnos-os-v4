@@ -450,22 +450,35 @@ export async function createCommercialInvoice(context, form) {
 export async function confirmCommercialPayment(context, form) {
   const { workOrder } = context;
   const invoice = form.invoiceId ? context.invoices.find((item) => item.id === form.invoiceId) : null;
-  if (!invoice) throw new Error('Välj en faktura innan betalningen registreras.');
-  if (invoice.status === 'paid') throw new Error('Fakturan är redan betald.');
-  const existingPayment = context.payments.find((item) => item.invoice_id === invoice.id && item.status === 'accepted');
-  if (existingPayment) throw new Error('Det finns redan en registrerad betalning för fakturan.');
-  const expectedAmount = Math.round(Number(invoice.total || 0));
+  if (invoice?.status === 'paid') throw new Error('Fakturan är redan betald.');
+  // Always check the database, not only the potentially stale UI context.
+  const { data: recorded, error: recordedError } = await supabase
+    .from('payments').select('id,amount,status')
+    .eq('work_order_id', workOrder.id).eq('status', 'accepted');
+  throwIfError(recordedError);
+  if (recorded?.length) throw new Error('Ya existe un pago confirmado para esta orden. No se ha duplicado.');
+  const { data: services, error: serviceError } = await supabase.from('work_order_services')
+    .select('estimated_minutes,unit_price,status').eq('work_order_id', workOrder.id);
+  throwIfError(serviceError);
+  const { data: parts, error: partsError } = await supabase.from('work_order_parts')
+    .select('quantity,sale_price,status').eq('work_order_id', workOrder.id);
+  throwIfError(partsError);
+  const net = (services || []).filter(x => !['rejected','removed'].includes(x.status))
+    .reduce((sum,x)=>sum+Number(x.estimated_minutes||0)/60*Number(x.unit_price||0),0)
+    +(parts || []).filter(x => !['rejected','removed'].includes(x.status))
+    .reduce((sum,x)=>sum+Number(x.quantity||0)*Number(x.sale_price||0),0);
+  const expectedAmount = Math.round(Number(invoice?.total ?? net * 1.25));
   const enteredAmount = Number(form.amount);
   if (!Number.isFinite(enteredAmount) || Math.abs(enteredAmount - expectedAmount) > 0.005) {
-    throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive öresutjämning.`);
+    throw new Error(`Beloppet ska vara ${expectedAmount.toFixed(2)} kr inklusive moms.`);
   }
-  const receiptReference = `KV-${invoice.invoice_number || workOrder.order_number || invoice.id.slice(0, 8)}`;
+  const receiptReference = `KV-${invoice?.invoice_number || workOrder.order_number}`;
   const acceptedAt = new Date().toISOString();
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
       workshop_id: workOrder.workshop_id,
-      invoice_id: invoice.id,
+      invoice_id: invoice?.id || null,
       work_order_id: workOrder.id,
       customer_id: workOrder.customer_id,
       vehicle_id: workOrder.vehicle_id,
@@ -480,8 +493,10 @@ export async function confirmCommercialPayment(context, form) {
     .single();
   throwIfError(error);
 
-  const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
-  throwIfError(invoiceError);
+  if (invoice) {
+    const { error: invoiceError } = await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
+    throwIfError(invoiceError);
+  }
 
   const nextVersion = Number(workOrder.version || 0) + 1;
   const { error: orderError } = await supabase
