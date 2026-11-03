@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: recovery/full-workshop-20261102
+          ref: 1fd5d21c74a17c5c05bebb22db4ceb5a39f5da8d # verified VAT normalization
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
