@@ -135,7 +135,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       documentLanguage: quote.document_language || 'sv',
     });
     const invoice = data.invoices?.find((item) => !['cancelled', 'credited'].includes(item.status)) || null;
-    const accountingTotal = Number(invoice?.total ?? quote?.total ?? 0);
+    const accountingTotal = Number(invoice?.total ?? (data.services.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.estimated_minutes||0)/60*Number(x.unit_price||0):0),0)+data.parts.reduce((sum,x)=>sum+(!['rejected','removed'].includes(x.status)?Number(x.quantity||0)*Number(x.sale_price||0):0),0))*1.25);
     const payableTotal = Math.round(accountingTotal);
     setPaymentForm((current) => ({
       ...current,
@@ -293,11 +293,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const printedVat = Math.round(printedSubtotal * 25) / 100;
   const testPrintMismatch = Boolean(invoicePreview.fortnox_test && Math.abs(Math.round(printedSubtotal + printedVat) - Number(invoicePreview.total || 0)) > 0.01);
   const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
-  const receiptLines = receiptInvoice?.fortnox_test ? [...testServiceLines, ...testPartLines] : receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [];
+  const receiptLines = receiptInvoice?.fortnox_test ? [...testServiceLines, ...testPartLines] : receiptInvoice ? context?.invoiceItems.filter((item) => item.invoice_id === receiptInvoice.id) || [] : [...testServiceLines, ...testPartLines];
   // Fortnox Test returns the final total but not subtotal/VAT; derive them from the
   // same order rows used for the invoice, including the 25% VAT and ore rounding.
-  const receiptSubtotal = receiptInvoice?.fortnox_test ? receiptLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0) : receiptInvoice ? Number(receiptInvoice.subtotal || 0) : 0;
-  const receiptVat = receiptInvoice?.fortnox_test ? Math.round(receiptSubtotal * 25) / 100 : receiptInvoice ? Number(receiptInvoice.vat_total || 0) : 0;
+  const receiptSubtotal = receiptInvoice?.fortnox_test ? receiptLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0) : receiptInvoice ? Number(receiptInvoice.subtotal || 0) : receiptLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unit_price||0),0);
+  const receiptVat = receiptInvoice?.fortnox_test ? Math.round(receiptSubtotal * 25) / 100 : receiptInvoice ? Number(receiptInvoice.vat_total || 0) : Math.round(receiptSubtotal*25)/100;
   const receiptAccountingTotal = receiptInvoice?.fortnox_test ? receiptSubtotal + receiptVat : receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
   const receiptPayable = Number(lastReceipt?.payment?.amount || Math.round(receiptAccountingTotal));
   const run = async (action, success) => {
@@ -551,7 +551,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <p><strong>Status:</strong> {lastReceipt.payment.preview ? 'Förhandsvisning – ej betald' : 'Betald'}</p>
         </div>
         <div className="invoice-summary">
-          {receiptInvoice && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
+          {lastReceipt && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
           {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
           <p className="invoice-pay"><span>{lastReceipt.payment.preview ? 'Att betala (förhandsvisning)' : 'Betalt'}</span><b>{money(receiptPayable)}</b></p>
         </div>
