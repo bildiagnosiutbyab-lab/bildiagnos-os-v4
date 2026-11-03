@@ -16,6 +16,7 @@ import {
 import { supabase } from './supabaseClient.js';
 import DeliveryNoteReader from './DeliveryNoteReader.jsx';
 import ProfitabilityPanel from './ProfitabilityPanel.jsx';
+import FortnoxProductionInvoice from './FortnoxProductionInvoice.jsx';
 import './commercialFlow.css';
 
 const SEK = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -278,7 +279,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const displayedSubtotal = quoteMatchesLiveOrder ? Number(quote?.subtotal || 0) : liveSubtotal;
   const displayedVat = quoteMatchesLiveOrder ? Number(quote?.vat_total || 0) : liveVat;
   const displayedTotal = quoteMatchesLiveOrder ? Number(quote?.total || 0) : liveTotal;
-  const invoice = context?.invoices[0];
+  const invoice = context?.invoices.find((item) => !['cancelled', 'credited'].includes(item.status));
   const invoicePreview = lastInvoice || invoice || {
     invoice_number: 'FÖRHANDSVISNING',
     created_at: new Date().toISOString(),
@@ -433,6 +434,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
+        <FortnoxProductionInvoice key={`${orderId}:${displayedTotal}:${pricePending}`} orderId={orderId} expectedTotal={displayedTotal} blocked={pricePending} />
         <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Faktura skapad.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
           <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor
@@ -445,7 +447,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <small>Förfallodatum: {date(dueDateFromDays(invoiceForm.paymentTermsDays))}</small>
           </label>
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
-          <button disabled={busy || pricePending}>Skapa faktura</button>
+          <button disabled={busy || pricePending}>Crear documento interno (sin Fortnox)</button>
         </form>
         <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
@@ -480,7 +482,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
             <span>Total: <b>{money(fortnoxInvoiceTest.result.total)}</b></span>
           </div>}
         </div>
-        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{item.status !== 'paid' && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: Math.round(Number(item.total || 0)), reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: item }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Bekräfta betalning</button>}</li>)}</ul>
+        <ul className="commercial-lines">{context.invoices.map((item) => <li key={item.id}><span>Faktura {item.invoice_number} · {money(item.total)}</span><small>{item.status} · vence {date(item.due_at)}</small><button type="button" onClick={() => { setLastInvoice(item); window.setTimeout(() => printDocument('invoice'), 0); }}>Imprimir</button>{!['paid', 'cancelled', 'credited'].includes(item.status) && <button type="button" onClick={() => run(() => confirmCommercialPayment(context, { method: 'Faktura', amount: Math.round(Number(item.total || 0)), reference: item.invoice_number, invoiceId: item.id }), 'Factura marcada como pagada y Kvitto preparado.').then((payment) => { if (payment) { setLastReceipt({ payment, order: workOrder, invoice: item }); window.setTimeout(() => printDocument('receipt'), 0); } })}>Bekräfta betalning</button>}</li>)}</ul>
       </section>
     </div>
 
