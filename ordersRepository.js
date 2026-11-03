@@ -8,7 +8,7 @@ export async function loadRelationalOrders() {
 
 export async function saveRelationalOrder(order, expectedVersion = null) {
   if (expectedVersion !== null && expectedVersion !== undefined) {
-    if (!order?.relationalId || String(order.id) !== String(order.relationalId)) {
+    if (!order?.relationalId || !order?.orderNumber || !Number.isInteger(Number(expectedVersion))) {
       throw new Error('ORDER_EDIT_ID_MISMATCH: no se guardó para evitar una orden duplicada');
     }
   }
