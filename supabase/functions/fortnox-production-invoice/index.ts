@@ -53,13 +53,21 @@ function fortnoxFailure(status:number,payload:any,stage:string,sensitive:string[
  console.error(JSON.stringify({event:"fortnox_api_error",diagnosticId,stage:safeStage,httpStatus:status,code,message,contentType:metadata.contentType,bodyBytes:metadata.bodyBytes}));
  return new Error(`Fortnox ${safeStage} HTTP ${status}; code ${code}; ${message}; diagnostic ${diagnosticId}`);
 }
+function fortnoxDescription(value:unknown){
+ // Match the working test-invoice bridge and Fortnox's documented character set.
+ // Only the outgoing text changes; the workshop's original description is retained.
+ const text=String(value??"").normalize("NFC").replace(/[·•–—]/g," - ").replace(/[\u0000-\u001F\u007F]/g," ").replace(/\s+/g," ").trim();
+ const valid=/^[\p{L}0-9\u0308\u030a \\’`´,;:^¤#%§£$€¢¥©™°&\/()=+\-*_!?²³®½@.\u00a0]*$/u;
+ if(!valid.test(text))throw new Error("Invoice description contains characters unsupported by Fortnox; review the text before creation");
+ return text;
+}
 function buildInvoicePayload(customerNumber:unknown,reference:string,lines:any[],orderNumber:unknown){
  const number=String(customerNumber??"").trim();
  if(!number||["null","undefined"].includes(number.toLowerCase()))throw new Error("Valid Fortnox customer number required");
  if(!/^BOS-\d+$/.test(reference)||reference.length>50)throw new Error("Valid BOS invoice reference required");
  if(!lines.length)throw new Error("Invoice rows required");
  const rows=lines.map(line=>{
-  const quantity=Number(line.quantity),price=Number(line.unit_price),description=String(line.description||"").trim();
+  const quantity=Number(line.quantity),price=Number(line.unit_price),description=fortnoxDescription(line.description);
   if(!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(price)||price<0||!description||description.length>255||vatFraction(line.vat_rate)!==0.25)throw new Error("Invalid invoice row quantity, price, description or VAT");
   // Fortnox's request schema uses a STRING quantity. MP1 uses the configured
   // domestic 25% VAT/sales accounts; VAT:25 without an account is custom VAT.

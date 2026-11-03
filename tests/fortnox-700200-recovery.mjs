@@ -8,6 +8,7 @@ const jobId = 'f39d5a07-ebfb-41a3-96e2-67cacaa188d8';
 async function scenario(options = {}) {
   const calls = [], writes = [];
   const job = { id: jobId, status: options.status || 'uncertain', error_message: 'Fortnox returned HTTP 400; check Fortnox before retry', request_summary: { reference: 'BOS-700200', total: 5565 }, updated_at: '2026-11-03T19:17:00.182Z' };
+  if(options.secondError){job.error_message='Fortnox POST /invoices HTTP 400; code unknown; Fortnox returned no error message; diagnostic 4c591658-a538-4afd-bbfd-5c76bfcd25f5';job.updated_at='2026-11-03T19:40:58.728+00:00';}
   const fixtures = {
     quotes: [{ id: 'quote', status: 'approved', subtotal: 4452, vat_total: 1113, total: options.badAmount ? 79815 : 5565 }],
     invoices: [{ id: 'internal', status: 'cancelled', fortnox_reference: null }], payments: [],
@@ -50,7 +51,7 @@ async function scenario(options = {}) {
   const context = vm.createContext({ Deno: { env: { get: () => 'fake' }, serve() {} }, createClient() {}, Response, Request, TextEncoder, URLSearchParams, fetch, btoa, setTimeout });
   vm.runInContext(source + '\nglobalThis.recover = recover700200;', context);
   let response;
-  try { response = await context.recover(admin, { workshop_id: 'workshop' }, { id: target, order_number: 700200, plate_snapshot: 'JAK77J', customer_id: 'customer' }, job, { confirmReference: 'BOS-700200', expectedJobId: options.wrongJob ? 'other' : jobId }); }
+  try { response = await context.recover(admin, { workshop_id: 'workshop' }, { id: target, order_number: 700200, plate_snapshot: 'JAK77J', customer_id: 'customer' }, job, { confirmReference: 'BOS-700200', expectedJobId: options.wrongJob ? 'other' : jobId, expectedJobUpdatedAt: options.wrongTime ? 'other' : '2026-11-03T19:40:58.728+00:00' }); }
   catch (error) { return { thrown: error.message, calls, writes }; }
   return { status: response.status, data: await response.json(), calls, writes };
 }
@@ -63,4 +64,7 @@ r = await scenario({ auditFail: true }); assert.equal(r.status, 409); assert.equ
 r = await scenario({ casFail: true }); assert.equal(r.status, 409); checks++;
 r = await scenario({ status: 'reconciled' }); assert.equal(r.data.alreadyRecovered, true); assert.equal(r.calls.length, 0); assert.equal(r.writes.length, 0); checks++;
 r = await scenario({ pagination: true }); assert.equal(r.data.reconciled, true); assert.equal(r.calls.filter(x => x.path.endsWith('/invoices')).length, 12); checks++;
+
+r=await scenario({secondError:true});assert.equal(r.data.reconciled,true);assert.match(r.writes[0].value.original_error,/diagnostic 4c591658/);assert.match(r.writes[0].value.check_details.checked_job_error,/HTTP 400/);assert.equal(r.writes[1].value.error_message,undefined);checks++;
+r=await scenario({secondError:true,wrongTime:true});assert.equal(r.status,409);assert.equal(r.writes.length,0);checks++;
 console.log(`PASS ${checks} recovery checks: no invoice, existing invoice+OCR, wrong amount/job, conflicting/multiple matches, failed API, audit failure, concurrent state change, repeat, pagination. All Fortnox calls mocked; no create/send/bookkeep paths.`);
