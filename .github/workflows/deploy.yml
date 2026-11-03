@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 7729f7cc88355ed7fd1bbc83f24c06bbdd4d6b77 # confirmed real Fortnox invoice button
+          ref: 70db91f9298a131afa13459b8708d5e19ecbdfd6 # audited 700200 recovery
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
