@@ -7,16 +7,40 @@ export async function loadRelationalOrders() {
 }
 
 export async function saveRelationalOrder(order, expectedVersion = null) {
-  if (expectedVersion !== null && expectedVersion !== undefined) {
+  let payload = order;
+  const editing = expectedVersion !== null && expectedVersion !== undefined;
+  if (editing) {
     if (!order?.relationalId || !order?.orderNumber || !Number.isInteger(Number(expectedVersion))) {
       throw new Error('ORDER_EDIT_ID_MISMATCH: no se guardó para evitar una orden duplicada');
     }
+    const { data: existing, error: lookupError } = await supabase
+      .from('work_orders')
+      .select('id, legacy_order_id, order_number, version')
+      .eq('id', order.relationalId)
+      .single();
+    if (lookupError) throw lookupError;
+    if (!existing || Number(existing.order_number) !== Number(order.orderNumber)) {
+      throw new Error('ORDER_EDIT_ID_MISMATCH: la orden no coincide');
+    }
+    if (Number(existing.version) !== Number(expectedVersion)) {
+      throw new Error('ORDER_VERSION_CONFLICT');
+    }
+    // The legacy RPC resolves edits by legacy_order_id, not by relationalId.
+    // Never allow an edit to fall through to its INSERT path.
+    if (!existing.legacy_order_id) {
+      throw new Error('ORDER_EDIT_MISSING_LEGACY_ID: edición bloqueada para evitar duplicados');
+    }
+    payload = { ...order, id: existing.legacy_order_id };
   }
   const { data, error } = await supabase.rpc('save_work_order_legacy', {
-    p_order: order,
+    p_order: payload,
     p_expected_version: expectedVersion,
   });
   if (error) throw error;
+  if (editing && (String(data?.relationalId) !== String(order.relationalId) ||
+      Number(data?.orderNumber) !== Number(order.orderNumber))) {
+    throw new Error('ORDER_EDIT_RESULT_MISMATCH: recarga las órdenes');
+  }
   return data;
 }
 
