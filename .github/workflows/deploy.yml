@@ -26,7 +26,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build recovered root application (Swish receipt correction)
+      - name: Build recovered root application (restore production app)
 
         run: npm run build
       - name: Preserve root site
