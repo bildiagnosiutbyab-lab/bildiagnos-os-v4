@@ -61,6 +61,75 @@ async function bookkeepInvoice(admin:any,existingJob:any,h:Record<string,string>
  }
 }
 function org(v:unknown){return String(v||"").replace(/[^0-9]/g,"");}
+async function recover700200(admin:any,member:any,order:any,job:any,input:any){
+ const reference="BOS-700200";
+ const target="d678b517-6a3c-4cab-8d55-afc92060afab";
+ if(order.id!==target||Number(order.order_number)!==700200||order.plate_snapshot!=="JAK77J"||input.confirmReference!==reference||input.expectedJobId!=="f39d5a07-ebfb-41a3-96e2-67cacaa188d8")return err("Recovery is restricted to the confirmed 700200 / JAK77J attempt",409);
+ if(!job||job.id!==input.expectedJobId)return err("Recovery job identity mismatch",409);
+ if(job.status==="reconciled"||job.status==="submitted")return reply({ok:true,alreadyRecovered:true,status:job.status,documentNumber:job.fortnox_document_number,ocr:job.ocr,invoiceCreated:false,sent:false});
+ if(job.status!=="uncertain"||job.fortnox_document_number||job.error_message!=="Fortnox returned HTTP 400; check Fortnox before retry"||job.send_attempted_at||job.sent_at||job.bookkeep_attempted_at||job.booked_at)return err("Job not eligible for this recovery",409);
+ if(job.request_summary?.reference!==reference||cents(job.request_summary?.total)!==556500)return err("Original attempt amount/reference mismatch",409);
+ const {data:quotes,error:quoteError}=await admin.from("quotes").select("id,status,subtotal,vat_total,total").eq("work_order_id",target).eq("status","approved");
+ if(quoteError||quotes?.length!==1||cents(quotes[0].subtotal)!==445200||cents(quotes[0].vat_total)!==111300||cents(quotes[0].total)!==556500)return err("Expected approved quote 4452 + 1113 = 5565 SEK not verified",409);
+ const {data:local,error:localError}=await admin.from("invoices").select("id,status,fortnox_reference").eq("work_order_id",target);
+ if(localError||local?.some((x:any)=>!["cancelled","credited"].includes(x.status)||x.fortnox_reference))return err("Active local invoice or existing Fortnox link; stop recovery",409);
+ const {data:payments,error:paymentError}=await admin.from("payments").select("id").eq("work_order_id",target);
+ if(paymentError||payments?.length)return err("Payment exists or payment check unavailable",409);
+ const {data:customer,error:customerError}=await admin.from("customers").select("id,personal_or_org_number").eq("id",order.customer_id).eq("workshop_id",member.workshop_id).maybeSingle();
+ const {data:linked,error:linkError}=await admin.from("fortnox_customer_links").select("fortnox_customer_number").eq("customer_id",order.customer_id).eq("workshop_id",member.workshop_id).eq("environment","production").maybeSingle();
+ if(customerError||linkError||org(customer?.personal_or_org_number)!=="5565439030"||String(linked?.fortnox_customer_number)!=="10004")return err("ROX customer identity not verified",409);
+ const {data:authz,error:authzError}=await admin.from("fortnox_production_authorizations").select("tenant_id,company_name").eq("workshop_id",member.workshop_id).eq("status","verified").order("verified_at",{ascending:false}).limit(1).maybeSingle();
+ if(authzError||!authz?.tenant_id||authz.company_name!=="Bildiagnos i Utby AB")return err("Production authorization missing",403);
+ const h=await fortnoxAccess(authz.tenant_id);
+ const company=(await api("/companyinformation",h)).CompanyInformation;
+ if(company?.CompanyName!=="Bildiagnos i Utby AB")return err("Wrong Fortnox production company",409);
+ const fortnoxCustomer=(await api("/customers/10004",h)).Customer;
+ if(org(fortnoxCustomer?.OrganisationNumber)!=="5565439030")return err("Fortnox ROX customer mismatch",409);
+ const candidates=new Map<string,boolean>();
+ const searches:any[]=[];
+ for(const [field,value] of [["yourreference",reference],["ourreference",reference],["yourordernumber",reference],["externalinvoicereference1",reference],["externalinvoicereference2",reference],["customernumber","10004"]]){
+  let complete=false,count=0;
+  for(let page=1;page<=100;page++){
+   const result=await api("/invoices?"+field+"="+encodeURIComponent(value)+"&limit=500&page="+page,h);
+   if(!Array.isArray(result.Invoices))throw new Error("Incomplete Fortnox recovery search: "+field);
+   for(const row of result.Invoices){
+    const number=String(row.DocumentNumber||"");
+    if(!number)throw new Error("Recovery result lacks invoice number");
+    candidates.set(number,Boolean(candidates.get(number))||field!=="customernumber");count++;
+   }
+   const totalPages=Number(result.MetaInformation?.TotalPages);
+   if(Number.isFinite(totalPages)&&totalPages>0){if(totalPages>100)throw new Error("Recovery pagination exceeds safety limit");if(page>=totalPages){complete=true;break;}}
+   else if(result.Invoices.length<500){complete=true;break;}
+  }
+  if(!complete)throw new Error("Incomplete Fortnox recovery pagination: "+field);
+  searches.push({field,count,complete});
+ }
+ const matches:any[]=[];
+ for(const [number,targeted] of candidates){
+  const invoice=(await api("/invoices/"+encodeURIComponent(number),h)).Invoice;
+  if(!invoice||String(invoice.DocumentNumber)!==number)throw new Error("Recovery invoice detail identity unavailable");
+  const matchesReference=[invoice.YourReference,invoice.OurReference,invoice.YourOrderNumber,invoice.ExternalInvoiceReference1,invoice.ExternalInvoiceReference2,invoice.Remarks].some(x=>String(x||"").includes(reference));
+  if(targeted&&!matchesReference)throw new Error("Conflicting Fortnox reference search result; recovery blocked");
+  if(!matchesReference)continue;
+  if(String(invoice.CustomerNumber)!=="10004"||cents(invoice.Total)!==556500||String(invoice.Currency)!=="SEK"||invoice.Cancelled===true||invoice.Credit===true)throw new Error("Matching reference has conflicting invoice amount/customer/status; recovery blocked");
+  matches.push(invoice);
+ }
+ if(matches.length>1)return err("Multiple Fortnox invoices match BOS-700200; recovery blocked",409);
+ const now=new Date().toISOString();
+ const invoice=matches[0]||null;
+ const check={method:"production_api_reference_and_customer_search",company:"Bildiagnos i Utby AB",customerNumber:"10004",reference,searches,detailCount:candidates.size,result:invoice?"existing_invoice_found":"none_found",invoice:invoice?{documentNumber:String(invoice.DocumentNumber),ocr:String(invoice.OCR||""),total:Number(invoice.Total),sent:invoice.Sent===true,booked:invoice.Booked===true}:null};
+ const {data:prior,error:priorError}=await admin.from("fortnox_invoice_recovery_audit").select("id,reference,checked_at,check_details").eq("job_id",job.id).maybeSingle();
+ if(priorError||prior&&prior.reference!==reference)return err("Recovery audit conflict",409);
+ const audit={workshop_id:member.workshop_id,work_order_id:target,job_id:job.id,original_status:job.status,original_error:job.error_message,original_document_number:job.fortnox_document_number,reference,checked_at:now,check_details:check};
+ const auditResult=prior
+  ?await admin.from("fortnox_invoice_recovery_audit").update({checked_at:now,check_details:{...check,previous_checks:[...(Array.isArray(prior.check_details?.previous_checks)?prior.check_details.previous_checks:[]),{checked_at:prior.checked_at,check_details:Object.fromEntries(Object.entries(prior.check_details||{}).filter(([key])=>key!=="previous_checks"))}]}}).eq("id",prior.id).eq("checked_at",prior.checked_at).select("id").maybeSingle()
+  :await admin.from("fortnox_invoice_recovery_audit").insert(audit).select("id").single();
+ if(auditResult.error||!auditResult.data)return err("Audit could not be saved; job remains blocked",409);
+ const update=invoice?{status:"submitted",fortnox_document_number:String(invoice.DocumentNumber),ocr:String(invoice.OCR||""),invoice_status:String(invoice.Status||"recovered"),sent_at:invoice.Sent===true?now:null,booked_at:invoice.Booked===true?now:null,updated_at:now}:{status:"reconciled",updated_at:now};
+ const {data:changed,error:updateError}=await admin.from("fortnox_invoice_jobs").update(update).eq("id",job.id).eq("work_order_id",target).eq("status","uncertain").eq("updated_at",job.updated_at).is("fortnox_document_number",null).is("send_attempted_at",null).is("bookkeep_attempted_at",null).select("id").maybeSingle();
+ if(updateError||!changed)return err("Job changed during recovery; no retry allowed until verified",409);
+ return reply({ok:true,recovered:Boolean(invoice),reconciled:!invoice,status:invoice?"submitted":"reconciled",reference,documentNumber:invoice?String(invoice.DocumentNumber):null,ocr:invoice?String(invoice.OCR||""):null,checkedAt:now,invoiceCreated:false,sent:false,booked:false});
+}
 async function findInvoiceByReference(h:Record<string,string>,reference:string){
  // Fortnox supports filtering invoice lists by reference. Do not fetch every invoice
  // detail: it causes HTTP 429 and is unnecessary for the integration reference.
@@ -156,11 +225,12 @@ Deno.serve(async(req:Request)=>{
   const orderId=String(input.workOrderId||"");
   const action=String(input.action||"preview");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(orderId))return err("Valid order ID required");
-  if(!["preview","create","status","send","reconcile","bookkeep"].includes(action))return err("Unsupported action");
+  if(!["preview","create","status","send","reconcile","bookkeep","recover700200"].includes(action))return err("Unsupported action");
   const {data:order}=await admin.from("work_orders").select("*").eq("id",orderId).eq("workshop_id",member.workshop_id).maybeSingle();
   if(!order)return err("Order not found",404);
   const {data:existingJob}=await admin.from("fortnox_invoice_jobs").select("*").eq("work_order_id",orderId).maybeSingle();
   if(action==="status")return reply({ok:true,job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
+  if(action==="recover700200")return await recover700200(admin,member,order,existingJob,input);
   if(action==="reconcile"){
    if(!existingJob||existingJob.status!=="failed"||existingJob.fortnox_document_number||existingJob.error_message!=="Valid company organization number required")return err("Job not eligible for recovery",409);
    const reference="BOS-"+order.order_number;

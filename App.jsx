@@ -10,6 +10,7 @@ import AuthGate from './AuthGate.jsx';
 import Lager from './Lager.jsx';
 import WorkshopTimer from './WorkshopTimer.jsx';
 import FortnoxConnection from './FortnoxConnection.jsx';
+import FortnoxInvoiceRecovery from './FortnoxInvoiceRecovery.jsx';
 
 class ScreenErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { failed: false }; }
@@ -29,7 +30,7 @@ class ScreenErrorBoundary extends Component {
 }
 
 export default function App() {
-  const [page, setPage] = useState(() => ['calendar','fortnox'].includes(new URLSearchParams(window.location.search).get('view')) ? new URLSearchParams(window.location.search).get('view') : 'dashboard');
+  const [page, setPage] = useState(() => new URLSearchParams(window.location.search).get('recover') === 'BOS-700200' ? 'invoice-recovery' : ['calendar','fortnox'].includes(new URLSearchParams(window.location.search).get('view')) ? new URLSearchParams(window.location.search).get('view') : 'dashboard');
   const [navigationRevision, setNavigationRevision] = useState(0);
   const navigate = (nextPage) => { setPage(nextPage); setNavigationRevision(value => value + 1); };
   const [vehiclePlate, setVehiclePlate] = useState('');
@@ -44,6 +45,7 @@ export default function App() {
         <Sidebar active={page} onChange={navigate} language={language} onLanguageChange={changeLanguage} />
 
         <main className="main-content"><ScreenErrorBoundary key={`${page}-${navigationRevision}`} page={page}>
+          {page === 'invoice-recovery' && <FortnoxInvoiceRecovery />}
           {page === 'dashboard' && (
             <Dashboard onNewOrder={() => setPage('orders')} />
           )}
