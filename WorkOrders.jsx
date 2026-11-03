@@ -242,21 +242,26 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
 
   async function updateOrder(orderId, changes) {
     const current = orders.find((order) => order.id === orderId);
-    if (!current) return;
+    if (!current) throw new Error('ORDER_EDIT_NOT_FOUND');
+    if (!current.relationalId || current.version == null || !current.orderNumber) {
+      setSyncMessage('No se puede editar: falta el identificador de la orden. Recarga.');
+      throw new Error('ORDER_EDIT_ID_REQUIRED');
+    }
     const next = { ...current, ...changes, updatedAt: new Date().toLocaleString('sv-SE') };
-    setOrders((items) => items.map((order) => order.id === orderId ? next : order));
     setSyncMessage('Guardando…');
     try {
-      const saved = await saveRelationalOrder(next, current.version ?? null);
+      const saved = await saveRelationalOrder(next, current.version);
       setOrders((items) => items.map((order) => order.id === orderId ? saved : order));
-      setSyncMessage('Guardado en Supabase');
+      setSyncMessage('Orden ' + saved.orderNumber + ' actualizada en Supabase');
+      return saved;
     } catch (error) {
       console.error('No se pudo guardar la orden:', error);
       setSyncMessage(error.message?.includes('ORDER_VERSION_CONFLICT')
-        ? 'Conflicto detectado: recargando la versión más reciente'
-        : 'Synkroniseringsfel');
+        ? 'Conflicto detectado: recarga antes de editar'
+        : 'No se guardó la edición: ' + (error.message || 'Error de sincronización'));
       const latest = await loadRelationalOrders().catch(() => null);
       if (latest) setOrders(latest);
+      throw error;
     }
   }
 
@@ -312,10 +317,15 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
     }
 
     if (editingOrderId) {
-      await updateOrder(editingOrderId, {
-        ...form,
-        plate: form.plate.toUpperCase(),
-      });
+      try {
+        await updateOrder(editingOrderId, {
+          ...form,
+          plate: form.plate.toUpperCase(),
+        });
+      } catch {
+        // Keep the edit form open; never fall back to creating a new order.
+        return;
+      }
     } else {
       const newOrder = {
         id: Date.now(),
