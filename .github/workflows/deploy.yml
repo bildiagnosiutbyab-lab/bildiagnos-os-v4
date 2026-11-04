@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 251bee8caa9d656746b6d393050a969ebb37ceed # verified email connection control
+          ref: 7d32a21fc3ce89281d1e29b81b8c77d3f0d6488b # live accounting method and safe posting
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
