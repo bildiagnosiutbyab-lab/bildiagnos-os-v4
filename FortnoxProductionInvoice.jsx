@@ -8,6 +8,9 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [email, setEmail] = useState(null);
+  const [mailPreview, setMailPreview] = useState(null);
+  const [mailReviewed, setMailReviewed] = useState(false);
   const lock = useRef(false);
   const generation = useRef(0);
 
@@ -27,7 +30,11 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     const { data, error: requestError } = await supabase.functions.invoke('fortnox-production-invoice', {
       body: { action, workOrderId: orderId, ...extra },
     });
-    if (requestError || !data?.ok) throw new Error(data?.error || requestError?.message || 'No se pudo consultar Fortnox.');
+    if (requestError || !data?.ok) {
+      let detail = data?.error;
+      if (!detail) try { detail = (await requestError?.context?.json())?.error; } catch {}
+      throw new Error(detail || requestError?.message || 'No se pudo consultar Fortnox.');
+    }
     return data;
   }
 
@@ -42,6 +49,7 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
       const status = await invoke('status');
       if (current !== generation.current) return;
       setJob(status.job || null);
+      setEmail(status.email || null);
       if (!blocked && (!status.job || status.job.status === 'reconciled')) {
         const result = await invoke('preview');
         if (current !== generation.current) return;
@@ -56,9 +64,44 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   }
 
   useEffect(() => {
+    setMailPreview(null); setMailReviewed(false);
     refresh();
     return () => { ++generation.current; lock.current = false; };
   }, [orderId, expectedTotal, blocked]);
+
+  async function prepareEmail() {
+    if (lock.current || busy || job?.sentAt || email?.delivery) return;
+    lock.current = true; setBusy(true); setError(''); setMailPreview(null); setMailReviewed(false);
+    try { setMailPreview(await invoke('email-preview')); }
+    catch (failure) { setError(failure.message); }
+    finally { lock.current = false; setBusy(false); }
+  }
+
+  function openEmailPdf() {
+    if (!mailPreview?.pdfBase64) return;
+    const bytes = Uint8Array.from(atob(mailPreview.pdfBase64), c => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const opened = window.open(url, '_blank');
+    if (opened) setMailReviewed(true);
+    window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+  }
+
+  async function sendEmail() {
+    if (lock.current || busy || !email?.configured || !mailReviewed || !mailPreview || job?.sentAt || email?.delivery) return;
+    if (!window.confirm(`Enviar factura ${mailPreview.documentNumber}\nDestinatario: ${mailPreview.recipient}\nTotal: ${money(mailPreview.total)}\nAdjunto: ${mailPreview.filename}\n\n¿Confirmas el envío de este PDF?`)) return;
+    lock.current = true; setBusy(true); setError('');
+    try {
+      const result = await invoke('email-send', { confirmDocumentNumber: String(mailPreview.documentNumber), confirmRecipient: mailPreview.recipient, confirmTotal: mailPreview.total, confirmPdfHash: mailPreview.pdfHash });
+      if (!result.sent || !result.messageId) throw new Error('Envío sin confirmación; consulta el historial antes de reintentar.');
+      setJob(current => ({ ...current, sentAt: result.sentAt }));
+      setEmail(current => ({ ...current, delivery: { status: 'sent', recipient: result.recipient, message_id: result.messageId, sent_at: result.sentAt } }));
+      setMailPreview(null); setMailReviewed(false);
+      await onLinked?.();
+    } catch (failure) {
+      setError(failure.message);
+      try { const status = await invoke('status'); setJob(status.job || null); setEmail(status.email || null); } catch {}
+    } finally { lock.current = false; setBusy(false); }
+  }
 
   async function createInvoice() {
     if (lock.current || busy || blocked || error || !preview || (job && job.status !== 'reconciled')) return;
@@ -100,6 +143,18 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     {error && <p role="alert">{error}</p>}
     {blocked && <p>Completa los precios antes de preparar la factura.</p>}
     {job?.documentNumber && <p role="status">Factura Fortnox <strong>{job.documentNumber}</strong> · OCR: {job.ocr || 'Pendiente'} · {job.sentAt ? 'Enviada' : 'Sin envío confirmado'}</p>}
+    {job?.documentNumber && <div className="invoice-email">
+      {email && !email.configured && <p>Para enviar las próximas facturas desde Bildiagnos, conecta el correo del taller.</p>}
+      {(job.sentAt || job.sendAttemptedAt || email?.delivery) ? <p role="status">{email?.delivery?.status === 'sent' || job.sentAt ? 'Factura enviada por correo' : 'Envío pendiente de verificación. Nuevo envío bloqueado.'}{email?.delivery?.recipient && <> a <strong>{email.delivery.recipient}</strong></>}{email?.delivery?.sent_at && <> · {new Date(email.delivery.sent_at).toLocaleString('sv-SE')}</>}</p> : <>
+        <button type="button" disabled={busy} onClick={prepareEmail}>Preparar PDF para enviar por correo</button>
+        {mailPreview && <div>
+          <p>Factura <strong>{mailPreview.documentNumber}</strong> · {money(mailPreview.total)} · Destinatario: <strong>{mailPreview.recipient}</strong></p>
+          <button type="button" onClick={openEmailPdf}>Revisar PDF adjunto</button>
+          <button type="button" disabled={busy || !mailReviewed || !email?.configured} onClick={sendEmail}>Enviar factura por correo</button>
+          {!mailReviewed && <p>Abre el PDF antes de confirmar el envío.</p>}
+        </div>}
+      </>}
+    </div>}
     {job && !job.documentNumber && job.status !== 'reconciled' && <p role="status">Operación {job.status}. Creación bloqueada hasta verificar su resultado.</p>}
     {preview && <div role="status">
       <strong>Vista previa · No se ha creado ni enviado ninguna factura</strong>

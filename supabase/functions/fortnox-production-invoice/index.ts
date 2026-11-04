@@ -371,6 +371,63 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  }});
 }
 
+function smtpConfiguration(){
+ const host=Deno.env.get("SMTP_HOSTNAME")||Deno.env.get("SMTP_HOST")||"";
+ const user=Deno.env.get("SMTP_USERNAME")||Deno.env.get("SMTP_USER")||"";
+ const pass=Deno.env.get("SMTP_PASSWORD")||"",from=Deno.env.get("SMTP_FROM")||user;
+ const port=Number(Deno.env.get("SMTP_PORT")||465);
+ return {host,user,pass,from,port,configured:Boolean(host&&user&&pass&&from&&port===465)};
+}
+async function emailDelivery(admin:any,orderId:string){
+ const {data,error}=await admin.from("invoice_email_deliveries").select("status,recipient,document_number,channel,message_id,sent_at,created_at").eq("work_order_id",orderId).maybeSingle();
+ if(error)throw new Error("Email delivery history unavailable; sending blocked");
+ return data;
+}
+async function prepareInvoiceEmail(admin:any,member:any,order:any,job:any){
+ if(!job?.fortnox_document_number||job.status!=="submitted")throw new Error("A linked production invoice is required");
+ if(job.sent_at||job.send_attempted_at||await emailDelivery(admin,order.id))throw new Error("Invoice already sent or send attempt exists; do not resend");
+ const response=await invoiceDocument(admin,member,order,job),body=await response.json();
+ if(!body.ok||!body.document)throw new Error(body.error||"Official document unavailable");
+ const document=body.document;
+ const {data:customer,error}=await admin.from("customers").select("email,billing_details").eq("id",order.customer_id).eq("workshop_id",member.workshop_id).single();
+ const recipient=String(document.customer.email||customer?.billing_details?.invoice_email||customer?.email||"").trim().toLowerCase();
+ if(error||!/^[-+.\w]+@[-.\w]+\.[A-Za-z]{2,}$/.test(recipient))throw new Error("A single valid customer invoice email is required");
+ const {invoicePdf}=await import("./invoice-pdf.ts");
+ const bytes=await invoicePdf(document);
+ const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))).map(x=>x.toString(16).padStart(2,"0")).join("");
+ const filename="Faktura-"+document.invoice_number+"-"+String(document.vehicle.registration_plate||order.order_number).replace(/[^A-Za-z0-9-]/g,"")+".pdf";
+ return {document,recipient,bytes,hash,filename};
+}
+async function sendInvoiceEmail(admin:any,member:any,order:any,job:any,input:any){
+ const config=smtpConfiguration();
+ if(!config.configured)return err("Conecta el correo del taller antes de enviar desde Bildiagnos.",409);
+ const preview=await prepareInvoiceEmail(admin,member,order,job),d=preview.document;
+ if(String(input.confirmDocumentNumber)!==String(d.invoice_number)||String(input.confirmRecipient).toLowerCase()!==preview.recipient||input.confirmPdfHash!==preview.hash||cents(input.confirmTotal)!==cents(d.total))return err("PDF, recipient or amount changed; review a fresh preview before sending",409);
+ if(config.from.toLowerCase()!==String(d.company.email).toLowerCase())return err("Configured sender differs from the verified workshop email",409);
+ // Claim before touching SMTP. Never retry an ambiguous attempt automatically.
+ const now=new Date().toISOString();
+ const {data:claim,error:claimError}=await admin.from("fortnox_invoice_jobs").update({send_attempted_at:now}).eq("id",job.id).is("sent_at",null).is("send_attempted_at",null).select("id").maybeSingle();
+ if(claimError||!claim)return err("Email already claimed; inspect delivery history",409);
+ const {data:delivery,error:deliveryError}=await admin.from("invoice_email_deliveries").insert({workshop_id:member.workshop_id,work_order_id:order.id,job_id:job.id,document_number:String(d.invoice_number),recipient:preview.recipient,pdf_sha256:preview.hash,status:"sending",channel:"workshop_smtp"}).select("id").single();
+ if(deliveryError||!delivery)return err("Delivery reservation could not be stored; reconcile before retry",409);
+ try{
+  const {default:nodemailer}=await import("npm:nodemailer@10.3.1");
+  const {Buffer}=await import("node:buffer");
+  const transport=nodemailer.createTransport({host:config.host,port:config.port,secure:true,auth:{user:config.user,pass:config.pass},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:20000,disableFileAccess:true,disableUrlAccess:true});
+  const message=await transport.sendMail({from:config.from,to:preview.recipient,subject:"Faktura "+d.invoice_number+" - "+(d.vehicle.registration_plate||d.reference)+" - "+d.company.name,text:"Hej!\n\nBifogat finns faktura "+d.invoice_number+" för "+(d.vehicle.registration_plate||d.reference)+".\nBelopp: "+Number(d.total).toFixed(2)+" SEK inklusive moms.\nFörfallodatum: "+d.due_at+"\nOCR: "+d.ocr+"\nBankgiro: "+d.company.bankgiro+"\n\nMed vänlig hälsning\n"+d.company.name,attachments:[{filename:preview.filename,content:Buffer.from(preview.bytes),contentType:"application/pdf"}]});
+  if(!message.messageId||!message.accepted?.some((x:any)=>String(x).toLowerCase()===preview.recipient))throw new Error("Mail server acceptance unavailable");
+  const sentAt=new Date().toISOString();
+  const {error:saveError}=await admin.from("invoice_email_deliveries").update({status:"sent",sent_at:sentAt,message_id:message.messageId}).eq("id",delivery.id).eq("status","sending");
+  if(saveError)throw new Error("Mail accepted but delivery receipt could not be saved");
+  const {error:jobError}=await admin.from("fortnox_invoice_jobs").update({sent_at:sentAt}).eq("id",job.id).is("sent_at",null);
+  if(jobError)throw new Error("Mail accepted but invoice status could not be saved");
+  return reply({ok:true,sent:true,documentNumber:String(d.invoice_number),recipient:preview.recipient,messageId:message.messageId,sentAt,booked:false});
+ }catch{
+  await admin.from("invoice_email_deliveries").update({status:"uncertain",error_message:"Email outcome requires manual verification; do not retry automatically"}).eq("id",delivery.id).eq("status","sending");
+  return err("No se pudo confirmar el envío. Comprueba el correo antes de reintentar; el intento queda bloqueado.",502);
+ }
+}
+
 Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers});
  if(req.method!=="POST")return err("POST required",405);
@@ -388,11 +445,17 @@ Deno.serve(async(req:Request)=>{
   const orderId=String(input.workOrderId||"");
   const action=String(input.action||"preview");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(orderId))return err("Valid order ID required");
-  if(!["preview","create","status","document","send","reconcile","bookkeep","recover700200","diagnose700200"].includes(action))return err("Unsupported action");
+  if(!["preview","create","status","document","email-preview","email-send","send","reconcile","bookkeep","recover700200","diagnose700200"].includes(action))return err("Unsupported action");
   const {data:order}=await admin.from("work_orders").select("*").eq("id",orderId).eq("workshop_id",member.workshop_id).maybeSingle();
   if(!order)return err("Order not found",404);
   const {data:existingJob}=await admin.from("fortnox_invoice_jobs").select("*").eq("work_order_id",orderId).maybeSingle();
-  if(action==="status")return reply({ok:true,job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
+  if(action==="status")return reply({ok:true,email:{configured:smtpConfiguration().configured,delivery:await emailDelivery(admin,orderId)},job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,sendAttemptedAt:existingJob.send_attempted_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
+  if(action==="email-preview"){
+   const p=await prepareInvoiceEmail(admin,member,order,existingJob);
+   let raw="";for(const byte of p.bytes)raw+=String.fromCharCode(byte);
+   return reply({ok:true,documentNumber:p.document.invoice_number,total:p.document.total,recipient:p.recipient,pdfHash:p.hash,filename:p.filename,pdfBase64:btoa(raw)});
+  }
+  if(action==="email-send"||action==="send")return await sendInvoiceEmail(admin,member,order,existingJob,input);
   if(action==="document"){
    try {
     const result=await invoiceDocument(admin,member,order,existingJob);
@@ -462,32 +525,6 @@ Deno.serve(async(req:Request)=>{
    const h=await fortnoxAccess(authorization.tenant_id);
    try{return reply({ok:true,...await bookkeepInvoice(admin,existingJob,h),documentNumber:existingJob.fortnox_document_number});}
    catch(e){return err((e instanceof Error?e.message:"Bookkeeping status unknown")+"; do not retry until reconciled",409);}
-  }
-  if(action==="send"){
-   if(!existingJob?.fortnox_document_number||existingJob.status!=="submitted")return err("Invoice must exist before sending",409);
-   if(existingJob.sent_at||existingJob.send_attempted_at)return err("Invoice already sent or send attempt is uncertain; reconcile manually",409);
-   if(input.confirmDocumentNumber!==existingJob.fortnox_document_number)return err("Explicit invoice number confirmation required");
-   const {data:authorization}=await admin.from("fortnox_production_authorizations").select("tenant_id").eq("workshop_id",member.workshop_id).eq("status","verified").order("verified_at",{ascending:false}).limit(1).maybeSingle();
-   if(!authorization?.tenant_id)return err("Fortnox production authorization missing");
-   const {data:claimed}=await admin.from("fortnox_invoice_jobs").update({send_attempted_at:new Date().toISOString()}).eq("id",existingJob.id).is("send_attempted_at",null).is("sent_at",null).select("id").maybeSingle();
-   if(!claimed)return err("Sending already in progress; check Fortnox",409);
-   try{
-    const h=await fortnoxAccess(authorization.tenant_id);
-    const number=encodeURIComponent(existingJob.fortnox_document_number);
-    const current=(await api("/invoices/"+number,h)).Invoice;
-    if(!current||current.Sent===true)throw new Error("Invoice already sent or not found");
-    const sent=(await api("/invoices/"+number+"/email",h)).Invoice||{};
-    const {data:stored,error:storeError}=await admin.from("fortnox_invoice_jobs").update({sent_at:new Date().toISOString(),invoice_status:String(sent.Status||current.Status||"sent")}).eq("id",existingJob.id).is("sent_at",null).select("id").maybeSingle();
-    if(storeError||!stored)throw new Error("Fortnox email request succeeded but confirmation could not be saved; reconcile manually");
-    // Sending and booking are separately recorded: never resend when booking fails.
-    try{
-     const refreshed={...existingJob,sent_at:new Date().toISOString()};
-     const booked=await bookkeepInvoice(admin,refreshed,h);
-     return reply({ok:true,sent:true,...booked,documentNumber:existingJob.fortnox_document_number});
-    }catch(e){
-     return reply({ok:true,sent:true,booked:false,bookkeepError:e instanceof Error?e.message:"Bookkeeping status uncertain",documentNumber:existingJob.fortnox_document_number});
-    }
-   }catch(e){return err((e instanceof Error?e.message:"Send status unknown")+"; check Fortnox before any retry",502);}
   }
   if(existingJob&&existingJob.status!=="reconciled")return reply({ok:false,duplicate:true,jobStatus:existingJob.status,documentNumber:existingJob.fortnox_document_number||null,error:"An invoice operation already exists for this order. Manual reconciliation required before retry."},409);
   const {data:localInvoices}=await admin.from("invoices").select("id,status,fortnox_reference").eq("work_order_id",orderId);
