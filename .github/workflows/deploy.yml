@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 02166144a946fc5bb6835d756fbf0b89dc074877 # read-only 700200 diagnosis
+          ref: d2238f00c7cb60b07fa3c7067ffaefc66a7f3aa7 # verified build: official linked invoice PDF
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
