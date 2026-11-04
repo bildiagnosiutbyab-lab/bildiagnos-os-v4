@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 1f938b2e7e14ce812a1dc0aab1bf0391dd3699c7 # reviewed PDF email and delivery history
+          ref: 251bee8caa9d656746b6d393050a969ebb37ceed # verified email connection control
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
