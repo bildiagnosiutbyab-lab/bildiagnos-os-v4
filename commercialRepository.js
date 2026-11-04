@@ -12,6 +12,12 @@ function throwIfError(error) {
   if (error) throw error;
 }
 
+async function invoiceFunctionError(result, fallback) {
+  if (result.data?.error) return result.data.error;
+  try { const body = await result.error?.context?.json(); if (body?.error) return body.error; } catch {}
+  return result.error?.message || fallback;
+}
+
 function quoteTotals(items) {
   const subtotal = items.reduce(
     (sum, item) => sum + Number(item.quantity ?? 1) * Number(item.unit_price || 0),
@@ -104,11 +110,11 @@ export async function loadCommercialOrder(orderId) {
   let productionJob = null, productionDocument = null, documentError = '';
   try {
     const status = await supabase.functions.invoke('fortnox-production-invoice', { body: { action: 'status', workOrderId: orderId } });
-    if (status.error || !status.data?.ok) throw new Error(status.data?.error || status.error?.message || 'No se pudo comprobar la factura oficial.');
+    if (status.error || !status.data?.ok) throw new Error(await invoiceFunctionError(status, 'No se pudo comprobar la factura oficial.'));
     productionJob = status.data.job;
     if (productionJob?.documentNumber) {
       const result = await supabase.functions.invoke('fortnox-production-invoice', { body: { action: 'document', workOrderId: orderId } });
-      if (result.error || !result.data?.ok || !result.data?.document) throw new Error(result.data?.error || result.error?.message || 'No se pudo obtener la factura oficial.');
+      if (result.error || !result.data?.ok || !result.data?.document) throw new Error(await invoiceFunctionError(result, 'No se pudo obtener la factura oficial.'));
       productionDocument = result.data.document;
     } else if (productionJob && productionJob.status !== 'reconciled') {
       throw new Error('Operación Fortnox pendiente de conciliación; impresión bloqueada.');

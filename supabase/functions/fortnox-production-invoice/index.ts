@@ -76,9 +76,9 @@ function buildInvoicePayload(customerNumber:unknown,reference:string,lines:any[]
  return {Invoice:{CustomerNumber:number,Currency:"SEK",VATIncluded:false,AdministrationFee:0,Freight:0,YourReference:reference,ExternalInvoiceReference1:reference,InvoiceRows:rows,Remarks:"Bildiagnos arbetsorder "+orderNumber}};
 }
 
-async function fortnoxAccess(tenant:string){
+async function fortnoxAccess(tenant:string,scope="companyinformation customer invoice article payment"){
  const basic=btoa(requireEnv("FORTNOX_CLIENT_ID")+":"+requireEnv("FORTNOX_CLIENT_SECRET"));
- const r=await fetch("https://apps.fortnox.se/oauth-v1/token",{method:"POST",headers:{authorization:"Basic "+basic,"content-type":"application/x-www-form-urlencoded",TenantId:tenant},body:new URLSearchParams({grant_type:"client_credentials",scope:"companyinformation customer invoice article payment"})});
+ const r=await fetch("https://apps.fortnox.se/oauth-v1/token",{method:"POST",headers:{authorization:"Basic "+basic,"content-type":"application/x-www-form-urlencoded",TenantId:tenant},body:new URLSearchParams({grant_type:"client_credentials",scope})});
  if(!r.ok)throw new Error("Fortnox authorization failed: "+r.status);
  const token=String((await r.json()).access_token||"");if(!token)throw new Error("Fortnox token missing");
  return {Authorization:"Bearer "+token,Accept:"application/json"};
@@ -317,10 +317,17 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  const number=String(job.fortnox_document_number),reference="BOS-"+order.order_number;
  const invoice=(await api("/invoices/"+encodeURIComponent(number),h)).Invoice;
  const company=(await api("/companyinformation",h)).CompanyInformation;
+ if(company)company.OrganisationNumber=company.OrganizationNumber||company.OrganisationNumber;
+ const settingsBody=await api("/settings/company",h);
+ const settings=settingsBody.CompanySettings;
+ if(settings)Object.assign(company,{BG:settings.BG||settings.Bankgiro,VATNumber:settings.VATNumber,Email:settings.Email,Phone1:settings.Phone1,TaxEnabled:settings.TaxEnabled});
  const {data:customer,error:customerError}=await admin.from("customers").select("customer_type,personal_or_org_number").eq("id",order.customer_id).eq("workshop_id",member.workshop_id).single();
  const {data:link,error:linkError}=await admin.from("fortnox_customer_links").select("fortnox_customer_number").eq("customer_id",order.customer_id).eq("workshop_id",member.workshop_id).eq("environment","production").maybeSingle();
  if(customerError||linkError||!link||String(invoice?.CustomerNumber)!==String(link.fortnox_customer_number))return err("Official invoice customer mismatch",409);
- if(!company||company.CompanyName!==authorization.company_name||org(company.OrganisationNumber)!=="5590824800")return err("Wrong production company",409);
+ if(!company||company.CompanyName!==authorization.company_name||org(company.OrganisationNumber)!=="5590824800"){
+  console.error(JSON.stringify({event:"invoice_company_schema",fields:Object.keys(company||{}),nameMatches:company?.CompanyName===authorization.company_name,organizationMatches:org(company?.OrganisationNumber)==="5590824800"}));
+  return err("Wrong production company",409);
+ }
  if(!invoice||String(invoice.DocumentNumber)!==number||invoice.Cancelled===true||invoice.Credit===true||invoice.Currency!=="SEK"||![invoice.ExternalInvoiceReference1,invoice.YourReference].includes(reference))return err("Official invoice identity/reference/status mismatch",409);
  if(cents(invoice.Total)!==cents(job.request_summary?.total)||cents(invoice.TotalVAT)!==cents(job.request_summary?.vat))return err("Official invoice amount differs from linked operation",409);
  if(customer.customer_type==="company"&&org(invoice.OrganisationNumber)!==org(customer.personal_or_org_number))return err("Official organization number mismatch",409);
@@ -339,7 +346,9 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  });
  if(rowTypes.some((t:any)=>!["service","part"].includes(t)))return err("Work/parts classification mismatch; document blocked",409);
  if(cents(net+Number(invoice.TotalVAT)+Number(invoice.RoundOff||0))!==cents(invoice.Total))return err("Official invoice totals do not reconcile",409);
- if(!invoice.OCR||!invoice.InvoiceDate||!invoice.DueDate||!invoice.CustomerName||!invoice.Address1||!invoice.ZipCode||!invoice.City||!company.BG||!company.Address||!company.ZipCode||!company.City||!company.VATNumber)return err("Official billing or bank details incomplete; inspect Fortnox",409);
+ const required={OCR:invoice.OCR,InvoiceDate:invoice.InvoiceDate,DueDate:invoice.DueDate,CustomerName:invoice.CustomerName,Address1:invoice.Address1,ZipCode:invoice.ZipCode,City:invoice.City,CompanyBG:company.BG,CompanyAddress:company.Address,CompanyZipCode:company.ZipCode,CompanyCity:company.City,CompanyVATNumber:company.VATNumber};
+ const missing=Object.entries(required).filter(([,value])=>!value).map(([key])=>key);
+ if(missing.length)return err("Official billing or bank details incomplete: "+missing.join(", "),409);
  const {data:vehicle,error:vehicleError}=await admin.from("vehicles").select("registration_plate,make,model,model_year,vin").eq("id",order.vehicle_id).eq("workshop_id",member.workshop_id).maybeSingle();
  if(vehicleError)return err("Vehicle details unavailable",409);
  // Use the invoice's billing snapshot, not today's editable customer card.
@@ -376,7 +385,17 @@ Deno.serve(async(req:Request)=>{
   if(!order)return err("Order not found",404);
   const {data:existingJob}=await admin.from("fortnox_invoice_jobs").select("*").eq("work_order_id",orderId).maybeSingle();
   if(action==="status")return reply({ok:true,job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
-  if(action==="document")return await invoiceDocument(admin,member,order,existingJob);
+  if(action==="document"){
+   try {
+    const result=await invoiceDocument(admin,member,order,existingJob);
+    if(result.status>=400)console.error(JSON.stringify({event:"invoice_document_blocked",error:(await result.clone().json()).error}));
+    return result;
+   }catch(e){
+    const message=e instanceof Error?e.message:"Document retrieval failed";
+    console.error(JSON.stringify({event:"invoice_document_failed",error:sanitizeFortnoxMessage(message)}));
+    return err(message,502);
+   }
+  }
   if(action==="recover700200")return await recover700200(admin,member,order,existingJob,input);
   if(action==="diagnose700200")return await diagnose700200(admin,member,order,input);
   if(action==="reconcile"){
