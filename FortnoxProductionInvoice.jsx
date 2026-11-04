@@ -11,6 +11,7 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   const [email, setEmail] = useState(null);
   const [mailPreview, setMailPreview] = useState(null);
   const [mailReviewed, setMailReviewed] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const lock = useRef(false);
   const generation = useRef(0);
 
@@ -64,7 +65,7 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   }
 
   useEffect(() => {
-    setMailPreview(null); setMailReviewed(false);
+    setMailPreview(null); setMailReviewed(false); setEmailVerified(false);
     refresh();
     return () => { ++generation.current; lock.current = false; };
   }, [orderId, expectedTotal, blocked]);
@@ -72,7 +73,15 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   async function prepareEmail() {
     if (lock.current || busy || job?.sentAt || email?.delivery) return;
     lock.current = true; setBusy(true); setError(''); setMailPreview(null); setMailReviewed(false);
-    try { setMailPreview(await invoke('email-preview')); }
+    try { if (email?.configured) { await invoke('email-verify'); setEmailVerified(true); } setMailPreview(await invoke('email-preview')); }
+    catch (failure) { setError(failure.message); }
+    finally { lock.current = false; setBusy(false); }
+  }
+
+  async function verifyEmail() {
+    if (lock.current || busy || !email?.configured) return;
+    lock.current = true; setBusy(true); setError(''); setEmailVerified(false);
+    try { const result = await invoke('email-verify'); setEmailVerified(result.verified === true); }
     catch (failure) { setError(failure.message); }
     finally { lock.current = false; setBusy(false); }
   }
@@ -87,7 +96,7 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
   }
 
   async function sendEmail() {
-    if (lock.current || busy || !email?.configured || !mailReviewed || !mailPreview || job?.sentAt || email?.delivery) return;
+    if (lock.current || busy || !email?.configured || !emailVerified || !mailReviewed || !mailPreview || job?.sentAt || email?.delivery) return;
     if (!window.confirm(`Enviar factura ${mailPreview.documentNumber}\nDestinatario: ${mailPreview.recipient}\nTotal: ${money(mailPreview.total)}\nAdjunto: ${mailPreview.filename}\n\n¿Confirmas el envío de este PDF?`)) return;
     lock.current = true; setBusy(true); setError('');
     try {
@@ -144,13 +153,15 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     {blocked && <p>Completa los precios antes de preparar la factura.</p>}
     {job?.documentNumber && <p role="status">Factura Fortnox <strong>{job.documentNumber}</strong> · OCR: {job.ocr || 'Pendiente'} · {job.sentAt ? 'Enviada' : 'Sin envío confirmado'}</p>}
     {job?.documentNumber && <div className="invoice-email">
+      {email?.configured && <button type="button" disabled={busy} onClick={verifyEmail}>Comprobar correo del taller</button>}
+      {emailVerified && <p role="status">Correo del taller conectado. Listo para enviar PDF con confirmación.</p>}
       {email && !email.configured && <p>Para enviar las próximas facturas desde Bildiagnos, conecta el correo del taller.</p>}
       {(job.sentAt || job.sendAttemptedAt || email?.delivery) ? <p role="status">{email?.delivery?.status === 'sent' || job.sentAt ? 'Factura enviada por correo' : 'Envío pendiente de verificación. Nuevo envío bloqueado.'}{email?.delivery?.recipient && <> a <strong>{email.delivery.recipient}</strong></>}{email?.delivery?.sent_at && <> · {new Date(email.delivery.sent_at).toLocaleString('sv-SE')}</>}</p> : <>
         <button type="button" disabled={busy} onClick={prepareEmail}>Preparar PDF para enviar por correo</button>
         {mailPreview && <div>
           <p>Factura <strong>{mailPreview.documentNumber}</strong> · {money(mailPreview.total)} · Destinatario: <strong>{mailPreview.recipient}</strong></p>
           <button type="button" onClick={openEmailPdf}>Revisar PDF adjunto</button>
-          <button type="button" disabled={busy || !mailReviewed || !email?.configured} onClick={sendEmail}>Enviar factura por correo</button>
+          <button type="button" disabled={busy || !mailReviewed || !email?.configured || !emailVerified} onClick={sendEmail}>Enviar factura por correo</button>
           {!mailReviewed && <p>Abre el PDF antes de confirmar el envío.</p>}
         </div>}
       </>}

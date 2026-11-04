@@ -374,9 +374,24 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
 function smtpConfiguration(){
  const host=Deno.env.get("SMTP_HOSTNAME")||Deno.env.get("SMTP_HOST")||"smtp.gmail.com";
  const user=Deno.env.get("SMTP_USERNAME")||Deno.env.get("SMTP_USER")||"bildiagnosiutbyab@gmail.com";
- const pass=Deno.env.get("SMTP_PASSWORD")||"",from=Deno.env.get("SMTP_FROM")||user;
+ const rawPass=Deno.env.get("SMTP_PASSWORD")||"";
+ const pass=host==="smtp.gmail.com"?rawPass.replace(/\s/g,""):rawPass,from=Deno.env.get("SMTP_FROM")||user;
  const port=Number(Deno.env.get("SMTP_PORT")||465);
  return {host,user,pass,from,port,configured:Boolean(host&&user&&pass&&from&&port===465)};
+}
+async function verifyWorkshopEmail(){
+ const config=smtpConfiguration();
+ if(!config.configured)return err("Falta guardar la contraseña de aplicación del correo del taller.",409);
+ let transport:any;
+ try{
+  const {default:nodemailer}=await import("npm:nodemailer@10.3.1");
+  transport=nodemailer.createTransport({host:config.host,port:config.port,secure:true,auth:{user:config.user,pass:config.pass},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:20000,disableFileAccess:true,disableUrlAccess:true});
+  await transport.verify();
+  return reply({ok:true,verified:true,account:config.from,sent:false,message:"Correo del taller conectado. No se ha enviado ningún mensaje."});
+ }catch(e){
+  const code=/^[A-Z]{2,20}$/.test(String((e as any)?.code||""))?String((e as any).code):"CONNECTION";
+  return err("No se pudo verificar el correo del taller ("+code+"). Comprueba la contraseña de aplicación de Gmail.",502);
+ }finally{transport?.close();}
 }
 async function emailDelivery(admin:any,orderId:string){
  const {data,error}=await admin.from("invoice_email_deliveries").select("status,recipient,document_number,channel,message_id,sent_at,created_at").eq("work_order_id",orderId).maybeSingle();
@@ -445,10 +460,11 @@ Deno.serve(async(req:Request)=>{
   const orderId=String(input.workOrderId||"");
   const action=String(input.action||"preview");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(orderId))return err("Valid order ID required");
-  if(!["preview","create","status","document","email-preview","email-send","send","reconcile","bookkeep","recover700200","diagnose700200"].includes(action))return err("Unsupported action");
+  if(!["preview","create","status","document","email-verify","email-preview","email-send","send","reconcile","bookkeep","recover700200","diagnose700200"].includes(action))return err("Unsupported action");
   const {data:order}=await admin.from("work_orders").select("*").eq("id",orderId).eq("workshop_id",member.workshop_id).maybeSingle();
   if(!order)return err("Order not found",404);
   const {data:existingJob}=await admin.from("fortnox_invoice_jobs").select("*").eq("work_order_id",orderId).maybeSingle();
+  if(action==="email-verify")return await verifyWorkshopEmail();
   if(action==="status")return reply({ok:true,email:{configured:smtpConfiguration().configured,delivery:await emailDelivery(admin,orderId)},job:existingJob&&{status:existingJob.status,documentNumber:existingJob.fortnox_document_number,ocr:existingJob.ocr,invoiceStatus:existingJob.invoice_status,sentAt:existingJob.sent_at,sendAttemptedAt:existingJob.send_attempted_at,bookedAt:existingJob.booked_at,bookkeepAttemptedAt:existingJob.bookkeep_attempted_at,bookkeepError:existingJob.bookkeep_error}});
   if(action==="email-preview"){
    const p=await prepareInvoiceEmail(admin,member,order,existingJob);
