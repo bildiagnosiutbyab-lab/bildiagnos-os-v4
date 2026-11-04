@@ -318,9 +318,17 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  const invoice=(await api("/invoices/"+encodeURIComponent(number),h)).Invoice;
  const company=(await api("/companyinformation",h)).CompanyInformation;
  if(company)company.OrganisationNumber=company.OrganizationNumber||company.OrganisationNumber;
- const settingsBody=await api("/settings/company",h);
- const settings=settingsBody.CompanySettings;
- if(settings)Object.assign(company,{BG:settings.BG||settings.Bankgiro,VATNumber:settings.VATNumber,Email:settings.Email,Phone1:settings.Phone1,TaxEnabled:settings.TaxEnabled});
+ let settings:any,settingsSource="fortnox_api";
+ try { settings=(await api("/settings/company",h)).CompanySettings; }
+ catch(error){
+  if(!(error instanceof Error)||!error.message.includes("code 2000663"))throw error;
+  // A verified official-PDF profile supplies workshop payment details only.
+  // Invoice identity, OCR, dates, customer, rows and totals always come from the live API.
+  const {data:profile,error:profileError}=await admin.from("fortnox_company_billing_profiles").select("organisation_number,company_name,billing_data,source_invoice_number,verified_at").eq("workshop_id",member.workshop_id).maybeSingle();
+  if(profileError||!profile||profile.company_name!==company?.CompanyName||org(profile.organisation_number)!==org(company?.OrganisationNumber))return err("Verified company payment profile unavailable; enable Fortnox settings scope",409);
+  settings=profile.billing_data;settingsSource="verified_official_pdf:"+profile.source_invoice_number;
+ }
+ if(settings)Object.assign(company,{BG:settings.BG,VATNumber:settings.VATNumber,Email:settings.Email,Phone1:settings.Phone1,TaxEnabled:settings.TaxEnabled});
  const {data:customer,error:customerError}=await admin.from("customers").select("customer_type,personal_or_org_number").eq("id",order.customer_id).eq("workshop_id",member.workshop_id).single();
  const {data:link,error:linkError}=await admin.from("fortnox_customer_links").select("fortnox_customer_number").eq("customer_id",order.customer_id).eq("workshop_id",member.workshop_id).eq("environment","production").maybeSingle();
  if(customerError||linkError||!link||String(invoice?.CustomerNumber)!==String(link.fortnox_customer_number))return err("Official invoice customer mismatch",409);
@@ -346,7 +354,7 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  });
  if(rowTypes.some((t:any)=>!["service","part"].includes(t)))return err("Work/parts classification mismatch; document blocked",409);
  if(cents(net+Number(invoice.TotalVAT)+Number(invoice.RoundOff||0))!==cents(invoice.Total))return err("Official invoice totals do not reconcile",409);
- const required={OCR:invoice.OCR,InvoiceDate:invoice.InvoiceDate,DueDate:invoice.DueDate,CustomerName:invoice.CustomerName,Address1:invoice.Address1,ZipCode:invoice.ZipCode,City:invoice.City,CompanyBG:company.BG,CompanyAddress:company.Address,CompanyZipCode:company.ZipCode,CompanyCity:company.City,CompanyVATNumber:company.VATNumber};
+ const required={OCR:invoice.OCR,InvoiceDate:invoice.InvoiceDate,DueDate:invoice.DueDate,CustomerName:invoice.CustomerName,Address:invoice.Address1||invoice.Address2,ZipCode:invoice.ZipCode,City:invoice.City,CompanyBG:company.BG,CompanyAddress:company.Address,CompanyZipCode:company.ZipCode,CompanyCity:company.City,CompanyVATNumber:company.VATNumber};
  const missing=Object.entries(required).filter(([,value])=>!value).map(([key])=>key);
  if(missing.length)return err("Official billing or bank details incomplete: "+missing.join(", "),409);
  const {data:vehicle,error:vehicleError}=await admin.from("vehicles").select("registration_plate,make,model,model_year,vin").eq("id",order.vehicle_id).eq("workshop_id",member.workshop_id).maybeSingle();
@@ -355,11 +363,11 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
  return reply({ok:true,invoiceCreated:false,sent:false,booked:false,document:{
   fortnox_production:true,invoice_number:number,ocr:String(invoice.OCR),created_at:invoice.InvoiceDate,due_at:invoice.DueDate,
   reference,total:Number(invoice.Total),subtotal:net,vat_total:Number(invoice.TotalVAT),round_off:Number(invoice.RoundOff||0),payment_terms:String(invoice.TermsOfPayment||""),
-  customer:{name:invoice.CustomerName,address:invoice.Address1,address2:invoice.Address2||"",postal_code:invoice.ZipCode,city:invoice.City,organisation_number:customer.customer_type==="company"?invoice.OrganisationNumber:null,email:invoice.EmailInformation?.EmailAddressTo||""},
+  customer:{name:invoice.CustomerName,address:invoice.Address1||invoice.Address2,address2:invoice.Address1?invoice.Address2||"":"",postal_code:invoice.ZipCode,city:invoice.City,organisation_number:customer.customer_type==="company"?invoice.OrganisationNumber:null,email:invoice.EmailInformation?.EmailAddressTo||""},
   company:{name:company.CompanyName,address:company.Address,postal_code:company.ZipCode,city:company.City,organisation_number:company.OrganisationNumber,vat_number:company.VATNumber,bankgiro:company.BG,email:company.Email||"",phone:company.Phone1||"",tax_enabled:company.TaxEnabled===true},
   vehicle:{...vehicle,mileage:order.mileage??null},
   rows:rows.map((r:any,i:number)=>({id:String(r.RowId||i),description:r.Description,quantity:Number(r.DeliveredQuantity),unit_price:Number(r.Price),item_type:rowTypes[i]})),
-  checked_at:new Date().toISOString()
+  checked_at:new Date().toISOString(),company_settings_source:settingsSource
  }});
 }
 
