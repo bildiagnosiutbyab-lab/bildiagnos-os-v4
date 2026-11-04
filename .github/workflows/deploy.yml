@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 5b7dea46a549b372fd42cb761f600079e4d68345 # verified build: official linked invoice PDF
+          ref: 1f938b2e7e14ce812a1dc0aab1bf0391dd3699c7 # reviewed PDF email and delivery history
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
