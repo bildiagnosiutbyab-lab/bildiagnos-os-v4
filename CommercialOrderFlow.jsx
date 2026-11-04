@@ -438,7 +438,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
-        <FortnoxProductionInvoice key={`${orderId}:${displayedTotal}:${pricePending}`} orderId={orderId} expectedTotal={displayedTotal} blocked={pricePending} onLinked={refresh} />
+        <FortnoxProductionInvoice key={`${orderId}:${displayedTotal}:${pricePending}`} orderId={orderId} expectedTotal={displayedTotal} blocked={pricePending} accounting={context.productionDocument?.bookkeeping} onLinked={refresh} />
         <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Faktura skapad.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
           <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor

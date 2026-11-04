@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient.js';
 
 const money = (value) => Number(value).toLocaleString('sv-SE', { style: 'currency', currency: 'SEK' });
 
-export default function FortnoxProductionInvoice({ orderId, expectedTotal, blocked, onLinked }) {
+export default function FortnoxProductionInvoice({ orderId, expectedTotal, blocked, accounting, onLinked }) {
   const [job, setJob] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(true);
@@ -74,6 +74,15 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     if (lock.current || busy || job?.sentAt || email?.delivery) return;
     lock.current = true; setBusy(true); setError(''); setMailPreview(null); setMailReviewed(false);
     try { if (email?.configured) { await invoke('email-verify'); setEmailVerified(true); } setMailPreview(await invoke('email-preview')); }
+    catch (failure) { setError(failure.message); }
+    finally { lock.current = false; setBusy(false); }
+  }
+
+  async function bookInvoice() {
+    if (lock.current || busy || accounting?.booked || accounting?.accountingMethod !== 'ACCRUAL' || !job?.sentAt || job?.bookedAt || job?.bookkeepAttemptedAt) return;
+    if (!window.confirm(`Contabilizar en Fortnox la factura ${job.documentNumber}\nTotal: ${money(expectedTotal)}\n\nSe registra la factura como pendiente de cobro. No se registra ningún pago ni se reenvía el correo. ¿Confirmas?`)) return;
+    lock.current = true; setBusy(true); setError('');
+    try { const result = await invoke('bookkeep', { confirmDocumentNumber: String(job.documentNumber) }); if (!result.booked) throw new Error('Contabilización sin confirmar; revisa Fortnox antes de reintentar.'); await onLinked?.(); const status = await invoke('status'); setJob(status.job || null); }
     catch (failure) { setError(failure.message); }
     finally { lock.current = false; setBusy(false); }
   }
@@ -152,6 +161,8 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     {error && <p role="alert">{error}</p>}
     {blocked && <p>Completa los precios antes de preparar la factura.</p>}
     {job?.documentNumber && <p role="status">Factura Fortnox <strong>{job.documentNumber}</strong> · OCR: {job.ocr || 'Pendiente'} · {job.sentAt ? 'Enviada' : 'Sin envío confirmado'}</p>}
+    {accounting && <p role="status">Contabilidad Fortnox: <strong>{accounting.booked ? 'Contabilizada' : 'Sin contabilizar'}</strong> · Saldo pendiente: {accounting.balance == null ? "Por consultar" : money(accounting.balance)}{accounting.accountingMethod === 'CASH' && <> · Método de caja (kontantmetoden): se contabiliza al registrar el cobro.</>}{accounting.accountingMethod === 'ACCRUAL' && <> · Método de facturación (faktureringsmetoden).</>}{!accounting.accountingMethod && <> · Método contable pendiente de verificar.</>}</p>}
+    {accounting?.accountingMethod === 'ACCRUAL' && !accounting.booked && job?.sentAt && !job?.bookedAt && <button type="button" disabled={busy || Boolean(job.bookkeepAttemptedAt)} onClick={bookInvoice}>Contabilizar factura en Fortnox</button>}
     {job?.documentNumber && <div className="invoice-email">
       {email?.configured && <button type="button" disabled={busy} onClick={verifyEmail}>Comprobar correo del taller</button>}
       {emailVerified && <p role="status">Correo del taller conectado. Listo para enviar PDF con confirmación.</p>}

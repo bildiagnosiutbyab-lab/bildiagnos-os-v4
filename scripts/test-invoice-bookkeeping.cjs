@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+const {readFileSync}=require('node:fs'),{stripTypeScriptTypes}=require('node:module');
+const s=readFileSync('supabase/functions/fortnox-production-invoice/index.ts','utf8');
+const code=stripTypeScriptTypes(s.slice(s.indexOf('async function invoiceAccountingMethod('),s.indexOf('function org(')));
+let method='CASH',booked=false,puts=0,updates=[],v2Method=null;
+const invoice=()=>({DocumentNumber:'300081',CustomerNumber:'10004',Total:5565,Balance:5565,YourReference:'BOS-700200',Booked:booked,AccountingMethod:method});
+const api=async(path)=>path.startsWith('/invoices-v2?')?{Invoices:[]}:{Invoice:path.startsWith('/invoices-v2/')?{...invoice(),AccountingMethod:v2Method}:invoice()};
+const fetch=async(url,options)=>{assert.equal(url,'https://api.fortnox.se/3/invoices/300081/bookkeep');assert.equal(options.method,'PUT');puts++;booked=true;return {ok:true};};
+const admin={from(table){assert.equal(table,'fortnox_invoice_jobs');const chain={update(value){updates.push(value);return chain},eq(){return chain},is(){return chain},select(){return chain},maybeSingle(){return chain},then(resolve){resolve({data:{id:'j'},error:null});}};return chain;}};
+const cents=x=>Math.round(Number(x)*100);
+const {bookkeepInvoice,invoiceAccountingMethod}=new Function('api','fetch','cents',code+';return {bookkeepInvoice,invoiceAccountingMethod}')(api,fetch,cents);
+const job={id:'j',sent_at:'2026-11-04',fortnox_document_number:'300081',request_summary:{total:5565,reference:'BOS-700200'}};
+(async()=>{
+ await assert.rejects(bookkeepInvoice(admin,job,{}),/kontantmetoden/);assert.equal(puts,0);assert.equal(updates.length,0);
+ method=null;v2Method='CASH';assert.equal(await invoiceAccountingMethod(invoice(),{}),'CASH');
+ await assert.rejects(bookkeepInvoice(admin,job,{}),/kontantmetoden/);assert.equal(updates.length,0);
+ v2Method=null;await assert.rejects(bookkeepInvoice(admin,job,{}),/no verificado/);assert.equal(puts,0);assert.equal(updates.length,0);
+ method='ACCRUAL';const result=await bookkeepInvoice(admin,job,{});assert.equal(result.booked,true);assert.equal(puts,1);assert.ok(updates.some(x=>x.booked_at));
+ const repeated=await bookkeepInvoice(admin,job,{});assert.equal(repeated.alreadyBooked,true);assert.equal(puts,1);
+ booked=false;await assert.rejects(bookkeepInvoice(admin,{...job,bookkeep_attempted_at:'prior-attempt'},{}),/Previous bookkeeping attempt/);assert.equal(puts,1);
+ assert.ok(!updates.some(x=>'paid_at' in x));
+ console.log('PASS: cash accounting and unknown method blocked before reservation, v2 read fallback, verified accrual posting once, existing posting reconciled, no payment registration');
+})().catch(e=>{console.error(e);process.exitCode=1});

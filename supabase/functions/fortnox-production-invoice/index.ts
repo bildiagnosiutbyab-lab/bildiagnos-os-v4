@@ -100,6 +100,20 @@ async function api(path:string,headers:Record<string,string>,method="GET",payloa
  }
  throw new Error("Fortnox rate limit: retry attempts exhausted");
 }
+async function invoiceAccountingMethod(invoice:any,h:Record<string,string>){
+ const known=(value:any)=>["CASH","ACCRUAL"].includes(String(value||"").toUpperCase())?String(value).toUpperCase():null;
+ if(known(invoice.AccountingMethod))return known(invoice.AccountingMethod);
+ const same=(candidate:any)=>String(candidate?.DocumentNumber)===String(invoice.DocumentNumber)&&String(candidate?.CustomerNumber)===String(invoice.CustomerNumber)&&cents(candidate?.Total)===cents(invoice.Total);
+ try{
+  const v2=(await api("/invoices-v2/"+encodeURIComponent(String(invoice.DocumentNumber)),h)).Invoice;
+  if(same(v2)&&known(v2.AccountingMethod))return known(v2.AccountingMethod);
+  // The v2 list explicitly exposes AccountingMethod even on older invoice records.
+  const list=await api("/invoices-v2?filter=unbooked&limit=500&page=1",h);
+  const match=(list.Invoices||[]).find(same);
+  if(match&&known(match.AccountingMethod))return known(match.AccountingMethod);
+ }catch{ /* Unknown is reported as unknown; never infer accrual accounting. */ }
+ return null;
+}
 async function bookkeepInvoice(admin:any,existingJob:any,h:Record<string,string>){
  const number=String(existingJob.fortnox_document_number||"");
  if(!number||!existingJob.sent_at)throw new Error("Invoice must be sent and linked before bookkeeping");
@@ -111,6 +125,10 @@ async function bookkeepInvoice(admin:any,existingJob:any,h:Record<string,string>
   if(error)throw new Error("Booked in Fortnox, but local confirmation could not be stored");
   return {booked:true,alreadyBooked:true};
  }
+ if(current.Cancelled===true||current.Credit===true||cents(current.Total)!==cents(existingJob.request_summary?.total)||![current.YourReference,current.ExternalInvoiceReference1].includes(existingJob.request_summary?.reference))throw new Error("Official invoice identity/amount changed; bookkeeping blocked");
+ const method=await invoiceAccountingMethod(current,h);
+ if(method==="CASH")throw new Error("Método de caja (kontantmetoden): Fortnox contabiliza al registrar el cobro. No se ha contabilizado ni registrado ningún pago.");
+ if(method!=="ACCRUAL")throw new Error("Método contable no verificado; contabilización bloqueada hasta comprobarlo en Fortnox.");
  if(existingJob.bookkeep_attempted_at)throw new Error("Previous bookkeeping attempt may have succeeded; inspect Fortnox before retry");
  const {data:claimed,error:claimError}=await admin.from("fortnox_invoice_jobs").update({bookkeep_attempted_at:new Date().toISOString()}).eq("id",existingJob.id).is("bookkeep_attempted_at",null).is("booked_at",null).select("id").maybeSingle();
  if(claimError||!claimed)throw new Error("Bookkeeping already claimed; inspect Fortnox before retry");
@@ -367,6 +385,7 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
   company:{name:company.CompanyName,address:company.Address,postal_code:company.ZipCode,city:company.City,organisation_number:company.OrganisationNumber,vat_number:company.VATNumber,bankgiro:company.BG,email:company.Email||"",phone:company.Phone1||"",tax_enabled:company.TaxEnabled===true},
   vehicle:{...vehicle,mileage:order.mileage??null},
   rows:rows.map((r:any,i:number)=>({id:String(r.RowId||i),description:r.Description,quantity:Number(r.DeliveredQuantity),unit_price:Number(r.Price),item_type:rowTypes[i]})),
+  bookkeeping:{accountingMethod:await invoiceAccountingMethod(invoice,h),booked:invoice.Booked===true,balance:invoice.Balance==null?null:Number(invoice.Balance),voucherNumber:invoice.VoucherNumber||null,sentInFortnox:invoice.Sent===true},
   checked_at:new Date().toISOString(),company_settings_source:settingsSource
  }});
 }

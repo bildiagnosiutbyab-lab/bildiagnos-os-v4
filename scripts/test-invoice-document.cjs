@@ -12,7 +12,7 @@ const admin = { from(table) { const chain = { select(){return chain}, eq(){retur
 let calls = [], denySettings = false;
 const api = async (path) => { calls.push(path); if(path==='/settings/company' && denySettings)throw new Error('Fortnox GET /settings/company HTTP 400; code 2000663; Har inte behörighet för scope.'); return path === '/companyinformation' ? { CompanyInformation: { CompanyName: company.CompanyName, OrganizationNumber: company.OrganizationNumber, Address: company.Address, City: company.City, ZipCode: company.ZipCode } } : path === '/settings/company' ? { CompanySettings: company } : { Invoice: invoice }; };
 const cents = v => Math.round(Number(v)*100), org = v => String(v||'').replace(/[^0-9]/g,''), reply = body => ({status:200,body}), err = (error,status=400) => ({status,body:{ok:false,error}});
-const getDocument = new Function('api','fortnoxAccess','cents','org','reply','err','fortnoxDescription',fn+';return invoiceDocument')(api,async()=>({}),cents,org,reply,err,String);
+const getDocument = new Function('api','fortnoxAccess','cents','org','reply','err','fortnoxDescription','invoiceAccountingMethod',fn+';return invoiceDocument')(api,async()=>({}),cents,org,reply,err,String,async()=>null);
 const order = { id:'o', order_number:700200, customer_id:'c', vehicle_id:'v', mileage:null }, member = {workshop_id:'w'}, job = {status:'submitted',fortnox_document_number:'300081',request_summary:{total:5565,vat:1113,rows}};
 (async()=>{
   let result = await getDocument(admin,member,order,job);
