@@ -372,8 +372,8 @@ async function invoiceDocument(admin:any,member:any,order:any,job:any){
 }
 
 function smtpConfiguration(){
- const host=Deno.env.get("SMTP_HOSTNAME")||Deno.env.get("SMTP_HOST")||"";
- const user=Deno.env.get("SMTP_USERNAME")||Deno.env.get("SMTP_USER")||"";
+ const host=Deno.env.get("SMTP_HOSTNAME")||Deno.env.get("SMTP_HOST")||"smtp.gmail.com";
+ const user=Deno.env.get("SMTP_USERNAME")||Deno.env.get("SMTP_USER")||"bildiagnosiutbyab@gmail.com";
  const pass=Deno.env.get("SMTP_PASSWORD")||"",from=Deno.env.get("SMTP_FROM")||user;
  const port=Number(Deno.env.get("SMTP_PORT")||465);
  return {host,user,pass,from,port,configured:Boolean(host&&user&&pass&&from&&port===465)};
