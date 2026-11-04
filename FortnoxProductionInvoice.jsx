@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient.js';
 
 const money = (value) => Number(value).toLocaleString('sv-SE', { style: 'currency', currency: 'SEK' });
 
-export default function FortnoxProductionInvoice({ orderId, expectedTotal, blocked }) {
+export default function FortnoxProductionInvoice({ orderId, expectedTotal, blocked, onLinked }) {
   const [job, setJob] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(true);
@@ -86,6 +86,7 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
       if (current !== generation.current) return;
       if (!created.documentNumber) throw new Error('No se recibió el número de factura.');
       setJob({ status: 'submitted', documentNumber: created.documentNumber, ocr: created.ocr, invoiceStatus: created.invoiceStatus, sentAt: null });
+      await onLinked?.();
     } catch (failure) {
       if (current === generation.current) setError(attempted ? `${failure.message} Consulta el estado antes de volver a intentar; la factura puede haberse creado.` : failure.message);
     } finally {

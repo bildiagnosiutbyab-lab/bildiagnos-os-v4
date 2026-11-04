@@ -101,6 +101,20 @@ export async function loadCommercialOrder(orderId) {
   throwIfError(quoteItemsResult.error);
   throwIfError(invoiceItemsResult.error);
 
+  let productionJob = null, productionDocument = null, documentError = '';
+  try {
+    const status = await supabase.functions.invoke('fortnox-production-invoice', { body: { action: 'status', workOrderId: orderId } });
+    if (status.error || !status.data?.ok) throw new Error(status.data?.error || status.error?.message || 'No se pudo comprobar la factura oficial.');
+    productionJob = status.data.job;
+    if (productionJob?.documentNumber) {
+      const result = await supabase.functions.invoke('fortnox-production-invoice', { body: { action: 'document', workOrderId: orderId } });
+      if (result.error || !result.data?.ok || !result.data?.document) throw new Error(result.data?.error || result.error?.message || 'No se pudo obtener la factura oficial.');
+      productionDocument = result.data.document;
+    } else if (productionJob && productionJob.status !== 'reconciled') {
+      throw new Error('Operación Fortnox pendiente de conciliación; impresión bloqueada.');
+    }
+  } catch (error) { documentError = error.message; }
+
   return {
     workOrder,
     services: servicesResult.data || [],
@@ -111,6 +125,7 @@ export async function loadCommercialOrder(orderId) {
     invoiceItems: invoiceItemsResult.data || [],
     payments: paymentsResult.data || [],
     vehicle: vehicleResult.data || null,
+    productionJob, productionDocument, documentError,
   };
 }
 

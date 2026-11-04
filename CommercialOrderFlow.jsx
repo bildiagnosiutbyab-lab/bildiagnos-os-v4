@@ -178,6 +178,10 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     return () => window.removeEventListener('afterprint', clearPrintMode);
   }, []);
   const printDocument = (mode) => {
+    if (mode === 'invoice' && (context?.documentError || (!context?.productionDocument && ['cancelled','credited'].includes(lastInvoice?.status)))) {
+      setMessage(context?.documentError || 'Documento cancelado; no se puede usar como factura.');
+      return;
+    }
     const printedAt = new Date();
     const printDateTime = printedAt.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     const className = mode === 'work-order' ? 'work-order-print' : mode === 'quote' ? 'quote-print' : mode === 'invoice' ? 'invoice-print' : 'receipt-print';
@@ -280,7 +284,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const displayedVat = quoteMatchesLiveOrder ? Number(quote?.vat_total || 0) : liveVat;
   const displayedTotal = quoteMatchesLiveOrder ? Number(quote?.total || 0) : liveTotal;
   const invoice = context?.invoices.find((item) => !['cancelled', 'credited'].includes(item.status));
-  const invoicePreview = lastInvoice || invoice || {
+  const invoicePreview = context?.productionDocument || lastInvoice || invoice || {
     invoice_number: 'FÖRHANDSVISNING',
     created_at: new Date().toISOString(),
     due_at: dueDateFromDays(invoiceForm.paymentTermsDays),
@@ -290,8 +294,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   // Fortnox sandbox prints the actual order lines, never the old 100 kr placeholder.
   const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.estimated_minutes || 0) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: Number(item.estimated_minutes || 0) / 60, unit_price: Number(item.unit_price || 0) }));
   const testPartLines = (context?.parts || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.quantity || 0) > 0).map((item) => ({ id: item.id, item_type: 'part', description: item.description_snapshot, quantity: Number(item.quantity || 0), unit_price: Number(item.sale_price || 0) }));
-  const printedServiceLines = invoicePreview.fortnox_test ? testServiceLines : serviceLines;
-  const printedPartLines = invoicePreview.fortnox_test ? testPartLines : partLines;
+  const printedServiceLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'service') : invoicePreview.fortnox_test ? testServiceLines : serviceLines;
+  const printedPartLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'part') : invoicePreview.fortnox_test ? testPartLines : partLines;
   const printedWork = printedServiceLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
   const printedParts = printedPartLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
   const printedSubtotal = printedWork + printedParts;
@@ -320,7 +324,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   const labels = quoteSettings.documentLanguage === 'es'
     ? { title: 'ORDEN DE TRABAJO', customer: 'Cliente', plate: 'Registreringsnummer', work: 'Trabajos', parts: 'Piezas', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Imprimir orden' }
     : { title: 'ARBETSORDER', customer: 'Kund', plate: 'Registreringsnummer', work: 'Arbete', parts: 'Reservdelar', quote: 'Offert godkänd', warranty: 'Garanti', print: 'PDF / Skriv ut arbetsorder' };
-  const vehicle = context.vehicle || {};
+  const vehicle = invoicePreview.fortnox_production ? invoicePreview.vehicle : context.vehicle || {};
   const vehicleDescription = [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || vehicle.raw_description || workOrder.vehicle_snapshot || '—';
   const vehicleInfo = <div className="print-info print-info-list">
     <span>{labels.customer}: <b>{workOrder.customer_name_snapshot || '—'}</b></span>
@@ -434,7 +438,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
       <section className="commercial-card">
         <h3>Faktura</h3>
-        <FortnoxProductionInvoice key={`${orderId}:${displayedTotal}:${pricePending}`} orderId={orderId} expectedTotal={displayedTotal} blocked={pricePending} />
+        <FortnoxProductionInvoice key={`${orderId}:${displayedTotal}:${pricePending}`} orderId={orderId} expectedTotal={displayedTotal} blocked={pricePending} onLinked={refresh} />
         <form className="commercial-inline-form invoice-form" onSubmit={(event) => { event.preventDefault(); run(() => createCommercialInvoice(context, { ...invoiceForm, dueDate: dueDateFromDays(invoiceForm.paymentTermsDays) }), 'Faktura skapad.').then((created) => created && setLastInvoice({ ...created, billing_snapshot: { ...(created.billing_snapshot || {}), email: invoiceForm.email } })); }}>
           <input required type="email" placeholder="Kundens e-post" value={invoiceForm.email} onChange={(e) => setInvoiceForm({ ...invoiceForm, email: e.target.value })} />
           <label className="invoice-terms">Betalningsvillkor
@@ -449,7 +453,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={invoiceForm.reference} onChange={(e) => setInvoiceForm({ ...invoiceForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Crear documento interno (sin Fortnox)</button>
         </form>
-        <button type="button" disabled={busy} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
+        {context.documentError && <p role="alert">PDF bloqueado: {context.documentError}</p>}
+        <button type="button" disabled={busy || Boolean(context.documentError)} onClick={() => { setLastInvoice(null); window.setTimeout(() => printDocument('invoice'), 0); }}>Vista previa / Imprimir Faktura</button>
         <div className="fortnox-sandbox-test">
           <strong>Fortnox Test</strong>
           <div className="fortnox-test-customer">
@@ -579,13 +584,16 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <p><small>Fakturadatum</small><br/><b>{date(invoicePreview.created_at)}</b></p>
         <p><small>Förfallodatum</small><br/><b>{date(invoicePreview.due_at)}</b></p>
       </div>
-      <div className="invoice-address"><small>Faktureringsadress</small><strong>{invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : workOrder.customer_name_snapshot || '—'}</strong></div>
+      {invoicePreview.fortnox_production && <p>Representation av Fortnox faktura {invoicePreview.invoice_number}. Samma faktura och betalningsreferens – ingen ny betalningsfordran.</p>}
+      <div className="invoice-address"><small>Faktureringsadress</small><strong>{invoicePreview.customer?.name || (invoicePreview.fortnox_test ? 'TESTKUND BILDIAGNOS' : workOrder.customer_name_snapshot || '—')}</strong>
+        {invoicePreview.customer && <><span>{invoicePreview.customer.address}</span>{invoicePreview.customer.address2 && <span>{invoicePreview.customer.address2}</span>}<span>{invoicePreview.customer.postal_code} {invoicePreview.customer.city}</span>{invoicePreview.customer.organisation_number && <span>Organisationsnummer: {invoicePreview.customer.organisation_number}</span>}</>}
+      </div>
       {!invoicePreview.fortnox_test && <div className="invoice-vehicle invoice-vehicle-strip">
         <span><small>Reg nr</small><b>{workOrder.plate_snapshot || vehicle.registration_plate || '—'}</b></span>
         <span><small>Fabrikat</small><b>{vehicle.make || '—'}</b></span>
         <span><small>Modell</small><b>{vehicle.model || vehicle.raw_description || '—'}</b></span>
         <span><small>Årsmodell</small><b>{vehicle.model_year || '—'}</b></span>
-        <span><small>Mätarställning</small><b>{workOrder.mileage ? `${workOrder.mileage} km` : '—'}</b></span>
+        <span><small>Mätarställning</small><b>{workOrder.mileage == null || workOrder.mileage === '' ? '' : `${workOrder.mileage} km`}</b></span>
         <span><small>Chassinummer</small><b>{vehicle.vin || '—'}</b></span>
       </div>}
       <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice hideHourlyRate /></div>
@@ -594,7 +602,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       <div className="invoice-bottom">
         <div className="invoice-payment-box">
           <p><strong>Ange OCR-nr vid betalning:</strong> {invoicePreview.ocr || invoicePreview.ocr_number || '—'}</p>
-          <p>Betalningsvillkor: {invoiceForm.paymentTermsDays || 15} dagar netto</p>
+          <p>Betalningsvillkor: {invoicePreview.fortnox_production ? invoicePreview.payment_terms : invoiceForm.paymentTermsDays || 15} dagar netto</p>
+          {invoicePreview.company && <p><strong>Bankgiro: {invoicePreview.company.bankgiro}</strong></p>}
           <p>Förfallodatum: {date(invoicePreview.due_at)}</p>
           {invoicePreview.fortnox_test && <p><strong>TESTFAKTURA – ej skickad eller bokförd</strong></p>}
         </div>
@@ -602,18 +611,23 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <h2>Summering:</h2>
           <p><span>Arbete</span><b>{money(printedWork)}</b></p>
           <p><span>Material</span><b>{money(printedParts)}</b></p>
-          <p><span>Summa exkl. moms</span><b>{money(invoicePreview.fortnox_test ? printedSubtotal : displayedSubtotal)}</b></p>
-          <p><span>Moms 25%</span><b>{money(invoicePreview.fortnox_test ? printedVat : displayedVat)}</b></p>
-          {!invoicePreview.fortnox_test && Math.abs(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal)) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal))}</b></p>}
+          <p><span>Summa exkl. moms</span><b>{money(invoicePreview.fortnox_production ? invoicePreview.subtotal : invoicePreview.fortnox_test ? printedSubtotal : displayedSubtotal)}</b></p>
+          <p><span>Moms 25%</span><b>{money(invoicePreview.fortnox_production ? invoicePreview.vat_total : invoicePreview.fortnox_test ? printedVat : displayedVat)}</b></p>
+          {invoicePreview.fortnox_production && invoicePreview.round_off !== 0 && <p><span>Öresutjämning</span><b>{money(invoicePreview.round_off)}</b></p>}
+          {!invoicePreview.fortnox_production && !invoicePreview.fortnox_test && Math.abs(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal)) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Math.round(Number(invoicePreview.total || displayedTotal)) - Number(invoicePreview.total || displayedTotal))}</b></p>}
           {invoicePreview.fortnox_test && Math.abs(Number(invoicePreview.total || 0) - printedSubtotal - printedVat) >= 0.005 && <p><span>Öresutjämning</span><b>{money(Number(invoicePreview.total || 0) - printedSubtotal - printedVat)}</b></p>}
-          <p className="invoice-pay"><span>Att betala</span><b>{money(invoicePreview.fortnox_test ? Number(invoicePreview.total || displayedTotal) : Math.round(Number(invoicePreview.total || displayedTotal)))}</b></p>
+          <p className="invoice-pay"><span>Att betala</span><b>{money(invoicePreview.fortnox_production || invoicePreview.fortnox_test ? Number(invoicePreview.total || displayedTotal) : Math.round(Number(invoicePreview.total || displayedTotal)))}</b></p>
         </div>
       </div>
-      <div className="invoice-footer">
+      {invoicePreview.company ? <div className="invoice-footer">
+        <div><strong>{invoicePreview.company.name}</strong><br/>{invoicePreview.company.address}<br/>{invoicePreview.company.postal_code} {invoicePreview.company.city}</div>
+        <div>Org.nr: {invoicePreview.company.organisation_number}<br/>VAT.nr: {invoicePreview.company.vat_number}<br/>{invoicePreview.company.tax_enabled ? 'Godkänd för F-skatt' : ''}</div>
+        <div>Tel: {invoicePreview.company.phone}<br/>Mail: {invoicePreview.company.email}<br/>Bg: {invoicePreview.company.bankgiro}</div>
+      </div> : <div className="invoice-footer">
         <div><strong>BILDIAGNOS I UTBY AB</strong><br/>VAGNMAKAREGATAN 8C<br/>415 72 GÖTEBORG</div>
         <div>Vat.nr: SE559082480001<br/>Mail: bildiagnosiutbyab@gmail.com<br/>Godkänd för F-skatt</div>
         <div>Tel: 072-975 77 52<br/>Bg: 5927-4746</div>
-      </div>
+      </div>}
     </section>}
   </section>;
 }
