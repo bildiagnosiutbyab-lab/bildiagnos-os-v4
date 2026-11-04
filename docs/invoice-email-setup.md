@@ -5,8 +5,12 @@ the official Fortnox identity, amount, recipient and PDF hash again. A unique
 delivery record and an atomic job claim block duplicates, including uncertain
 SMTP outcomes. Sending never books an invoice or registers a payment.
 
-The Work Gmail connector is separate from the deployed application. Configure the
-workshop's outgoing email privately in Supabase Edge Function Secrets:
+The Work Gmail connector is separate from the deployed application. Gmail's host,
+port and workshop address are preconfigured. To activate sending, the account owner
+only needs to add `SMTP_PASSWORD` with a Google app password directly in Supabase
+Edge Function Secrets. Never enter the account's normal password.
+
+The following optional settings override the built-in Gmail defaults:
 
 | Secret | Gmail value |
 | --- | --- |
@@ -14,7 +18,8 @@ workshop's outgoing email privately in Supabase Edge Function Secrets:
 | SMTP_PORT | 465 |
 | SMTP_USERNAME | The workshop Gmail address |
 | SMTP_FROM | The same workshop Gmail address |
-| SMTP_PASSWORD | A Google app password, entered directly into Supabase |
+
+Required secret: `SMTP_PASSWORD` = the Google app password, entered privately.
 
 Never put the app password in chat, source code, browser storage or a public build.
 Google may require two-step verification before allowing app passwords. The
