@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2af2d910788b36e2ef5657490ba2ee4b53eeac84 # receipt quantities without hour suffix
+          ref: 9e7ce0421a21a436f9ac46337ee2fd3f2a9794f6 # one work order per form, safe create retries
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
