@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 250cf3ff303fabda2bf9d51933a0b1a2aad9ff7d # rounded Swish payment validation and completion time
+          ref: 9a8510ef2b2032852aaf8935eb18e28f456db3a3 # rounded Swish payments and explicit receipt rounding
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
