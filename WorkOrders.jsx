@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import {
   controlOrderTimer,
@@ -131,6 +131,9 @@ function formatTime(totalSeconds = 0) {
 
 export default function WorkOrders({ initialPlate = '', onPlateConsumed, initialView = 'active' }) {
   const [showForm, setShowForm] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const orderSaveInFlight = useRef(false);
+  const creationDraft = useRef(null);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -275,6 +278,8 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   }
 
   function startNewOrder(plate = '') {
+    if (orderSaveInFlight.current) return;
+    creationDraft.current = null;
     const normalized = normalizePlate(typeof plate === 'string' ? plate : '');
     const previous = orders.filter(o => normalizePlate(o.plate) === normalized).sort((a,b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     const registered = registeredVehicles.find(v => normalizePlate(v.registration_plate) === normalized);
@@ -287,6 +292,8 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   }
 
   function startEditOrder(order) {
+    if (orderSaveInFlight.current) return;
+    creationDraft.current = null;
     setEditingOrderId(order.id);
     setReserveAppointment(false);
 
@@ -306,78 +313,95 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   }
 
   async function saveOrder() {
-    if (!form.customer.trim() || !form.plate.trim()) {
-      alert('Escribe como mínimo el cliente y la matrícula.');
-      return;
-    }
+    // A ref blocks the second event synchronously, before React re-renders.
+    if (orderSaveInFlight.current) return;
+    orderSaveInFlight.current = true;
+    setSavingOrder(true);
+    try {
+      if (!form.customer.trim() || !form.plate.trim()) {
+        alert('Escribe como mínimo el cliente y la matrícula.');
+        return;
+      }
 
-    if (!editingOrderId && reserveAppointment && (!appointmentDate || !appointmentTime || !(Number(appointmentHours)>0))) {
-      alert('Selecciona fecha, hora y duración de la cita.');
-      return;
-    }
+      if (!editingOrderId && reserveAppointment && (!appointmentDate || !appointmentTime || !(Number(appointmentHours)>0))) {
+        alert('Selecciona fecha, hora y duración de la cita.');
+        return;
+      }
 
-    if (editingOrderId) {
-      try {
-        await updateOrder(editingOrderId, {
+      if (editingOrderId) {
+        try {
+          await updateOrder(editingOrderId, {
+            ...form,
+            plate: form.plate.toUpperCase(),
+          });
+        } catch {
+          // Keep the edit form open; never fall back to creating a new order.
+          return;
+        }
+      } else {
+        // One identity per form, retained after a timeout or a failed response.
+        if (!creationDraft.current) creationDraft.current = {
+          id: crypto.randomUUID(),
+          createdAt: new Date().toLocaleString('sv-SE'),
+        };
+        const newOrder = {
+          ...creationDraft.current,
           ...form,
           plate: form.plate.toUpperCase(),
-        });
-      } catch {
-        // Keep the edit form open; never fall back to creating a new order.
-        return;
-      }
-    } else {
-      const newOrder = {
-        id: Date.now(),
-        ...form,
-        plate: form.plate.toUpperCase(),
-        accumulatedSeconds: 0,
-        timerStartedAt: null,
-        createdAt: new Date().toLocaleString('sv-SE'),
-      };
+          accumulatedSeconds: 0,
+          timerStartedAt: null,
+        };
 
-      setSyncMessage('Guardando…');
-      try {
-        const saved = await saveRelationalOrder(newOrder, null);
-        setOrders((currentOrders) => [saved, ...currentOrders]);
-        if (reserveAppointment) {
-          const start = new Date(appointmentDate + 'T' + appointmentTime);
-          const duration = Number(appointmentHours);
-          if (!appointmentDate || Number.isNaN(start.getTime()) || !(duration > 0)) {
-            setSyncMessage('Orden guardada. Reserva pendiente: comprueba fecha y duración.');
-            return;
+        setSyncMessage('Guardando…');
+        try {
+          const saved = await saveRelationalOrder(newOrder, null);
+          setOrders((currentOrders) => [saved, ...currentOrders.filter((item) => item.relationalId !== saved.relationalId && String(item.id) !== String(saved.id))]);
+          if (reserveAppointment) {
+            const start = new Date(appointmentDate + 'T' + appointmentTime);
+            const duration = Number(appointmentHours);
+            if (!appointmentDate || Number.isNaN(start.getTime()) || !(duration > 0)) {
+              setSyncMessage('Orden guardada. Reserva pendiente: comprueba fecha y duración.');
+              return;
+            }
+            const relationalId = saved.relationalId || saved.relational_id;
+            if (!relationalId) {
+              setSyncMessage('Orden guardada. No se pudo vincular la cita: falta identificador de orden.');
+              return;
+            }
+            const { error: bookingError } = await supabase.from('appointments').insert({
+              workshop_id: 'e2ff2d9c-4e4f-475d-88b5-bbfca33240a5',
+              work_order_id: relationalId,
+              starts_at: start.toISOString(),
+              ends_at: new Date(start.getTime() + duration * 3600000).toISOString(),
+              reason: form.requestedWork.trim() || 'Arbetsorder · ' + form.customer.trim(),
+              plate_snapshot: form.plate.trim().toUpperCase(),
+              status: 'scheduled'
+            });
+            setSyncMessage(bookingError ? 'Orden guardada, pero no se pudo reservar: ' + bookingError.message : 'Orden y cita guardadas en calendario interno.');
+          } else {
+            setSyncMessage('Guardado en Supabase');
           }
-          const relationalId = saved.relationalId || saved.relational_id;
-          if (!relationalId) {
-            setSyncMessage('Orden guardada. No se pudo vincular la cita: falta identificador de orden.');
-            return;
-          }
-          const { error: bookingError } = await supabase.from('appointments').insert({
-            workshop_id: 'e2ff2d9c-4e4f-475d-88b5-bbfca33240a5',
-            work_order_id: relationalId,
-            starts_at: start.toISOString(),
-            ends_at: new Date(start.getTime() + duration * 3600000).toISOString(),
-            reason: form.requestedWork.trim() || 'Arbetsorder · ' + form.customer.trim(),
-            plate_snapshot: form.plate.trim().toUpperCase(),
-            status: 'scheduled'
-          });
-          setSyncMessage(bookingError ? 'Orden guardada, pero no se pudo reservar: ' + bookingError.message : 'Orden y cita guardadas en calendario interno.');
-        } else {
-          setSyncMessage('Guardado en Supabase');
+        } catch (error) {
+          console.error('No se pudo crear la orden:', error);
+          setSyncMessage('No se pudo confirmar el guardado. Reintenta en este mismo formulario para evitar duplicados.');
+          return;
         }
-      } catch (error) {
-        console.error('No se pudo crear la orden:', error);
-        setSyncMessage('No se pudo guardar la orden');
-        return;
       }
-    }
 
-    setForm(emptyForm);
-    setEditingOrderId(null);
-    setShowForm(false);
+      // Keep the completed draft identity until New/Cancel is explicitly used.
+      // A queued click after the response must still recover the same order.
+      setForm(emptyForm);
+      setEditingOrderId(null);
+      setShowForm(false);
+    } finally {
+      orderSaveInFlight.current = false;
+      setSavingOrder(false);
+    }
   }
 
   function cancelForm() {
+    if (orderSaveInFlight.current) return;
+    creationDraft.current = null;
     setForm(emptyForm);
     setEditingOrderId(null);
     setShowForm(false);
@@ -717,12 +741,12 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
             </div>}
           </section>}
           <div className="form-actions">
-            <button className="secondary-button" onClick={cancelForm}>
+            <button className="secondary-button" disabled={savingOrder} onClick={cancelForm}>
               Cancelar
             </button>
 
-            <button className="primary-button" onClick={saveOrder}>
-              {editingOrderId ? 'Spara ändringar' : 'Spara arbetsorder'}
+            <button className="primary-button" disabled={savingOrder} onClick={saveOrder}>
+              {savingOrder ? 'Sparar…' : editingOrderId ? 'Spara ändringar' : 'Spara arbetsorder'}
             </button>
           </div>
         </section>

@@ -32,10 +32,14 @@ export async function saveRelationalOrder(order, expectedVersion = null) {
     }
     payload = { ...order, id: existing.legacy_order_id };
   }
-  const { data, error } = await supabase.rpc('save_work_order_legacy', {
-    p_order: payload,
-    p_expected_version: expectedVersion,
-  });
+  if (!editing && (!order?.id || order.relationalId || order.orderNumber)) {
+    throw new Error('ORDER_CREATE_ID_MISMATCH: recarga el formulario antes de crear la orden');
+  }
+  // Create retries return the original record; only versioned edits may update it.
+  const { data, error } = await supabase.rpc(
+    editing ? 'save_work_order_legacy' : 'create_work_order_once',
+    editing ? { p_order: payload, p_expected_version: expectedVersion } : { p_order: payload }
+  );
   if (error) throw error;
   if (editing && (String(data?.relationalId) !== String(order.relationalId) ||
       Number(data?.orderNumber) !== Number(order.orderNumber))) {
