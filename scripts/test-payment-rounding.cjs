@@ -31,5 +31,15 @@ async function submit(amount, total, invoice = null) {
   assert.equal((await submit('300.00', 300)).calls, 1, 'whole amounts remain accepted');
   assert.equal((await submit('2401.00', 2401.25, { total: 2500 })).calls, 0, 'mismatched historical invoice remains blocked');
   assert.equal((await submit('2401.00', 2401.25, { total: 2401.25 })).calls, 1, 'matching invoice keeps its accounting total');
-  console.log('Payment rounding: 8 behavior checks passed (no database writes).');
+  const receiptCode = source.slice(source.indexOf('  const receiptSubtotal ='), source.indexOf('  const receiptPayable ='));
+  const receipt = vm.runInNewContext(receiptCode + '\n({ receiptSubtotal, receiptVat, receiptAccountingTotal });', {
+    receiptInvoice: null, receiptLines: [{ quantity: 0.7, unit_price: 1000 }, { quantity: 4, unit_price: 283 }, { quantity: 1, unit_price: 89 }],
+    lastReceipt: { payment: { amount: 2401 } },
+  });
+  assert.equal(receipt.receiptSubtotal, 1921);
+  assert.equal(receipt.receiptVat, 480.25);
+  assert.equal(receipt.receiptAccountingTotal, 2401.25);
+  assert.equal(2401 - receipt.receiptAccountingTotal, -0.25);
+  assert.ok(source.includes('{lastReceipt && Math.abs(receiptPayable - receiptAccountingTotal)'), 'cash receipt renders rounding without requiring an invoice');
+  console.log('Payment rounding: 13 behavior checks passed (no database writes).');
 })().catch(error => { console.error(error); process.exitCode = 1; });

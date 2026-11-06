@@ -308,7 +308,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   // same order rows used for the invoice, including the 25% VAT and ore rounding.
   const receiptSubtotal = receiptInvoice?.fortnox_test ? receiptLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0) : receiptInvoice ? Number(receiptInvoice.subtotal || 0) : receiptLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unit_price||0),0);
   const receiptVat = receiptInvoice?.fortnox_test ? Math.round(receiptSubtotal * 25) / 100 : receiptInvoice ? Number(receiptInvoice.vat_total || 0) : Math.round(receiptSubtotal*25)/100;
-  const receiptAccountingTotal = receiptInvoice?.fortnox_test ? receiptSubtotal + receiptVat : receiptInvoice ? Number(receiptInvoice.total || 0) : Number(lastReceipt?.payment?.amount || 0);
+  const receiptAccountingTotal = receiptInvoice?.fortnox_test ? receiptSubtotal + receiptVat : receiptInvoice ? Number(receiptInvoice.total || 0) : receiptSubtotal + receiptVat;
   const receiptPayable = Number(lastReceipt?.payment?.amount || Math.round(receiptAccountingTotal));
   const run = async (action, success) => {
     setBusy(true); setMessage('Guardando…');
@@ -564,7 +564,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         </div>
         <div className="invoice-summary">
           {lastReceipt && <><p><span>Summa exkl. moms</span><b>{money(receiptSubtotal)}</b></p><p><span>Moms 25%</span><b>{money(receiptVat)}</b></p></>}
-          {receiptInvoice && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
+          {lastReceipt && Math.abs(receiptPayable - receiptAccountingTotal) >= 0.005 && <p><span>Öresutjämning</span><b>{money(receiptPayable - receiptAccountingTotal)}</b></p>}
           <p className="invoice-pay"><span>{lastReceipt.payment.preview ? 'Att betala (förhandsvisning)' : 'Betalt'}</span><b>{money(receiptPayable)}</b></p>
         </div>
       </div>
