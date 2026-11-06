@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 9a8510ef2b2032852aaf8935eb18e28f456db3a3 # rounded Swish payments and explicit receipt rounding
+          ref: 2af2d910788b36e2ef5657490ba2ee4b53eeac84 # receipt quantities without hour suffix
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
