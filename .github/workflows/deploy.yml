@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 7d32a21fc3ce89281d1e29b81b8c77d3f0d6488b # live accounting method and safe posting
+          ref: 250cf3ff303fabda2bf9d51933a0b1a2aad9ff7d # rounded Swish payment validation and completion time
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
