@@ -528,7 +528,7 @@ export async function confirmCommercialPayment(context, form) {
   const nextVersion = Number(workOrder.version || 0) + 1;
   const { error: orderError } = await supabase
     .from('work_orders')
-    .update({ status_code: 'paid', updated_at: acceptedAt, version: nextVersion })
+    .update({ status_code: 'paid', completed_at: workOrder.completed_at || acceptedAt, updated_at: acceptedAt, version: nextVersion })
     .eq('id', workOrder.id);
   throwIfError(orderError);
 
