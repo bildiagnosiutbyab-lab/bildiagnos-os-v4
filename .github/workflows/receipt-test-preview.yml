@@ -1,0 +1,62 @@
+name: Test iPhone receipt PDF in isolated route
+on:
+  push:
+    branches:
+      - fix/iphone-receipt-pdf-20261114
+    paths:
+      - 'CommercialOrderFlow.jsx'
+      - '.github/workflows/receipt-test-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9e7ce0421a21a436f9ac46337ee2fd3f2a9794f6
+          path: live
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/iphone-receipt-pdf-20261114
+          path: receipt-test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build unchanged live site
+        run: |
+          npm ci --prefix live
+          cd live
+          npm run build
+          mkdir -p ../site/commercial-preview
+          cp -R dist/. ../site/
+          VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build
+          cp -R dist/. ../site/commercial-preview/
+      - name: Build isolated iPhone receipt preview
+        run: |
+          npm ci --prefix receipt-test
+          cd receipt-test
+          VITE_BASE=/bildiagnos-os-v4/receipt-test/ npm run build
+          mkdir -p ../site/receipt-test
+          cp -R dist/. ../site/receipt-test/
+          test -f ../site/receipt-test/index.html
+          test -f ../site/commercial-preview/index.html
+          test -f ../site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages-${{ github.run_attempt }}
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
