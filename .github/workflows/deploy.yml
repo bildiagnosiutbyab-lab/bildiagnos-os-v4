@@ -42,6 +42,7 @@ jobs:
         with:
           ref: fix/iphone-receipt-pdf-20261114
           path: receipt-test-source
+      # Redeploy updated branded receipt PDF from isolated branch (2026-11-14).
       - name: Build isolated receipt test without modifying live build
         run: |
           npm ci --prefix receipt-test-source
