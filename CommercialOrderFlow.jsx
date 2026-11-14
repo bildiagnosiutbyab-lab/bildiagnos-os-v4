@@ -177,12 +177,137 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     window.addEventListener('afterprint', clearPrintMode);
     return () => window.removeEventListener('afterprint', clearPrintMode);
   }, []);
+  // iPhone Safari / standalone apps may suppress window.print() in the
+  // receipt preview. Create a real PDF from the already-rendered receipt,
+  // without creating another payment, receipt record, or invoice.
+  const openReceiptPdf = async (source) => {
+    const receiptRef = source.querySelector('.receipt-title b')?.textContent?.trim() || 'Kvitto';
+    // Open synchronously during the tap, before loading the PDF library.
+    // iOS otherwise treats the new tab as an unsolicited popup.
+    const preview = window.open('', '_blank');
+    if (preview) {
+      preview.document.write('<!doctype html><html lang="sv"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kvitto PDF</title><body style="font:16px system-ui;padding:20px">Förbereder kvitto som PDF...</body></html>');
+      preview.document.close();
+    }
+    try {
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+      const pdf = await PDFDocument.create();
+      const regular = await pdf.embedFont(StandardFonts.Helvetica);
+      const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const pageWidth = 595.28, pageHeight = 841.89, margin = 42, contentWidth = pageWidth - 2 * margin;
+      let page = pdf.addPage([pageWidth, pageHeight]);
+      let cursorY = pageHeight - margin;
+
+      const safe = (value) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+        .replace(/[\u2010-\u2015]/g, '-').replace(/\u2212/g, '-')
+        .replace(/[\u2028\u2029]/g, ' ').replace(/[^\u0020-\u007e\u00a0-\u00ff\u20ac]/g, '?');
+      const wrap = (text, font, size, width) => {
+        const result = [];
+        let line = '';
+        for (const word of safe(text).split(' ')) {
+          const candidate = line ? line + ' ' + word : word;
+          if (font.widthOfTextAtSize(candidate, size) <= width) { line = candidate; continue; }
+          if (line) { result.push(line); line = ''; }
+          let part = '';
+          for (const char of word) {
+            if (part && font.widthOfTextAtSize(part + char, size) > width) {
+              result.push(part); part = '';
+            }
+            part += char;
+          }
+          line = part;
+        }
+        if (line) result.push(line);
+        return result.length ? result : [''];
+      };
+      const newPageIfNeeded = (height) => {
+        if (cursorY - height < margin) {
+          page = pdf.addPage([pageWidth, pageHeight]);
+          cursorY = pageHeight - margin;
+        }
+      };
+      const write = (value, { size = 10, strong = false, gap = 3, indent = 0 } = {}) => {
+        const font = strong ? bold : regular;
+        const lines = wrap(value, font, size, contentWidth - indent);
+        for (const line of lines) {
+          newPageIfNeeded(size + 5);
+          page.drawText(line, { x: margin + indent, y: cursorY - size, size, font, color: rgb(0.09, 0.09, 0.09) });
+          cursorY -= size + 5;
+        }
+        cursorY -= gap;
+      };
+      const section = (title) => {
+        newPageIfNeeded(30); cursorY -= 8; write(title, { size: 12, strong: true, gap: 5 });
+      };
+      const textOf = (selector) => safe(source.querySelector(selector)?.textContent);
+      const pairs = (selector, keySelector, valSelector) => [...source.querySelectorAll(selector)].map((item) => ({
+        key: safe(item.querySelector(keySelector)?.textContent),
+        value: safe(item.querySelector(valSelector)?.textContent)
+      }));
+
+      write('BILDIAGNOS I UTBY AB', { size: 16, strong: true });
+      write('KVITTO  ' + receiptRef, { size: 15, strong: true, gap: 9 });
+      const previewWarning = textOf('.receipt-preview-badge');
+      if (previewWarning) write(previewWarning, { size: 10, strong: true, gap: 10 });
+      for (const item of pairs('.receipt-meta p', 'small', 'b')) write(item.key + ': ' + item.value);
+      write('Kund: ' + textOf('.invoice-address strong'), { gap: 7 });
+
+      for (const item of pairs('.invoice-vehicle-strip span', 'small', 'b')) {
+        if (item.value && item.value !== '-') write(item.key + ': ' + item.value, { gap: 1 });
+      }
+
+      const rows = [...source.querySelectorAll('.print-lines tr')].map((row) =>
+        [...row.querySelectorAll('th,td')].map((cell) => safe(cell.textContent))
+      );
+      if (rows.length) {
+        section(textOf('.print-section h2') || 'Varor och tjänster');
+        for (const row of rows) {
+          if (row.length >= 4) {
+            write(row[0], { strong: row === rows[0], gap: 0 });
+            write('Antal: ' + row[1] + '     Pris: ' + row[2] + '     Summa: ' + row[3], { size: 9, gap: 6, indent: 9 });
+          } else write(row.join('  |  '));
+        }
+      }
+
+      section('Betalning');
+      for (const p of source.querySelectorAll('.receipt-payment p')) write(p.textContent);
+      for (const p of source.querySelectorAll('.invoice-summary p')) {
+        write(p.textContent, { strong: p.classList.contains('invoice-pay') });
+      }
+      write('Tack för ditt besök!', { strong: true, gap: 12 });
+      section('BILDIAGNOS I UTBY AB');
+      for (const footer of source.querySelectorAll('.invoice-footer > div')) {
+        write(footer.innerText || footer.textContent, { size: 9, gap: 4 });
+      }
+
+      const pdfBytes = await pdf.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      if (preview && !preview.closed) {
+        preview.location.replace(url);
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = safe(receiptRef).replace(/[^a-zA-Z0-9_-]/g, '_') + '.pdf';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      // Keep the blob URL alive for Safari's PDF viewer and iOS share sheet.
+    } catch (error) {
+      if (preview && !preview.closed) preview.close();
+      console.error('Receipt PDF generation failed', error);
+      setMessage('Kunde inte öppna kvitto som PDF. Försök igen.');
+    }
+  };
+
   const printDocument = (mode) => {
     const printedAt = new Date();
     const printDateTime = printedAt.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     const className = mode === 'work-order' ? 'work-order-print' : mode === 'quote' ? 'quote-print' : mode === 'invoice' ? 'invoice-print' : 'receipt-print';
     const source = document.querySelector(`.commercial-flow .${className}`);
     if (!source) return;
+    if (mode === 'receipt') { void openReceiptPdf(source); return; }
     const popup = window.open('', '_blank', 'width=900,height=1100');
     if (!popup) return;
     const printableHtml = source.outerHTML.replace('__PRINT_DATETIME__', printDateTime);
