@@ -180,11 +180,11 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   // iPhone Safari / standalone apps may suppress window.print() in the
   // receipt preview. Create a real PDF from the already-rendered receipt,
   // without creating another payment, receipt record, or invoice.
-  const openReceiptPdf = async (source) => {
+  const openReceiptPdf = async (source, action = 'open') => {
     const receiptRef = source.querySelector('.receipt-title b')?.textContent?.trim() || 'Kvitto';
     // Open synchronously during the tap, before loading the PDF library.
     // iOS otherwise treats the new tab as an unsolicited popup.
-    const preview = window.open('', '_blank');
+    const preview = action === 'share' ? null : window.open('', '_blank');
     if (preview) {
       preview.document.write('<!doctype html><html lang="sv"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kvitto PDF</title><body style="font:16px system-ui;padding:20px">Förbereder kvitto som PDF...</body></html>');
       preview.document.close();
@@ -281,14 +281,28 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       }
 
       const pdfBytes = await pdf.save();
+      const filename = safe(receiptRef).replace(/[^a-zA-Z0-9_-]/g, '_') + '.pdf';
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      if (action === 'share') {
+        const file = new File([pdfBytes], filename, { type: 'application/pdf' });
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+          try {
+            await navigator.share({ files: [file], title: 'Kvitto ' + receiptRef });
+            return; // User chooses Mail (or another app) and confirms sending.
+          } catch (shareError) {
+            if (shareError?.name === 'AbortError') return;
+            console.warn('Native receipt sharing unavailable, opening PDF instead', shareError);
+          }
+        }
+        setMessage('Dela PDF från Safari med Dela-knappen och välj Mail.');
+      }
       const url = URL.createObjectURL(blob);
       if (preview && !preview.closed) {
         preview.location.replace(url);
       } else {
         const link = document.createElement('a');
         link.href = url;
-        link.download = safe(receiptRef).replace(/[^a-zA-Z0-9_-]/g, '_') + '.pdf';
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -299,6 +313,12 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       console.error('Receipt PDF generation failed', error);
       setMessage('Kunde inte öppna kvitto som PDF. Försök igen.');
     }
+  };
+
+  const shareCurrentReceipt = () => {
+    const source = document.querySelector('.commercial-flow .receipt-print');
+    if (!source) { setMessage('Öppna först ett kvitto.'); return; }
+    void openReceiptPdf(source, 'share');
   };
 
   const printDocument = (mode) => {
@@ -551,6 +571,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
+        {lastReceipt && <div className="commercial-inline-form">
+          <button type="button" onClick={shareCurrentReceipt}>Enviar por correo / Compartir PDF</button>
+        </div>}
         <ul className="commercial-lines">{context.payments.map((item) => {
           const paymentInvoice = context.invoices.find((inv) => inv.id === item.invoice_id) || null;
           return <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference || 'Kvitto'} · {date(item.accepted_at)}</small><button type="button" onClick={() => { setLastReceipt({ payment: item, order: workOrder, invoice: paymentInvoice }); window.setTimeout(() => printDocument('receipt'), 0); }}>Imprimir Kvitto</button></li>;
