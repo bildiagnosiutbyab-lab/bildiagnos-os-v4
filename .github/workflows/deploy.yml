@@ -37,6 +37,21 @@ jobs:
         run: VITE_BASE=/bildiagnos-os-v4/commercial-preview/ npm run build
       - name: Publish preview alongside root
         run: cp -R dist/. site/commercial-preview/
+      - name: Checkout isolated receipt test branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/iphone-receipt-pdf-20261114
+          path: receipt-test-source
+      - name: Build isolated receipt test without modifying live build
+        run: |
+          npm ci --prefix receipt-test-source
+          cd receipt-test-source
+          VITE_BASE=/bildiagnos-os-v4/receipt-test/ npm run build
+          mkdir -p ../site/receipt-test
+          cp -R dist/. ../site/receipt-test/
+          test -f ../site/receipt-test/index.html
+          test -f ../site/commercial-preview/index.html
+          test -f ../site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
