@@ -177,12 +177,236 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     window.addEventListener('afterprint', clearPrintMode);
     return () => window.removeEventListener('afterprint', clearPrintMode);
   }, []);
+  // iPhone Safari / standalone apps may suppress window.print() in the
+  // receipt preview. Create a real PDF from the already-rendered receipt,
+  // without creating another payment, receipt record, or invoice.
+  const openReceiptPdf = async (source, action = 'open') => {
+    const receiptRef = source.querySelector('.receipt-title b')?.textContent?.trim() || 'Kvitto';
+    // Open synchronously during the tap, before loading the PDF library.
+    // iOS otherwise treats the new tab as an unsolicited popup.
+    const preview = action === 'share' ? null : window.open('', '_blank');
+    if (preview) {
+      preview.document.write('<!doctype html><html lang="sv"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kvitto PDF</title><body style="font:16px system-ui;padding:20px">Förbereder kvitto som PDF...</body></html>');
+      preview.document.close();
+    }
+    try {
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+      const pdf = await PDFDocument.create();
+      const regular = await pdf.embedFont(StandardFonts.Helvetica);
+      const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const pageWidth = 595.28, pageHeight = 841.89, margin = 38;
+      const black = rgb(0.12, 0.12, 0.12);
+      const muted = rgb(0.36, 0.36, 0.36);
+      const pale = rgb(0.94, 0.94, 0.94);
+      let page = pdf.addPage([pageWidth, pageHeight]);
+      let y = pageHeight - margin;
+      const safe = (value) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .replace(/\s+/g, ' ').trim().replace(/[\u2010-\u2015\u2212]/g, '-')
+        .replace(/[^\u0020-\u007e\u00a0-\u00ff\u20ac]/g, '?');
+      const get = (selector) => safe(source.querySelector(selector)?.textContent);
+      const fit = (value, maxWidth, font = regular, fontSize = 9) => {
+        const str = safe(value);
+        if (font.widthOfTextAtSize(str, fontSize) <= maxWidth) return str;
+        let part = str;
+        while (part && font.widthOfTextAtSize(part + '...', fontSize) > maxWidth) part = part.slice(0, -1);
+        return part + '...';
+      };
+      const text = (value, x, top, opts = {}) => {
+        const { fontSize = 9, boldText = false, maxWidth = pageWidth - margin - x, align = 'left', color = black } = opts;
+        const font = boldText ? bold : regular;
+        const str = fit(value, maxWidth, font, fontSize);
+        const width = font.widthOfTextAtSize(str, fontSize);
+        const drawX = align === 'right' ? x - width : x;
+        page.drawText(str, { x: drawX, y: top - fontSize, size: fontSize, font, color });
+      };
+      const rule = (top, weight = 0.7) => {
+        page.drawLine({ start: { x: margin, y: top }, end: { x: pageWidth - margin, y: top },
+          thickness: weight, color: black });
+      };
+      const space = (height) => {
+        if (y - height < 48) { page = pdf.addPage([pageWidth, pageHeight]); y = pageHeight - margin; }
+      };
+      const wrap = (value, width, font = regular, fontSize = 9) => {
+        const words = safe(value).split(' ');
+        const result = [];
+        let line = '';
+        for (const word of words) {
+          let candidate = line ? line + ' ' + word : word;
+          if (font.widthOfTextAtSize(candidate, fontSize) <= width) { line = candidate; continue; }
+          if (line) result.push(line);
+          line = '';
+          let part = '';
+          for (const letter of word) {
+            if (part && font.widthOfTextAtSize(part + letter, fontSize) > width) {
+              result.push(part); part = '';
+            }
+            part += letter;
+          }
+          line = part;
+        }
+        if (line) result.push(line);
+        return result.length ? result : [''];
+      };
+      const multiline = (value, x, top, width, { fontSize = 9, boldText = false, leading = 12 } = {}) => {
+        const font = boldText ? bold : regular;
+        const lines = wrap(value, width, font, fontSize);
+        lines.forEach((line, i) => text(line, x, top - i * leading, { fontSize, boldText, maxWidth: width }));
+        return lines.length * leading;
+      };
+      // Mirror the original branded receipt layout, not a flattened text export.
+      text('BILDIAGNOS', margin + 10, y - 15, { fontSize: 19, boldText: true, maxWidth: 205 });
+      text('I UTBY AB', margin + 14, y - 37, { fontSize: 9, maxWidth: 200 });
+      page.drawRectangle({ x: margin, y: y - 56, width: 242, height: 56, borderWidth: 1.4, borderColor: black });
+      text('KVITTO', margin + 297, y - 5, { fontSize: 20, boldText: true, maxWidth: 215 });
+      text(receiptRef, margin + 297, y - 31, { fontSize: 11, boldText: true, maxWidth: 205 });
+      y -= 70;
+      rule(y, 1.5);
+      y -= 16;
+      const warning = get('.receipt-preview-badge');
+      if (warning) { space(30); text(warning, margin + 8, y, { fontSize: 9, boldText: true }); y -= 22; }
+
+      const meta = [...source.querySelectorAll('.receipt-meta p')];
+      const metaWidths = [170, 170, 170];
+      meta.slice(0, 3).forEach((item, i) => {
+        const x = margin + metaWidths.slice(0, i).reduce((a, b) => a + b, 0);
+        text(item.querySelector('small')?.textContent, x, y, { fontSize: 8, color: muted });
+        text(item.querySelector('b')?.textContent, x, y - 13, { boldText: true, fontSize: 10, maxWidth: metaWidths[i] - 7 });
+      });
+      y -= 41;
+      text('Kund', margin, y, { fontSize: 8, color: muted });
+      text(get('.invoice-address strong'), margin, y - 13, { fontSize: 11, boldText: true });
+      y -= 45;
+
+      const vehicle = [...source.querySelectorAll('.invoice-vehicle-strip span')];
+      const widths = [65, 65, 115, 73, 85, 106];
+      rule(y);
+      y -= 9;
+      vehicle.slice(0, 6).forEach((item, i) => {
+        const x = margin + widths.slice(0, i).reduce((a, b) => a + b, 0);
+        text(item.querySelector('small')?.textContent, x, y, { fontSize: 7, color: muted, maxWidth: widths[i] - 4 });
+        text(item.querySelector('b')?.textContent, x, y - 12, { fontSize: 9, boldText: true, maxWidth: widths[i] - 5 });
+      });
+      y -= 38;
+      rule(y);
+      y -= 21;
+
+      const rows = [...source.querySelectorAll('.print-lines tbody tr')].map(row =>
+        [...row.querySelectorAll('td')].map(cell => safe(cell.textContent))
+      );
+      if (rows.length) {
+        space(55);
+        text(get('.print-section h2') || 'Betalda varor och tjänster', margin, y, { fontSize: 12, boldText: true });
+        y -= 24;
+        page.drawRectangle({ x: margin, y: y - 23, width: pageWidth - 2 * margin, height: 23, color: pale });
+        const xPos = [margin + 5, margin + 291, margin + 364, margin + 510];
+        text('Benämning', xPos[0], y - 6, { fontSize: 9, boldText: true });
+        text('Antal', xPos[1], y - 6, { fontSize: 9, boldText: true });
+        text('Pris', xPos[2], y - 6, { fontSize: 9, boldText: true });
+        text('Summa', xPos[3], y - 6, { fontSize: 9, boldText: true, align: 'right' });
+        y -= 30;
+        for (const row of rows) {
+          const descriptionLines = wrap(row[0] || '', 270, regular, 9);
+          const height = Math.max(26, descriptionLines.length * 12 + 11);
+          space(height + 9);
+          descriptionLines.forEach((line, i) => text(line, xPos[0], y - 3 - i * 12, { fontSize: 9, maxWidth: 270 }));
+          text(row[1] || '', xPos[1], y - 3, { fontSize: 9, maxWidth: 66 });
+          text(row[2] || '', xPos[2], y - 3, { fontSize: 9, maxWidth: 85 });
+          text(row[3] || '', xPos[3], y - 3, { fontSize: 9, maxWidth: 113, align: 'right' });
+          y -= height;
+          rule(y, 0.35);
+          y -= 6;
+        }
+      }
+
+      space(160);
+      y -= 14;
+      const left = margin, right = margin + 275, colWidth = 245;
+      text('Betalning', left, y, { fontSize: 12, boldText: true });
+      y -= 25;
+      const payRows = [...source.querySelectorAll('.receipt-payment p')].map(p => safe(p.textContent));
+      payRows.forEach((value, i) => text(value, left + 8, y - i * 16, { maxWidth: colWidth - 15, fontSize: 9 }));
+      const totals = [...source.querySelectorAll('.invoice-summary p')];
+      totals.forEach((p, i) => {
+        const label = safe(p.querySelector('span')?.textContent || p.textContent);
+        const value = safe(p.querySelector('b')?.textContent);
+        const top = y - i * 18;
+        const strong = p.classList.contains('invoice-pay');
+        text(label, right, top, { fontSize: strong ? 11 : 9, boldText: strong, maxWidth: 140 });
+        text(value, pageWidth - margin, top, { fontSize: strong ? 11 : 9, boldText: true, align: 'right', maxWidth: 110 });
+      });
+      y -= Math.max(payRows.length * 16, totals.length * 18) + 25;
+      rule(y, 1.2);
+      y -= 15;
+      text('Tack för ditt besök!', pageWidth / 2, y, {
+        fontSize: 12, boldText: true, align: 'right', maxWidth: 245
+      });
+      y -= 35;
+
+      space(95);
+      rule(y, 1.5);
+      y -= 12;
+      const footer = [...source.querySelectorAll('.invoice-footer > div')];
+      const footWidth = [178, 180, 150];
+      footer.slice(0, 3).forEach((item, i) => {
+        const x = margin + footWidth.slice(0, i).reduce((a, b) => a + b, 0);
+        const raw = item.innerText || item.textContent;
+        const lines = raw.split(/\n/).map(safe).filter(Boolean);
+        lines.forEach((line, j) => {
+          const wrapped = wrap(line, footWidth[i] - 7, j === 0 ? bold : regular, 8);
+          wrapped.forEach((part, k) => text(part, x, y - (j + k) * 12, {
+            fontSize: 8, boldText: j === 0, maxWidth: footWidth[i] - 7
+          }));
+        });
+      });
+      // The PDF preserves the original receipt identity and accounting values.
+      const pdfBytes = await pdf.save();
+      const filename = safe(receiptRef).replace(/[^a-zA-Z0-9_-]/g, '_') + '.pdf';
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      if (action === 'share') {
+        const file = new File([pdfBytes], filename, { type: 'application/pdf' });
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+          try {
+            await navigator.share({ files: [file], title: 'Kvitto ' + receiptRef });
+            return; // User chooses Mail (or another app) and confirms sending.
+          } catch (shareError) {
+            if (shareError?.name === 'AbortError') return;
+            console.warn('Native receipt sharing unavailable, opening PDF instead', shareError);
+          }
+        }
+        setMessage('Dela PDF från Safari med Dela-knappen och välj Mail.');
+      }
+      const url = URL.createObjectURL(blob);
+      if (preview && !preview.closed) {
+        preview.location.replace(url);
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      // Keep the blob URL alive for Safari's PDF viewer and iOS share sheet.
+    } catch (error) {
+      if (preview && !preview.closed) preview.close();
+      console.error('Receipt PDF generation failed', error);
+      setMessage('Kunde inte öppna kvitto som PDF. Försök igen.');
+    }
+  };
+
+  const shareCurrentReceipt = () => {
+    const source = document.querySelector('.commercial-flow .receipt-print');
+    if (!source) { setMessage('Öppna först ett kvitto.'); return; }
+    void openReceiptPdf(source, 'share');
+  };
+
   const printDocument = (mode) => {
     const printedAt = new Date();
     const printDateTime = printedAt.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     const className = mode === 'work-order' ? 'work-order-print' : mode === 'quote' ? 'quote-print' : mode === 'invoice' ? 'invoice-print' : 'receipt-print';
     const source = document.querySelector(`.commercial-flow .${className}`);
     if (!source) return;
+    if (mode === 'receipt') { void openReceiptPdf(source); return; }
     const popup = window.open('', '_blank', 'width=900,height=1100');
     if (!popup) return;
     const printableHtml = source.outerHTML.replace('__PRINT_DATETIME__', printDateTime);
@@ -426,6 +650,9 @@ export default function CommercialOrderFlow({ order, onSaved }) {
           <input placeholder="Referens" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} />
           <button disabled={busy || pricePending}>Bekräfta betalning</button>
         </form>
+        {lastReceipt && <div className="commercial-inline-form">
+          <button type="button" onClick={shareCurrentReceipt}>Enviar por correo / Compartir PDF</button>
+        </div>}
         <ul className="commercial-lines">{context.payments.map((item) => {
           const paymentInvoice = context.invoices.find((inv) => inv.id === item.invoice_id) || null;
           return <li key={item.id}><span>{item.method} · {money(item.amount)}</span><small>{item.receipt_reference || 'Kvitto'} · {date(item.accepted_at)}</small><button type="button" onClick={() => { setLastReceipt({ payment: item, order: workOrder, invoice: paymentInvoice }); window.setTimeout(() => printDocument('receipt'), 0); }}>Imprimir Kvitto</button></li>;
