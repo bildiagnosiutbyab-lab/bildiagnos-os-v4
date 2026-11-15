@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient.js';
 
 const money = (value) => Number(value).toLocaleString('sv-SE', { style: 'currency', currency: 'SEK' });
 
-export default function FortnoxProductionInvoice({ orderId, expectedTotal, blocked, accounting, onLinked }) {
+export default function FortnoxProductionInvoice({ orderId, expectedTotal, expectedRecipient, blocked, accounting, onLinked }) {
   const [job, setJob] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(true);
@@ -121,6 +121,46 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
     } finally { lock.current = false; setBusy(false); }
   }
 
+
+  async function createAndSendInvoice() {
+    if (lock.current || busy || blocked || !preview || error || (job && job.status !== 'reconciled')) return;
+    const recipient = String(expectedRecipient || '').trim().toLowerCase();
+    if (!recipient || !recipient.includes('@')) { setError('Falta el correo del cliente.'); return; }
+    lock.current = true;
+    const current = ++generation.current;
+    setBusy(true); setError('');
+    let number = null;
+    try {
+      const state = await invoke('status');
+      if (state.job && state.job.status !== 'reconciled') throw new Error('Ya existe una operacion de factura; comprueba su estado.');
+      if (!state.email?.configured) throw new Error('Configura primero el correo del taller.');
+      const checked = await invoke('preview');
+      validatePreview(checked.preview);
+      const p = checked.preview;
+      if (!window.confirm('Crear y enviar factura REAL\\n' + p.customerName + '\\n' + p.reference + '\\n' + money(p.total) + '\\n' + recipient + '\\nConfirmar?')) return;
+      const verified = await invoke('email-verify');
+      if (!verified.verified) throw new Error('No se pudo verificar el correo del taller.');
+      const created = await invoke('create', { confirmReference: p.reference, confirmTotal: Number(p.total) });
+      if (!created.documentNumber) throw new Error('Creacion sin numero confirmado. No reintentar.');
+      number = String(created.documentNumber);
+      setJob({ status: 'submitted', documentNumber: number, ocr: created.ocr, sentAt: null });
+      const pdf = await invoke('email-preview');
+      if (String(pdf.documentNumber) !== number || String(pdf.recipient).toLowerCase() !== recipient ||
+        Math.abs(Number(pdf.total) - Number(p.total)) >= 0.005 || !pdf.pdfHash)
+        throw new Error('El PDF no coincide con los datos confirmados. No se envio.');
+      const result = await invoke('email-send', { confirmDocumentNumber: number, confirmRecipient: recipient,
+        confirmTotal: Number(p.total), confirmPdfHash: pdf.pdfHash });
+      if (!result.sent || !result.messageId) throw new Error('El envio no esta confirmado.');
+      setJob(previous => ({ ...previous, sentAt: result.sentAt }));
+      setEmail(previous => ({ ...previous, delivery: { status: 'sent', recipient, sent_at: result.sentAt } }));
+      setPreview(null);
+      await onLinked?.();
+    } catch (failure) {
+      setError((number ? 'Factura ' + number + ' creada; no la vuelvas a crear. ' : '') + failure.message);
+      try { const latest = await invoke('status'); if (current === generation.current) { setJob(latest.job || null); setEmail(latest.email || null); } } catch {}
+    } finally { if (current === generation.current) { lock.current = false; setBusy(false); } }
+  }
+
   async function createInvoice() {
     if (lock.current || busy || blocked || error || !preview || (job && job.status !== 'reconciled')) return;
     lock.current = true;
@@ -186,7 +226,8 @@ export default function FortnoxProductionInvoice({ orderId, expectedTotal, block
       </table>
       <p>Sin IVA: {money(Number(preview.total) - Number(preview.vat))} · IVA: {money(preview.vat)} · <strong>Total: {money(preview.total)}</strong></p>
       <p>Lista para revisar. La creación real requiere una confirmación por separado.</p>
-      <button type="button" disabled={busy || blocked || Boolean(error)} onClick={createInvoice}>Skapa faktura i Fortnox</button>
+      {email?.configured && <button type="button" disabled={busy || blocked || Boolean(error) || !expectedRecipient} onClick={createAndSendInvoice}>Crear y enviar factura (un paso)</button>}
+      <button type="button" disabled={busy || blocked || Boolean(error)} onClick={createInvoice}>Solo crear en Fortnox</button>
     </div>}
     <button type="button" disabled={busy} onClick={refresh}>Consultar estado / Actualizar vista previa</button>
   </section>;
