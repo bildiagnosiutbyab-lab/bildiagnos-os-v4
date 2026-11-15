@@ -7,18 +7,19 @@
 <p>Comprobación de solo lectura de los 13 pagos Swish y Zettle frente a los asientos contables. <b>No crea, contabiliza ni cambia pagos.</b></p>
 <button id="run">Comprobar los asientos</button> <a href="/bildiagnos-os-v4/commercial-preview/?view=fortnox">Volver a Bildiagnos OS</a>
 <div class="card" id="status">Preparado para verificar.</div><div id="result"></div>
-<script>
-const key="sb-etpkuiwrvbjbtnxpnioa-auth-token", api="https://etpkuiwrvbjbtnxpnioa.supabase.co/functions/v1/fortnox-receipt-audit";
+<script type="module">
+const api="https://etpkuiwrvbjbtnxpnioa.supabase.co/functions/v1/fortnox-receipt-audit";
 const status=document.getElementById("status"), result=document.getElementById("result"), btn=document.getElementById("run");
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt=n=>Number(n||0).toLocaleString("sv-SE",{minimumFractionDigits:2,maximumFractionDigits:2})+" kr";
 async function run(){
  btn.disabled=true;result.innerHTML="";status.textContent="Leyendo vouchers de Fortnox, sin crear asientos…";
  try {
-  let raw=localStorage.getItem(key), session=raw?JSON.parse(raw):null;
-  if(Array.isArray(session))session=session[0];
-  const jwt=session?.access_token || session?.currentSession?.access_token;
-  if(!jwt)throw Error("No se encontró la sesión de Bildiagnos OS en este navegador. Abre primero Bildiagnos OS e inicia sesión.");
+  const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.49.1");
+  const supabase=createClient("https://etpkuiwrvbjbtnxpnioa.supabase.co","sb_publishable_NSUsW77XVJriRaPyLza9Ew_Osr0DSkT",{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  const {data:{session},error:sessionError}=await supabase.auth.getSession();
+  if(sessionError||!session?.access_token)throw Error("La sesión de Bildiagnos OS no está activa. Inicia sesión en Bildiagnos OS y abre nuevamente esta página.");
+  const jwt=session.access_token;
   const res=await fetch(api,{method:"POST",headers:{"authorization":"Bearer "+jwt,"content-type":"application/json"},body:"{}"});
   let j=await res.json();
   if(!res.ok||!j.ok)throw Error((j.error||"Error de consulta")+" ("+res.status+")");
