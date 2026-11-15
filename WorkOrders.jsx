@@ -13,6 +13,7 @@ import CatalogOrderImport from './CatalogOrderImport.jsx';
 import OrderInventory from './OrderInventory.jsx';
 import OrderDocuments from './OrderDocuments.jsx';
 import { listVehicles } from './workshopRepository.js';
+import { loadInvoiceStatuses, displayOrderStatus, isOrderActive } from './invoiceStatuses.js';
 
 const ORDERS_STORAGE_KEY = 'bildiagnos-orders';
 const CENTRAL_STATE_KEY = 'central_state';
@@ -154,13 +155,14 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
   const [reportTo, setReportTo] = useState('');
   const [plateHistorySearch, setPlateHistorySearch] = useState('');
   const [referenceSearch, setReferenceSearch] = useState('');
+  const [invoiceStatuses, setInvoiceStatuses] = useState({});
 
   const normalizePlate = value => String(value || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '');
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
   const closedStatuses = new Set(['Pagada', 'Terminada']);
-  const historyOrders = orders.filter((order) => closedStatuses.has(order.status));
+  const historyOrders = orders.filter((order) => closedStatuses.has(order.status) || displayOrderStatus(order, invoiceStatuses) === 'Facturada');
   const cancelledOrders = orders.filter((order) => order.status === 'Cancelada');
-  const activeOrders = orders.filter((order) => !closedStatuses.has(order.status) && order.status !== 'Cancelada');
+  const activeOrders = orders.filter((order) => isOrderActive(order, invoiceStatuses));
   const normalizedPlateSearch = plateHistorySearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const plateHistoryOrders = normalizedPlateSearch
     ? orders.filter((order) => String(order.plate || '').toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g, '').includes(normalizedPlateSearch))
@@ -209,10 +211,19 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
         if (active) setSyncMessage('Offline: lokal kopia används');
       }
     }
-    refresh();
-    const unsubscribe = subscribeToRelationalOrders(refresh);
-    window.addEventListener('focus', refresh);
-    return () => { active = false; unsubscribe(); window.removeEventListener('focus', refresh); };
+    async function refreshInvoices() {
+      try { const next = await loadInvoiceStatuses(); if (active) setInvoiceStatuses(next); }
+      catch (error) { console.error('Error consultando facturas enviadas:', error); if (active) setSyncMessage('No se pudo verificar el estado de las facturas'); }
+    }
+    const refreshAll = () => { refresh(); refreshInvoices(); };
+    refreshAll();
+    const unsubscribe = subscribeToRelationalOrders(refreshAll);
+    window.addEventListener('focus', refreshAll);
+    const invoiceChannel = supabase.channel('b-os-invoice-status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fortnox_invoice_jobs' }, refreshInvoices)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_email_deliveries' }, refreshInvoices)
+      .subscribe();
+    return () => { active = false; unsubscribe(); window.removeEventListener('focus', refreshAll); supabase.removeChannel(invoiceChannel); };
   }, []);
 
   useEffect(() => {
@@ -485,10 +496,11 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
           <div className="order-card-header">
             <div><strong>Arbetsorder nr {selectedOrder.orderNumber || selectedOrder.order_number || '—'}</strong><div className="plate">{selectedOrder.plate}</div></div>
 
-            <span className="status warning">{selectedOrder.status}</span>
+            <span className="status warning">{displayOrderStatus(selectedOrder, invoiceStatuses)}</span>
           </div>
 
           <h2>{selectedOrder.customer}</h2>
+          {invoiceStatuses[String(selectedOrder.id)]?.sent && <p><strong>Facturada:</strong> #{invoiceStatuses[String(selectedOrder.id)].invoiceNumber} · Pago pendiente de verificar en Fortnox</p>}
 
           <label className="status-control">
             Orderstatus
@@ -800,7 +812,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       </section>}
       <div className="segmented">
         <button type="button" className={orderView === 'active' ? 'selected' : ''} onClick={() => setOrderView('active')}>Abiertas / pendientes ({activeOrders.length})</button>
-        <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik ({historyOrders.length})</button>
+        <button type="button" className={orderView === 'history' ? 'selected' : ''} onClick={() => setOrderView('history')}>Historik / Facturadas ({historyOrders.length})</button>
         <button type="button" className={orderView === 'report' ? 'selected' : ''} onClick={() => setOrderView('report')}>Reportes / Rapporter</button>
         <button type="button" className={orderView === 'cancelled' ? 'selected' : ''} onClick={() => setOrderView('cancelled')}>Canceladas ({cancelledOrders.length})</button>
       </div>
@@ -810,7 +822,7 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
       {visibleOrders.length === 0 ? (
         <section className="card empty-state">
           <h2>{normalizedPlateSearch ? (matchedVehicles.length ? 'Vehículo encontrado sin órdenes anteriores' : 'Ingen historik för detta registreringsnummer') : orderView === 'history' ? 'Inga avslutade arbetsorder' : orderView === 'cancelled' ? 'Inga avbrutna arbetsorder' : orderView === 'report' ? 'Inga avslutade arbetsorder i perioden' : 'Inga öppna eller väntande arbetsorder'}</h2>
-          <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
+          <p>{normalizedPlateSearch ? 'Prueba otra matrícula.' : orderView === 'history' ? 'Las órdenes terminadas, facturadas o pagadas aparecerán aquí.' : orderView === 'cancelled' ? 'Las órdenes canceladas aparecerán aquí para poder recuperarlas.' : 'Pulsa Crear orden para registrar un trabajo.'}</p>
         </section>
       ) : orderView === 'report' && !normalizedPlateSearch ? (
         <section className="card"><div style={{display:'grid',gap:'10px'}}>{reportOrders.map(order=><div key={order.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',borderBottom:'1px solid #ddd',paddingBottom:'8px'}}><button className="plate" onClick={()=>setSelectedOrderId(order.id)}>#{order.orderNumber || order.order_number || '—'} · {order.plate}</button><span>{orderDate(order)}</span><button className="secondary-button" onClick={()=>setSelectedOrderId(order.id)}>Abrir orden</button></div>)}</div></section>
@@ -827,11 +839,12 @@ export default function WorkOrders({ initialPlate = '', onPlateConsumed, initial
                 </button></div></div>
 
                 <span className="status warning">
-                  {order.status || 'Abierta'} · {orderDate(order)}
+                  {displayOrderStatus(order, invoiceStatuses)} · {orderDate(order)}
                 </span>
               </div>
 
               <h2>{order.customer}</h2>
+              {invoiceStatuses[String(order.id)]?.sent && <p>Factura #{invoiceStatuses[String(order.id)].invoiceNumber} enviada · Pago pendiente de verificar</p>}
 
               <p>
                 <strong>Vehículo:</strong> {order.vehicle || 'Ej angivet'}
