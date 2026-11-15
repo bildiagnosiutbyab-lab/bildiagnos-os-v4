@@ -20,9 +20,11 @@ async function run(){
   const {data:{session},error:sessionError}=await supabase.auth.getSession();
   if(sessionError||!session?.access_token)throw Error("La sesión de Bildiagnos OS no está activa. Inicia sesión en Bildiagnos OS y abre nuevamente esta página.");
   const jwt=session.access_token;
-  const res=await fetch(api,{method:"POST",headers:{"authorization":"Bearer "+jwt,"content-type":"application/json"},body:"{}"});
+  const preflight=new URLSearchParams(location.search).get("check")==="accounts";
+  const res=await fetch(api,{method:"POST",headers:{"authorization":"Bearer "+jwt,"content-type":"application/json"},body:JSON.stringify(preflight?{action:"preflight"}:{})});
   let j=await res.json();
   if(!res.ok||!j.ok)throw Error((j.error||"Error de consulta")+" ("+res.status+")");
+  if(preflight){status.textContent="Comprobación de cuentas Fortnox (solo lectura)";result.innerHTML='<div class="card"><pre style="white-space:pre-wrap;word-break:break-word">'+esc(JSON.stringify(j,null,2))+'</pre></div>';return;}
   const candidateCount=j.results.reduce((s,r)=>s+r.candidates.length,0);
   status.innerHTML='<span class="ok">Consulta de solo lectura completada.</span> '+j.results.length+' pagos · '+j.vouchersListed+' asientos en el periodo · '+j.vouchersInspected+' inspeccionados · '+candidateCount+' posibles coincidencias.'+(j.scanTruncated?' <span class="warning">Consulta parcial: se alcanzó el límite.</span>':'');
   let html='<div class="scroll"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Fecha</th><th>Pago</th><th>Fortnox</th><th>Evaluación</th></tr></thead><tbody>';
