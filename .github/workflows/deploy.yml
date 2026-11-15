@@ -53,6 +53,16 @@ jobs:
           test -f ../site/receipt-test/index.html
           test -f ../site/commercial-preview/index.html
           test -f ../site/index.html
+      - name: Checkout audit view from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: receipt-audit-source
+      - name: Publish read-only Fortnox receipts audit
+        run: |
+          cp receipt-audit-source/receipt-audit.html site/receipt-audit.html
+          cp receipt-audit-source/receipt-audit.html site/commercial-preview/receipt-audit.html
+          test -f site/commercial-preview/receipt-audit.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
