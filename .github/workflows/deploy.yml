@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 9e7ce0421a21a436f9ac46337ee2fd3f2a9794f6 # one work order per form, safe create retries
+          ref: 0d577149ff79147282e7976cb8adb9292f0ee66c # verified invoice status read model, based on recovered full app
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
