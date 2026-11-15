@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bildiagnos OS · Auditoría Fortnox</title>
+<style>body{font:15px system-ui,-apple-system,sans-serif;background:#f6f8fb;color:#172231;margin:0 auto;max-width:1050px;padding:28px}h1{font-size:24px}small{color:#56677e}button{border:0;background:#2348bc;color:white;border-radius:8px;padding:12px 18px;cursor:pointer}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse;background:white}th,td{padding:9px;border-bottom:1px solid #e7ebf2;text-align:left}th{background:#eef2f9}.ok{color:#14633a}.warning{color:#a3540b}.card{background:white;border:1px solid #dfe5ee;padding:16px;margin:15px 0;border-radius:10px}.scroll{overflow:auto}</style>
+</head><body>
+<h1>Conciliación Fortnox — Bildiagnos OS</h1>
+<p>Comprobación de solo lectura de los 13 pagos Swish y Zettle frente a los asientos contables. <b>No crea, contabiliza ni cambia pagos.</b></p>
+<button id="run">Comprobar los asientos</button> <a href="./commercial-preview/?view=fortnox">Volver a Bildiagnos OS</a>
+<div class="card" id="status">Preparado para verificar.</div><div id="result"></div>
+<script>
+const key="sb-etpkuiwrvbjbtnxpnioa-auth-token", api="https://etpkuiwrvbjbtnxpnioa.supabase.co/functions/v1/fortnox-receipt-audit";
+const status=document.getElementById("status"), result=document.getElementById("result"), btn=document.getElementById("run");
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>Number(n||0).toLocaleString("sv-SE",{minimumFractionDigits:2,maximumFractionDigits:2})+" kr";
+async function run(){
+ btn.disabled=true;result.innerHTML="";status.textContent="Leyendo vouchers de Fortnox, sin crear asientos…";
+ try {
+  let raw=localStorage.getItem(key), session=raw?JSON.parse(raw):null;
+  if(Array.isArray(session))session=session[0];
+  const jwt=session?.access_token || session?.currentSession?.access_token;
+  if(!jwt)throw Error("No se encontró la sesión de Bildiagnos OS en este navegador. Abre primero Bildiagnos OS e inicia sesión.");
+  const res=await fetch(api,{method:"POST",headers:{"authorization":"Bearer "+jwt,"content-type":"application/json"},body:"{}"});
+  let j=await res.json();
+  if(!res.ok||!j.ok)throw Error((j.error||"Error de consulta")+" ("+res.status+")");
+  const candidateCount=j.results.reduce((s,r)=>s+r.candidates.length,0);
+  status.innerHTML='<span class="ok">Consulta de solo lectura completada.</span> '+j.results.length+' pagos · '+j.vouchersListed+' asientos en el periodo · '+j.vouchersInspected+' inspeccionados · '+candidateCount+' posibles coincidencias.'+(j.scanTruncated?' <span class="warning">Consulta parcial: se alcanzó el límite.</span>':'');
+  let html='<div class="scroll"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Fecha</th><th>Pago</th><th>Fortnox</th><th>Evaluación</th></tr></thead><tbody>';
+  for(const x of j.results){let matches=x.candidates||[];let label=matches.length?matches.map(m=>esc(m.series)+esc(m.number)+' ('+esc(m.confidence)+')').join(", "):'Sin coincidencia en lo examinado';
+   html+='<tr><td>'+esc(x.order)+'</td><td>'+esc(x.customer)+'</td><td>'+esc(x.date)+'</td><td>'+fmt(x.amount)+'</td><td>'+label+'</td><td>'+(matches.length?'Revisar posible duplicado':'No concluir que falta')+'</td></tr>';
+  }
+  html+='</tbody></table></div><p><small>Una coincidencia de importe o fecha no demuestra por sí sola que se haya contabilizado la venta. No se generó asiento alguno.</small></p>';
+  result.innerHTML=html;
+ }catch(e){status.innerHTML='<span class="warning">'+esc(e.message||String(e))+'</span>';}
+ finally{btn.disabled=false;}
+}
+btn.addEventListener("click",run);run();
+</script></body></html>
