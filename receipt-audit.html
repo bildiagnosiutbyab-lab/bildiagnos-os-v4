@@ -26,8 +26,8 @@ async function run(){
   const candidateCount=j.results.reduce((s,r)=>s+r.candidates.length,0);
   status.innerHTML='<span class="ok">Consulta de solo lectura completada.</span> '+j.results.length+' pagos · '+j.vouchersListed+' asientos en el periodo · '+j.vouchersInspected+' inspeccionados · '+candidateCount+' posibles coincidencias.'+(j.scanTruncated?' <span class="warning">Consulta parcial: se alcanzó el límite.</span>':'');
   let html='<div class="scroll"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Fecha</th><th>Pago</th><th>Fortnox</th><th>Evaluación</th></tr></thead><tbody>';
-  for(const x of j.results){let matches=x.candidates||[];let label=matches.length?matches.map(m=>esc(m.series)+esc(m.number)+' ('+esc(m.confidence)+')').join(", "):'Sin coincidencia en lo examinado';
-   html+='<tr><td>'+esc(x.order)+'</td><td>'+esc(x.customer)+'</td><td>'+esc(x.date)+'</td><td>'+fmt(x.amount)+'</td><td>'+label+'</td><td>'+(matches.length?'Revisar posible duplicado':'No concluir que falta')+'</td></tr>';
+  for(const x of j.results){let matches=x.candidates||[];let label=matches.length?matches.map(m=>'<b>'+esc(m.series)+esc(m.number)+'</b> · '+esc(m.description||'Sin descripción')+' · '+(m.descriptionMatch?'nombre compatible':m.knownVoucher?'referencia existente':'solo fecha e importe')).join("; "):'No se identificó asiento en la consulta';
+   html+='<tr><td>'+esc(x.order)+'</td><td>'+esc(x.customer)+'</td><td>'+esc(x.date)+'</td><td>'+fmt(x.amount)+'</td><td>'+label+'</td><td>'+(matches.length?'No duplicar; verificar identidad':'Pendiente de conciliación, NO contabilizar sin revisar')+'</td></tr>';
   }
   html+='</tbody></table></div><p><small>Una coincidencia de importe o fecha no demuestra por sí sola que se haya contabilizado la venta. No se generó asiento alguno.</small></p>';
   result.innerHTML=html;
