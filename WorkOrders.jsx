@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import OrderFees from './OrderFees.jsx';
+import { loadInvoiceStatuses, displayOrderStatus, isOrderActive } from './invoiceStatuses.js';
 import {
   loadRelationalOrders,
   saveRelationalOrder,
@@ -132,8 +133,11 @@ export default function WorkOrders() {
 
   const [orders, setOrders] = useState(loadOrders);
   const [syncMessage, setSyncMessage] = useState('');
+  const [invoiceStatuses, setInvoiceStatuses] = useState({});
+  const [showHistory, setShowHistory] = useState(false);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId);
+  const visibleOrders = orders.filter((order) => showHistory ? !isOrderActive(order, invoiceStatuses) : isOrderActive(order, invoiceStatuses));
 
   useEffect(() => {
     saveOrders(orders);
@@ -173,7 +177,12 @@ export default function WorkOrders() {
       }
     }
     refresh();
-    const unsubscribe = subscribeToRelationalOrders(refresh);
+    const refreshInvoices = async () => {
+      try { if (active) setInvoiceStatuses(await loadInvoiceStatuses()); }
+      catch (error) { console.error('No se pudieron verificar las facturas:', error); }
+    };
+    refreshInvoices();
+    const unsubscribe = subscribeToRelationalOrders(() => { refresh(); refreshInvoices(); });
     return () => { active = false; unsubscribe(); };
   }, []);
 
@@ -377,13 +386,16 @@ export default function WorkOrders() {
           <div className="order-card-header">
             <button className="plate">{selectedOrder.plate}</button>
 
-            <span className="status warning">{selectedOrder.status}</span>
+            <span className="status warning">{displayOrderStatus(selectedOrder, invoiceStatuses)}</span>
           </div>
 
           <h2>{selectedOrder.customer}</h2>
+          {invoiceStatuses[String(selectedOrder.id)]?.sent && (
+            <p><strong>Factura enviada:</strong> {invoiceStatuses[String(selectedOrder.id)].invoiceNumber} · Pago pendiente de verificar en Fortnox</p>
+          )}
 
           <label className="status-control">
-            Estado de la orden
+            Estado operativo de la orden (separado del estado de factura)
             <select
               value={selectedOrder.status}
               onChange={(event) =>
@@ -670,14 +682,19 @@ export default function WorkOrders() {
 
       {syncMessage && <p className="auth-message">{syncMessage}</p>}
 
-      {orders.length === 0 ? (
+      <div className="form-actions">
+        <button className={!showHistory ? 'primary-button' : 'secondary-button'} onClick={() => setShowHistory(false)}>Órdenes activas</button>
+        <button className={showHistory ? 'primary-button' : 'secondary-button'} onClick={() => setShowHistory(true)}>Historial / Facturadas</button>
+      </div>
+
+      {visibleOrders.length === 0 ? (
         <section className="card empty-state">
-          <h2>No hay órdenes guardadas</h2>
+          <h2>{showHistory ? 'No hay órdenes en el historial' : 'No hay órdenes activas'}</h2>
           <p>Pulsa Crear orden para registrar el primer trabajo.</p>
         </section>
       ) : (
         <section className="orders-list">
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <article className="card order-card" key={order.id}>
               <div className="order-card-header">
                 <button
@@ -688,11 +705,12 @@ export default function WorkOrders() {
                 </button>
 
                 <span className="status warning">
-                  {order.status || 'Abierta'}
+                  {displayOrderStatus(order, invoiceStatuses)}
                 </span>
               </div>
 
               <h2>{order.customer}</h2>
+              {invoiceStatuses[String(order.id)]?.sent && <p>Factura {invoiceStatuses[String(order.id)].invoiceNumber} enviada · Pago pendiente de verificar</p>}
 
               <p>
                 <strong>Vehículo:</strong> {order.vehicle || 'Sin especificar'}
