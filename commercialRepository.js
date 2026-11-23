@@ -2,6 +2,17 @@ import { supabase } from './supabaseClient.js';
 
 const VAT_RATE = 0.25;
 
+// Fixed environmental/consumable charges are amounts per item, not labor hours.
+export function isFixedChargeService(description) {
+  return /^(miljöavgift|förbrukningsmaterial)\b/i.test(String(description || '').trim());
+}
+
+export function serviceBillableQuantity(service) {
+  return isFixedChargeService(service.description)
+    ? Number(service.quantity ?? 1)
+    : Number(service.estimated_minutes || 0) / 60;
+}
+
 export function normalizeVatRate(value) {
   const rate = Number(value ?? VAT_RATE);
   if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('Invalid VAT rate');
@@ -176,17 +187,20 @@ export async function updateCommercialService(id, input) {
   if (!Number.isFinite(hours) || hours < 0) throw new Error('Las horas deben ser cero o mayores.');
   if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('El precio debe ser cero o mayor.');
 
+  const { data: existing, error: existingError } = await supabase.from('work_order_services').select('description,quantity').eq('id', id).single();
+  throwIfError(existingError);
+  const fixedCharge = isFixedChargeService(existing.description) || isFixedChargeService(description);
   const quoteLinks = await linkedQuotes('service_id', id);
   const { error } = await supabase.from('work_order_services').update({
     description,
-    estimated_minutes: Math.round(hours * 60),
+    ...(fixedCharge ? { quantity: hours, estimated_minutes: null } : { estimated_minutes: Math.round(hours * 60) }),
     unit_price: unitPrice,
   }).eq('id', id);
   throwIfError(error);
   if (quoteLinks.editableIds.length) {
     const { error: lineError } = await supabase.from('quote_items').update({
       description,
-      quantity: Math.round(hours * 60) / 60,
+      quantity: fixedCharge ? hours : Math.round(hours * 60) / 60,
       unit_price: unitPrice,
     }).eq('service_id', id).in('quote_id', quoteLinks.editableIds);
     throwIfError(lineError);
@@ -295,7 +309,7 @@ function commercialLines(context) {
     .map((item) => ({
       item_type: 'service',
       description: item.description,
-      quantity: Number(item.estimated_minutes || 0) / 60,
+      quantity: serviceBillableQuantity(item),
       unit_price: Number(item.unit_price || 0),
       vat_rate: normalizeVatRate(item.vat_rate),
       service_id: item.id,
@@ -485,13 +499,13 @@ export async function confirmCommercialPayment(context, form) {
   throwIfError(recordedError);
   if (recorded?.length) throw new Error('Ya existe un pago confirmado para esta orden. No se ha duplicado.');
   const { data: services, error: serviceError } = await supabase.from('work_order_services')
-    .select('estimated_minutes,unit_price,status').eq('work_order_id', workOrder.id);
+    .select('description,quantity,estimated_minutes,unit_price,status').eq('work_order_id', workOrder.id);
   throwIfError(serviceError);
   const { data: parts, error: partsError } = await supabase.from('work_order_parts')
     .select('quantity,sale_price,status').eq('work_order_id', workOrder.id);
   throwIfError(partsError);
   const net = (services || []).filter(x => !['rejected','removed'].includes(x.status))
-    .reduce((sum,x)=>sum+Number(x.estimated_minutes||0)/60*Number(x.unit_price||0),0)
+    .reduce((sum,x)=>sum+serviceBillableQuantity(x)*Number(x.unit_price||0),0)
     +(parts || []).filter(x => !['rejected','removed'].includes(x.status))
     .reduce((sum,x)=>sum+Number(x.quantity||0)*Number(x.sale_price||0),0);
   const expectedAmount = Math.round(Number(invoice?.total ?? net * 1.25));
