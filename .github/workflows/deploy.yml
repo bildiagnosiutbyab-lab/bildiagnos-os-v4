@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 6cd24e7f92a98ce2698b8100ef9a897ee8a6a9f8 # recovered full app with fixed invoice fee quantity and totals
+          ref: 3e1dd782fcc1063a13cd9a7a090d380140c5d09c # recovered app invoice fixed charges visible in print
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
