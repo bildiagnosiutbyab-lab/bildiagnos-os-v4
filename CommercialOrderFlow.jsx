@@ -12,6 +12,8 @@ import {
   removeCommercialService,
   updateCommercialPart,
   updateCommercialService,
+  isFixedChargeService,
+  serviceBillableQuantity,
 } from './commercialRepository.js';
 import { supabase } from './supabaseClient.js';
 import DeliveryNoteReader from './DeliveryNoteReader.jsx';
@@ -41,7 +43,11 @@ function dueDateFromDays(days) {
 }
 
 function money(value) { return `${SEK.format(Number(value || 0))} kr`; }
-function quoteQuantity(line) { return line.item_type === 'service' ? `${SEK.format(Number(line.quantity || 0))} h` : line.quantity; }
+function quoteQuantity(line) {
+  return line.item_type === 'service' && !isFixedChargeService(line.description)
+    ? `${SEK.format(Number(line.quantity || 0))} h`
+    : `${SEK.format(Number(line.quantity || 0))} st`;
+}
 function date(value) { return value ? new Intl.DateTimeFormat('sv-SE').format(new Date(value)) : '—'; }
 
 function DocumentLinesTable({ lines, language, kind, showPrice, hideHourlyRate = false }) {
@@ -254,7 +260,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
 
   const quote = context?.quotes[0];
   const quoteLines = useMemo(() => context?.quoteItems.filter((item) => item.quote_id === quote?.id) || [], [context, quote]);
-  const serviceLines = quoteLines.filter((item) => item.item_type === 'service');
+  const serviceLines = quoteLines.filter((item) => item.item_type === 'service' && !isFixedChargeService(item.description));
+  const feeLines = quoteLines.filter((item) => item.item_type === 'service' && isFixedChargeService(item.description));
   const partLines = quoteLines.filter((item) => item.item_type === 'part');
   const pricePending = quoteLines.length > 0 && quoteLines.some((item) => Number(item.unit_price) === 0);
   const liveLines = useMemo(() => {
@@ -262,7 +269,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     const services = context.services
       .filter((item) => !['rejected', 'removed'].includes(item.status))
       .map((item) => ({
-        quantity: Number(item.estimated_minutes || 0) / 60,
+        quantity: serviceBillableQuantity(item),
         unit_price: Number(item.unit_price || 0),
       }));
     const parts = context.parts
@@ -293,13 +300,17 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     reference: invoiceForm.reference || String(context?.workOrder?.order_number || ''),
   };
   // Fortnox sandbox prints the actual order lines, never the old 100 kr placeholder.
-  const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.estimated_minutes || 0) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: Number(item.estimated_minutes || 0) / 60, unit_price: Number(item.unit_price || 0) }));
+  const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && serviceBillableQuantity(item) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: serviceBillableQuantity(item), unit_price: Number(item.unit_price || 0) }));
   const testPartLines = (context?.parts || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.quantity || 0) > 0).map((item) => ({ id: item.id, item_type: 'part', description: item.description_snapshot, quantity: Number(item.quantity || 0), unit_price: Number(item.sale_price || 0) }));
   const printedServiceLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'service') : invoicePreview.fortnox_test ? testServiceLines : serviceLines;
   const printedPartLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'part') : invoicePreview.fortnox_test ? testPartLines : partLines;
-  const printedWork = printedServiceLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
-  const printedParts = printedPartLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
-  const printedSubtotal = printedWork + printedParts;
+  const printedLaborLines = printedServiceLines.filter(line => !isFixedChargeService(line.description));
+  const printedFeeLines = printedServiceLines.filter(line => isFixedChargeService(line.description));
+  const sumLines = lines => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0), 0);
+  const printedWork = sumLines(printedLaborLines);
+  const printedFees = sumLines(printedFeeLines);
+  const printedParts = sumLines(printedPartLines);
+  const printedSubtotal = printedWork + printedFees + printedParts;
   const printedVat = Math.round(printedSubtotal * 25) / 100;
   const testPrintMismatch = Boolean(invoicePreview.fortnox_test && Math.abs(Math.round(printedSubtotal + printedVat) - Number(invoicePreview.total || 0)) > 0.01);
   const receiptInvoice = lastReceipt?.invoice || (lastReceipt?.payment?.invoice_id ? context?.invoices.find((item) => item.id === lastReceipt.payment.invoice_id) : null);
@@ -495,6 +506,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
     {quote && <section className="commercial-print quote-print"><header><strong>BILDIAGNOS AB</strong><h1>{quoteSettings.documentLanguage === 'es' ? 'COTIZACIÓN' : 'OFFERT'}</h1></header>
       {vehicleInfo}<p>Offert: <b>#{quote.quote_number || '—'}</b></p>
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
+      {feeLines.length > 0 && <div className="print-section"><h2>Avgifter</h2><DocumentLinesTable lines={feeLines} language={quoteSettings.documentLanguage} kind="fee" showPrice /></div>}
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <div className="print-totals">
         <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
@@ -511,6 +523,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
       </div>
       <p>{quoteSettings.documentLanguage === 'es' ? 'Offert' : 'Offert'}: #{quote?.quote_number || '—'} · {accepted ? (quoteSettings.documentLanguage === 'es' ? 'aceptada' : 'godkänd') : (quoteSettings.documentLanguage === 'es' ? 'väntar på godkännande' : 'inväntar godkännande')}</p>{vehicleInfo}
       <div className="print-section"><h2>{labels.work}</h2><DocumentLinesTable lines={serviceLines} language={quoteSettings.documentLanguage} kind="service" showPrice /></div>
+      {feeLines.length > 0 && <div className="print-section"><h2>Avgifter</h2><DocumentLinesTable lines={feeLines} language={quoteSettings.documentLanguage} kind="fee" showPrice /></div>}
       <div className="print-section"><h2>{labels.parts}</h2><DocumentLinesTable lines={partLines} language={quoteSettings.documentLanguage} kind="part" showPrice /></div>
       <div className="print-totals">
         <p>Exkl. moms: <strong>{money(displayedSubtotal)}</strong></p>
@@ -597,7 +610,8 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <span><small>Mätarställning</small><b>{workOrder.mileage == null || workOrder.mileage === '' ? '' : `${workOrder.mileage} km`}</b></span>
         <span><small>Chassinummer</small><b>{vehicle.vin || '—'}</b></span>
       </div>}
-      <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedServiceLines} language="sv" kind="service" showPrice hideHourlyRate /></div>
+      <div className="print-section"><h2>Utfört arbete</h2><DocumentLinesTable lines={printedLaborLines} language="sv" kind="service" showPrice hideHourlyRate /></div>
+      {printedFeeLines.length > 0 && <div className="print-section"><h2>Avgifter</h2><DocumentLinesTable lines={printedFeeLines} language="sv" kind="fee" showPrice /></div>}
       <div className="print-section"><h2>Artiklar</h2><DocumentLinesTable lines={printedPartLines} language="sv" kind="part" showPrice /></div>
       {testPrintMismatch && <p style={{ color: '#b00020', fontWeight: 'bold' }}>FEL: Fakturans rader stämmer inte med Fortnox total. Kontrollera originalfakturan. ANVÄND INTE DETTA DOKUMENT.</p>}
       <div className="invoice-bottom">
@@ -611,6 +625,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
         <div className="invoice-summary">
           <h2>Summering:</h2>
           <p><span>Arbete</span><b>{money(printedWork)}</b></p>
+          {printedFeeLines.length > 0 && <p><span>Avgifter</span><b>{money(printedFees)}</b></p>}
           <p><span>Material</span><b>{money(printedParts)}</b></p>
           <p><span>Summa exkl. moms</span><b>{money(invoicePreview.fortnox_production ? invoicePreview.subtotal : invoicePreview.fortnox_test ? printedSubtotal : displayedSubtotal)}</b></p>
           <p><span>Moms 25%</span><b>{money(invoicePreview.fortnox_production ? invoicePreview.vat_total : invoicePreview.fortnox_test ? printedVat : displayedVat)}</b></p>
