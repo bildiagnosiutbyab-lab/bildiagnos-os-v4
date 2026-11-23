@@ -68,21 +68,25 @@ function DocumentLinesTable({ lines, language, kind, showPrice, hideHourlyRate =
 }
 
 function ServiceLineEditor({ item, busy, onSave, onDelete }) {
+  const fixedCharge = isFixedChargeService(item.description);
+  const editorQuantity = service => isFixedChargeService(service.description)
+    ? String(Number(service.quantity ?? 1))
+    : (Number(service.estimated_minutes || 0) / 60).toFixed(2);
   const [draft, setDraft] = useState({
     description: item.description || '',
-    hours: (Number(item.estimated_minutes || 0) / 60).toFixed(2),
+    hours: editorQuantity(item),
     unitPrice: String(item.unit_price ?? ''),
   });
   useEffect(() => setDraft({
     description: item.description || '',
-    hours: (Number(item.estimated_minutes || 0) / 60).toFixed(2),
+    hours: editorQuantity(item),
     unitPrice: String(item.unit_price ?? ''),
-  }), [item.description, item.estimated_minutes, item.unit_price]);
+  }), [item.description, item.quantity, item.estimated_minutes, item.unit_price]);
   return <li className="commercial-edit-line">
-    <label>Arbete<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
-    <label>Timmar<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
-    <label>Pris/h<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
-    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} h × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + '/h = ' + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
+    <label>{fixedCharge ? 'Avgift' : 'Arbete'}<textarea rows="2" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
+    <label>{fixedCharge ? 'Antal (st)' : 'Timmar'}<input type="number" min="0" step="0.01" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} /></label>
+    <label>{fixedCharge ? 'Pris/st' : 'Pris/h'}<input type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} /></label>
+    <small>{statusLabel(item.status)} · {Number(draft.hours || 0).toFixed(2).replace('.', ',')} {fixedCharge ? 'st' : 'h'} × {Number(draft.unitPrice) > 0 ? money(Number(draft.unitPrice)) + (fixedCharge ? '/st = ' : '/h = ') + money(Number(draft.unitPrice) * Number(draft.hours || 0)) : 'Pris saknas'}</small>
     <div className="commercial-line-actions"><button type="button" disabled={busy} onClick={() => onSave(draft)}>Spara</button><button type="button" className="reject-button" disabled={busy} onClick={onDelete}>Ta bort</button></div>
   </li>;
 }
