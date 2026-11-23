@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import PageHeader from './PageHeader.jsx';
 import { supabase } from './supabaseClient.js';
+import { loadRelationalOrders } from './ordersRepository.js';
+import { loadInvoiceStatuses, isOrderActive } from './invoiceStatuses.js';
 
-function summarizeOrders(orders) {
+function summarizeOrders(orders, invoices = {}) {
   const today = new Date().toLocaleDateString('sv-SE');
-  const closedStatuses = ['Terminada', 'Pagada', 'Cancelada'];
-  const openOrders = orders.filter(
-    (order) => !closedStatuses.includes(order.status)
-  ).length;
+  const openOrders = orders.filter((order) => isOrderActive(order, invoices)).length;
   const vehiclesToday = new Set(
     orders
       .filter((order) => String(order.createdAt || '').startsWith(today))
@@ -123,45 +122,25 @@ export default function Dashboard({ onNewOrder }) {
 
   useEffect(() => {
     let active = true;
-
-    function applyOrders(value) {
-      if (active && Array.isArray(value)) {
-        setSummary(summarizeOrders(value));
+    async function refresh() {
+      try {
+        const [orders, invoices] = await Promise.all([
+          loadRelationalOrders(),
+          loadInvoiceStatuses(),
+        ]);
+        if (active) setSummary(summarizeOrders(orders, invoices));
+      } catch (error) {
+        console.error('No se pudo cargar el resumen relacional:', error);
       }
     }
-
-    supabase
-      .from('app_state')
-      .select('value')
-      .eq('key', 'bildiagnos-orders')
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('No se pudo cargar el resumen:', error);
-          return;
-        }
-
-        applyOrders(data?.value || []);
-      });
-
+    refresh();
     const channel = supabase
-      .channel('bildiagnos-dashboard-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'app_state',
-          filter: 'key=eq.bildiagnos-orders',
-        },
-        (payload) => applyOrders(payload.new?.value || [])
-      )
+      .channel('bildiagnos-dashboard-relational')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fortnox_invoice_jobs' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_email_deliveries' }, refresh)
       .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
+    return () => { active = false; supabase.removeChannel(channel); };
   }, []);
 
   const stats = [
