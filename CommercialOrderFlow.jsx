@@ -306,7 +306,7 @@ export default function CommercialOrderFlow({ order, onSaved }) {
   // Fortnox sandbox prints the actual order lines, never the old 100 kr placeholder.
   const testServiceLines = (context?.services || []).filter((item) => !['rejected', 'removed'].includes(item.status) && serviceBillableQuantity(item) > 0).map((item) => ({ id: item.id, item_type: 'service', description: item.description, quantity: serviceBillableQuantity(item), unit_price: Number(item.unit_price || 0) }));
   const testPartLines = (context?.parts || []).filter((item) => !['rejected', 'removed'].includes(item.status) && Number(item.quantity || 0) > 0).map((item) => ({ id: item.id, item_type: 'part', description: item.description_snapshot, quantity: Number(item.quantity || 0), unit_price: Number(item.sale_price || 0) }));
-  const printedServiceLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'service') : invoicePreview.fortnox_test ? testServiceLines : serviceLines;
+  const printedServiceLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'service') : invoicePreview.fortnox_test ? testServiceLines : quoteLines.filter((item) => item.item_type === 'service');
   const printedPartLines = invoicePreview.fortnox_production ? invoicePreview.rows.filter(x => x.item_type === 'part') : invoicePreview.fortnox_test ? testPartLines : partLines;
   const printedLaborLines = printedServiceLines.filter(line => !isFixedChargeService(line.description));
   const printedFeeLines = printedServiceLines.filter(line => isFixedChargeService(line.description));
